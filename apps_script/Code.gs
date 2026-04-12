@@ -163,7 +163,8 @@ function runAiAnalysis_(params) {
         'Separa claramente informacion nueva 2026 (MOP, donacion, prestamo, UGP-PEC) de informacion historica Titicaca anterior a 2020.',
         'Cuando uses informacion mundial o reciente de tecnologias, usa busqueda web y deja citas visibles.',
         'No inventes datos, costos ni fechas. Si falta evidencia, declara el supuesto o la brecha.',
-        'Incluye matriz comparativa, riesgos, especialidades requeridas, decision recomendada y siguientes pasos.'
+        'No devuelvas solo listados de especialidades o variables: responde la pregunta con analisis tecnico por especialidad.',
+        'Incluye matriz comparativa, analisis por especialidad, decision recomendada y siguientes pasos accionables.'
       ].join('\n'),
       input: buildAiPrompt_(request)
     };
@@ -204,7 +205,7 @@ function runAiAnalysis_(params) {
 }
 
 function parseAiRequest_(raw) {
-  const request = raw ? JSON.parse(raw) : {};
+  const request = parseAiRequestPayload_(raw);
   const records = Array.isArray(request.records) && request.records.length
     ? request.records
     : selectAiRecords_(request);
@@ -229,6 +230,16 @@ function parseAiRequest_(raw) {
     tags: row.tags || ''
   }));
   return request;
+}
+
+function parseAiRequestPayload_(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
+  try {
+    return JSON.parse(String(raw));
+  } catch (error) {
+    throw new Error('Parametro request invalido: debe ser un JSON valido.');
+  }
 }
 
 function selectAiRecords_(request) {
@@ -334,12 +345,12 @@ function buildAiPrompt_(request) {
     JSON.stringify(request.records || [], null, 2),
     '',
     'Entrega requerida:',
-    '- Resumen ejecutivo.',
-    '- Matriz comparativa de tecnologias o alternativas si aplica.',
-    '- Riesgos y brechas de informacion.',
-    '- Roles/especialidades a convocar.',
-    '- Siguientes pasos con foco en donacion, prestamo y MOP 2026.',
-    '- Fuentes/citas cuando se use informacion mundial.'
+    '- Responde de forma directa la pregunta del usuario.',
+    '- Incluye matriz comparativa de tecnologias o alternativas si aplica (CAPEX, OPEX, energia, O&M, permisos, riesgo social, plazo).',
+    '- Analisis desarrollado por especialidad (no solo listado): sanitaria/PTAR, O&M, ambiental/salvaguardas, social/predial, legal/contrataciones y financiera.',
+    '- Ajusta el analisis al contexto Puno/Lima y separa claramente informacion 2026 vs historico.',
+    '- Cierra con recomendacion concreta, supuestos y siguientes pasos con responsables.',
+    '- Incluye fuentes/citas cuando se use informacion mundial.'
   ].join('\n');
 }
 

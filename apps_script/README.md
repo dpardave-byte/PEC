@@ -12,6 +12,7 @@ Este proyecto crea el entorno pesado para trabajar con Google Drive como reposit
 - Publica endpoints:
   - `?format=json`
   - `?format=csv`
+  - `?action=ai&format=json` para analisis IA protegido con token
 
 ## Instalacion manual
 
@@ -20,12 +21,23 @@ Este proyecto crea el entorno pesado para trabajar con Google Drive como reposit
 3. Copia `Code.gs`, `Index.html` y `appsscript.json` en el proyecto.
 4. Guarda.
 5. Ejecuta `setupEnvironment` una vez y autoriza permisos.
-6. Despliega como `Web app`:
+6. Si vas a usar la capa IA, ejecuta una vez en el editor:
+
+   ```javascript
+   setOpenAiConfig('TU_OPENAI_API_KEY', 'gpt-5-mini', 'TU_TOKEN_PRIVADO_PEC')
+   ```
+
+   - `TU_OPENAI_API_KEY` queda guardada en `Script Properties`, no en GitHub Pages.
+   - `TU_TOKEN_PRIVADO_PEC` es el token que luego pegaras en el panel con el boton `Configurar token IA`.
+   - Si quieres cambiar de modelo despues, vuelve a ejecutar `setOpenAiConfig('', 'NUEVO_MODELO', '')`.
+
+7. Despliega como `Web app`:
    - Execute as: `Me`
    - Who has access: `Anyone with the link` o el nivel que prefieras.
-7. Abre la URL del Web App.
-8. Usa los botones para crear estructura y escanear Drive.
-9. Copia la URL con `?format=json` o `?format=csv` y pegala en el panel GitHub Pages.
+8. Abre la URL del Web App.
+9. Usa los botones para crear estructura y escanear Drive.
+10. Copia la URL con `?format=json` o `?format=csv` y pegala en el panel GitHub Pages.
+11. En la pestana `Inteligencia PEC`, usa `Configurar token IA` y pega el token privado PEC.
 
 ## Flujo de trabajo recomendado
 
@@ -34,6 +46,7 @@ Este proyecto crea el entorno pesado para trabajar con Google Drive como reposit
 3. Revisa y completa metadatos en `PEC_indice_maestro`.
 4. Abre el panel `https://dpardave-byte.github.io/PEC/`.
 5. Pega el endpoint JSON/CSV de Apps Script en el campo de fuente.
+6. Para analisis con IA, primero confirma que el despliegue de Apps Script sea una version nueva y que `OPENAI_API_KEY` y `PEC_AI_TOKEN` esten configurados.
 
 ## Nota
 

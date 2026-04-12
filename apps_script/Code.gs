@@ -3,6 +3,8 @@ const CONFIG = {
   sheetName: 'PEC_indice_maestro',
   indexTabName: 'indice',
   maxFilesPerScan: 1500,
+  aiDefaultModel: 'gpt-5-mini',
+  aiMaxRecords: 16,
   headers: [
     'id', 'edt', 'actividad', 'macro_actividad', 'territorio', 'categoria',
     'responsable', 'inicio', 'final', 'duracion', 'estado', 'alerta',
@@ -40,26 +42,217 @@ const CONFIG = {
 
 function doGet(e) {
   const params = e && e.parameter ? e.parameter : {};
-  const payload = { updatedAt: new Date().toISOString(), records: getRecords_() };
-  if (params.callback) {
-    return ContentService
-      .createTextOutput(params.callback + '(' + JSON.stringify(payload) + ');')
-      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  if (params.action === 'ai') {
+    return outputPayload_(runAiAnalysis_(params), params);
   }
+  if (params.action === 'ai_status') {
+    return outputPayload_(getAiConfigStatus(), params);
+  }
+  const payload = { updatedAt: new Date().toISOString(), records: getRecords_() };
   if (params.format === 'csv') {
     return ContentService
       .createTextOutput(recordsToCsv(getRecords_()))
       .setMimeType(ContentService.MimeType.CSV);
   }
-  if (params.format === 'json') {
-    return ContentService
-      .createTextOutput(JSON.stringify(payload))
-      .setMimeType(ContentService.MimeType.JSON);
+  if (params.format === 'json' || params.callback) {
+    return outputPayload_(payload, params);
   }
   return HtmlService
     .createHtmlOutputFromFile('Index')
     .setTitle('PEC Drive Loader')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function outputPayload_(payload, params) {
+  if (params && params.callback) {
+    return ContentService
+      .createTextOutput(params.callback + '(' + JSON.stringify(payload) + ');')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService
+    .createTextOutput(JSON.stringify(payload))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function setOpenAiConfig(apiKey, model, token) {
+  const props = PropertiesService.getScriptProperties();
+  if (apiKey) props.setProperty('OPENAI_API_KEY', apiKey);
+  if (model) props.setProperty('OPENAI_MODEL', model);
+  if (token) props.setProperty('PEC_AI_TOKEN', token);
+  return getAiConfigStatus();
+}
+
+function getAiConfigStatus() {
+  const props = PropertiesService.getScriptProperties();
+  return {
+    ok: true,
+    hasOpenAiKey: Boolean(props.getProperty('OPENAI_API_KEY')),
+    hasAccessToken: Boolean(props.getProperty('PEC_AI_TOKEN')),
+    model: props.getProperty('OPENAI_MODEL') || CONFIG.aiDefaultModel
+  };
+}
+
+function runAiAnalysis_(params) {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const apiKey = props.getProperty('OPENAI_API_KEY');
+    const expectedToken = props.getProperty('PEC_AI_TOKEN');
+    if (!apiKey) {
+      return {
+        ok: false,
+        code: 'OPENAI_KEY_MISSING',
+        message: 'Falta configurar OPENAI_API_KEY en Script Properties. Ejecuta setOpenAiConfig(apiKey, model, token).'
+      };
+    }
+    if (!expectedToken) {
+      return {
+        ok: false,
+        code: 'PEC_AI_TOKEN_MISSING',
+        message: 'Falta configurar PEC_AI_TOKEN en Script Properties para proteger el endpoint publico.'
+      };
+    }
+    if (params.token !== expectedToken) {
+      return {
+        ok: false,
+        code: 'PEC_AI_TOKEN_INVALID',
+        message: 'Token IA invalido o ausente. Configura el token en el panel.'
+      };
+    }
+
+    const request = parseAiRequest_(params.request);
+    const model = props.getProperty('OPENAI_MODEL') || CONFIG.aiDefaultModel;
+    const body = {
+      model,
+      store: false,
+      reasoning: { effort: 'low' },
+      max_output_tokens: 2500,
+      tools: [{ type: 'web_search' }],
+      include: ['web_search_call.action.sources'],
+      instructions: [
+        'Eres el analista senior del Programa de Economia Circular PEC para Puno y Lima.',
+        'Responde en espanol, con tono tecnico-gerencial y recomendaciones accionables.',
+        'Separa claramente informacion nueva 2026 (MOP, donacion, prestamo, UGP-PEC) de informacion historica Titicaca anterior a 2020.',
+        'Cuando uses informacion mundial o reciente de tecnologias, usa busqueda web y deja citas visibles.',
+        'No inventes datos, costos ni fechas. Si falta evidencia, declara el supuesto o la brecha.',
+        'Incluye matriz comparativa, riesgos, especialidades requeridas, decision recomendada y siguientes pasos.'
+      ].join('\n'),
+      input: buildAiPrompt_(request)
+    };
+
+    const response = UrlFetchApp.fetch('https://api.openai.com/v1/responses', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { Authorization: 'Bearer ' + apiKey },
+      payload: JSON.stringify(body),
+      muteHttpExceptions: true
+    });
+    const status = response.getResponseCode();
+    const raw = response.getContentText();
+    const parsed = JSON.parse(raw);
+    if (status < 200 || status >= 300) {
+      return {
+        ok: false,
+        code: 'OPENAI_HTTP_' + status,
+        message: parsed.error && parsed.error.message ? parsed.error.message : raw.slice(0, 500)
+      };
+    }
+
+    return {
+      ok: true,
+      model,
+      output: extractOpenAiText_(parsed),
+      sources: extractOpenAiSources_(parsed),
+      responseId: parsed.id || '',
+      generatedAt: new Date().toISOString()
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      code: 'AI_ANALYSIS_ERROR',
+      message: error && error.message ? error.message : String(error)
+    };
+  }
+}
+
+function parseAiRequest_(raw) {
+  const request = raw ? JSON.parse(raw) : {};
+  const records = Array.isArray(request.records) ? request.records : [];
+  request.records = records.slice(0, CONFIG.aiMaxRecords).map(row => ({
+    id: row.id || '',
+    edt: row.edt || '',
+    actividad: row.actividad || '',
+    macro_actividad: row.macro_actividad || '',
+    territorio: row.territorio || '',
+    categoria: row.categoria || '',
+    responsable: row.responsable || '',
+    inicio: row.inicio || '',
+    final: row.final || '',
+    estado: row.estado || '',
+    alerta: row.alerta || '',
+    tipo_documento: row.tipo_documento || '',
+    tecnologia: row.tecnologia || '',
+    proveedor: row.proveedor || '',
+    criterio_comparacion: row.criterio_comparacion || '',
+    puntaje: row.puntaje || '',
+    resumen: String(row.resumen || '').slice(0, 600),
+    tags: row.tags || ''
+  }));
+  return request;
+}
+
+function buildAiPrompt_(request) {
+  return [
+    'Objetivo del usuario:',
+    request.question || 'Analizar los siguientes pasos del Programa de Economia Circular.',
+    '',
+    'Tipo de producto solicitado:',
+    request.type || 'gerencial',
+    '',
+    'Variables que deben razonarse:',
+    JSON.stringify(request.variables || [], null, 2),
+    '',
+    'Especialidades requeridas:',
+    JSON.stringify(request.specialties || [], null, 2),
+    '',
+    'Registros filtrados del tablero PEC:',
+    JSON.stringify(request.records || [], null, 2),
+    '',
+    'Entrega requerida:',
+    '- Resumen ejecutivo.',
+    '- Matriz comparativa de tecnologias o alternativas si aplica.',
+    '- Riesgos y brechas de informacion.',
+    '- Roles/especialidades a convocar.',
+    '- Siguientes pasos con foco en donacion, prestamo y MOP 2026.',
+    '- Fuentes/citas cuando se use informacion mundial.'
+  ].join('\n');
+}
+
+function extractOpenAiText_(response) {
+  if (response.output_text) return response.output_text;
+  const output = response.output || [];
+  const chunks = [];
+  output.forEach(item => {
+    (item.content || []).forEach(content => {
+      if (content.type === 'output_text' && content.text) chunks.push(content.text);
+    });
+  });
+  return chunks.join('\n\n') || 'La respuesta no incluyo texto visible.';
+}
+
+function extractOpenAiSources_(response) {
+  const sources = [];
+  const seen = {};
+  (response.output || []).forEach(item => {
+    (item.content || []).forEach(content => {
+      (content.annotations || []).forEach(annotation => {
+        const citation = annotation.url_citation || annotation;
+        if (!citation.url || seen[citation.url]) return;
+        seen[citation.url] = true;
+        sources.push({ title: citation.title || citation.url, url: citation.url });
+      });
+    });
+  });
+  return sources;
 }
 
 function setupEnvironment() {

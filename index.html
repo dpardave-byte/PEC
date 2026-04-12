@@ -113,5 +113,129 @@ function loadJsonp(url){return new Promise((resolve,reject)=>{const callback='pe
 async function loadUrl(url){try{const response=await fetch(url);if(!response.ok)throw new Error(`HTTP ${response.status}`);useData(parseData(await response.text()),'URL')}catch(error){useData(await loadJsonp(url),'URL JSONP')}localStorage.setItem(STORAGE_URL,url)}
 $('load').addEventListener('click',()=>{const url=$('url').value.trim();if(!url){$('status').textContent='Pega una URL publica CSV/JSON.';return}$('status').textContent='Actualizando desde URL...';loadUrl(url).catch(err=>$('status').textContent='Error al cargar URL: '+err.message)});$('reset').addEventListener('click',()=>{localStorage.removeItem(STORAGE_URL);$('url').value='';useData(DEFAULT_DATA,'datos internos')});$('file').addEventListener('change',event=>{const file=event.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{useData(parseData(reader.result),file.name)}catch(err){$('status').textContent='Error al cargar archivo: '+err.message}};reader.readAsText(file,'utf-8')});$('evidenceFile').addEventListener('change',event=>{addEvidenceFiles(event.target.files);event.target.value=''});$('clearLocalEvidence').addEventListener('click',clearLocalEvidence);$('generateBrief').addEventListener('click',generateBrief);$('exportBrief').addEventListener('click',exportBrief);['q',...fields].forEach(id=>$(id).addEventListener('input',render));document.querySelectorAll('.tab[data-view]').forEach(button=>button.addEventListener('click',()=>showView(button.dataset.view)));$('drawerClose').addEventListener('click',()=>$('drawer').classList.remove('open'));$('drawer').addEventListener('click',event=>{if(event.target.id==='drawer')$('drawer').classList.remove('open')});const savedUrl=localStorage.getItem(STORAGE_URL);const initialUrl=savedUrl||DEFAULT_REMOTE_URL;$('url').value=initialUrl;$('status').textContent='Cargando fuente remota...';loadUrl(initialUrl).catch(()=>{if(!savedUrl)$('url').value='';$('status').textContent='No se pudo cargar la fuente remota; usando datos internos.';useData(DEFAULT_DATA,'datos internos')});
 </script>
+<script>
+(function(){
+const AI_TOKEN_KEY='pecAiToken';
+const generateLocalBrief=window.generateBrief;
+function compactRowsForAi(rows){
+  return rows.slice(0,16).map(r=>({
+    id:r.id,edt:r.edt,actividad:r.actividad,macro_actividad:r.macro_actividad,territorio:r.territorio,
+    categoria:r.categoria,responsable:r.responsable,inicio:r.inicio,final:r.final,estado:r.estado,
+    alerta:alertFor(r),tipo_documento:r.tipo_documento,tecnologia:r.tecnologia,proveedor:r.proveedor,
+    criterio_comparacion:r.criterio_comparacion,puntaje:r.puntaje,resumen:(r.resumen||'').slice(0,520),tags:r.tags
+  }))
+}
+function askAiToken(){
+  let token=localStorage.getItem(AI_TOKEN_KEY)||'';
+  if(!token){
+    token=prompt('Pega el token IA PEC configurado en Apps Script. Se guardara solo en este navegador.')||'';
+    if(token) localStorage.setItem(AI_TOKEN_KEY,token);
+  }
+  return token;
+}
+function aiUrl(payload,token){
+  const url=new URL(DEFAULT_REMOTE_URL);
+  url.searchParams.set('format','json');
+  url.searchParams.set('action','ai');
+  url.searchParams.set('token',token);
+  url.searchParams.set('request',JSON.stringify(payload));
+  return url;
+}
+function requestAi(payload,token){
+  return new Promise((resolve,reject)=>{
+    const callback='pecAi_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+    const script=document.createElement('script');
+    let timer;
+    const cleanup=()=>{clearTimeout(timer);delete window[callback];script.remove()};
+    timer=setTimeout(()=>{cleanup();reject(new Error('Tiempo de espera del analisis IA'))},45000);
+    window[callback]=data=>{cleanup();resolve(data)};
+    script.onerror=()=>{cleanup();reject(new Error('No se pudo cargar el endpoint IA'))};
+    const url=aiUrl(payload,token);
+    url.searchParams.set('callback',callback);
+    script.src=url.toString();
+    document.head.appendChild(script);
+  })
+}
+function aiPayload(){
+  const rows=filteredRows();
+  return {
+    type:$('briefType').value,
+    question:$('intelQuestion').value.trim()||'Analizar siguientes pasos del Programa de Economia Circular.',
+    variables:INTEL_VARIABLES,
+    specialties:SPECIALTIES,
+    records:compactRowsForAi(rows),
+    counts:{
+      current:rows.filter(r=>!isHistorical(r)).length,
+      historical:rows.filter(isHistorical).length,
+      linked:rows.filter(r=>r.url_drive).length,
+      technologies:[...new Set(rows.map(r=>r.tecnologia).filter(Boolean))]
+    }
+  }
+}
+function renderAiResult(data){
+  const sources=(data.sources||[]).map((s,i)=>`${i+1}. ${s.title||s.url}\n   ${s.url}`).join('\n');
+  $('briefOutput').textContent=(data.output||'Sin texto devuelto por IA.')+(sources?`\n\nFuentes consultadas:\n${sources}`:'');
+}
+async function generateBriefWithAi(event){
+  if(event){event.preventDefault();event.stopImmediatePropagation()}
+  const token=askAiToken();
+  if(!token){
+    generateLocalBrief();
+    $('briefOutput').textContent+='\n\n[IA no ejecutada] Falta token local. Usa Configurar token IA cuando este creado en Apps Script.';
+    return;
+  }
+  $('briefOutput').textContent='Generando analisis con IA segura desde Apps Script...';
+  try{
+    const data=await requestAi(aiPayload(),token);
+    if(!data.ok) throw new Error(data.message||data.code||'El endpoint IA no devolvio una respuesta valida.');
+    renderAiResult(data);
+  }catch(error){
+    generateLocalBrief();
+    $('briefOutput').textContent+=`\n\n[Fallback local] No se pudo ejecutar IA: ${error.message}`;
+  }
+}
+function configureAiToken(event){
+  if(event){event.preventDefault();event.stopImmediatePropagation()}
+  const current=localStorage.getItem(AI_TOKEN_KEY)||'';
+  const token=prompt('Token IA PEC configurado en Apps Script:',current)||'';
+  if(token){
+    localStorage.setItem(AI_TOKEN_KEY,token);
+    $('briefOutput').textContent='Token IA guardado localmente en este navegador. Ahora puedes generar analisis con IA.';
+  }
+}
+function renderFunctionalityCheck(event){
+  if(event){event.preventDefault();event.stopImmediatePropagation()}
+  const rows=filteredRows();
+  const current=rows.filter(r=>!isHistorical(r));
+  const historical=rows.filter(isHistorical);
+  const missingOwner=current.filter(r=>!r.responsable).length;
+  const missingDates=current.filter(r=>!r.inicio||!r.final).length;
+  const noSummary=rows.filter(r=>!r.resumen).length;
+  const noDrive=rows.filter(r=>!r.url_drive).length;
+  const tech=[...new Set(rows.map(r=>r.tecnologia).filter(Boolean))];
+  $('briefOutput').textContent=`DIAGNOSTICO DE FUNCIONALIDADES PEC\n\nYa cubierto en esta version:\n- Capa IA segura prevista con Apps Script + Script Properties + token local.\n- Separacion de Programa 2026 vs historico Titicaca referencial.\n- Pestañas de detalle, KPIs, lineas de tiempo, roles, tecnologias y documentos.\n- Borradores exportables y prompts por producto.\n\nLectura de datos actuales:\n- Registros Programa 2026 en vista: ${current.length}\n- Registros historicos Titicaca en vista: ${historical.length}\n- Tecnologias detectadas: ${tech.join(', ')||'pendiente'}\n- Registros sin responsable: ${missingOwner}\n- Registros sin fechas completas: ${missingDates}\n- Registros sin resumen: ${noSummary}\n- Registros sin enlace Drive: ${noDrive}\n\nFuncionalidades recomendadas para la siguiente fase:\n- Extraccion persistente de texto y resumen por documento Drive, guardando resumen, riesgos y citas en Sheets.\n- Base mundial de tecnologias por variable: CAPEX, OPEX, energia, O&M, calidad de efluente, lodos, carbono, permisos y madurez.\n- Matriz de decision ponderada para comparar MBR, SBR, lagunas y otras alternativas con evidencia trazable.\n- Vista tipo NotebookLM por expediente: pregunta-respuesta, resumen por fuente, citas, decisiones y brechas.\n- Generador de documentos DOCX/PDF: informe gerencial, informe tecnico, TdR, matriz de contratacion y ayuda memoria.\n- Flujo por especialidades: sanitaria/PTAR, ambiental, social, legal, adquisiciones BM, financiera, O&M, energia y datos.\n- Registro de decisiones: responsable, fecha, evidencia usada, supuesto y siguiente accion hasta 28 de julio y cierre de fase.\n- Carga real a Drive desde el panel para documentos e imagenes, no solo carga temporal del navegador.`;
+}
+function installAiButtons(){
+  const actions=document.querySelector('.doc-actions');
+  if(!actions||$('configureAiToken')) return;
+  $('generateBrief').textContent='Generar con IA';
+  const tokenButton=document.createElement('button');
+  tokenButton.id='configureAiToken';
+  tokenButton.type='button';
+  tokenButton.textContent='Configurar token IA';
+  const checkButton=document.createElement('button');
+  checkButton.id='functionalityCheck';
+  checkButton.type='button';
+  checkButton.textContent='Verificar funcionalidades';
+  actions.appendChild(tokenButton);
+  actions.appendChild(checkButton);
+  $('generateBrief').addEventListener('click',generateBriefWithAi,true);
+  tokenButton.addEventListener('click',configureAiToken);
+  checkButton.addEventListener('click',renderFunctionalityCheck);
+}
+window.generateBrief=generateBriefWithAi;
+installAiButtons();
+})();
+</script>
 </body>
 </html>

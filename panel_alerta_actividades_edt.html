@@ -161,9 +161,16 @@ function aiPayload(){
   return {
     type:$('briefType').value,
     question:$('intelQuestion').value.trim()||'Analizar siguientes pasos del Programa de Economia Circular.',
-    variables:INTEL_VARIABLES,
-    specialties:SPECIALTIES,
-    records:compactRowsForAi(rows),
+    filters:{
+      q:$('q').value,
+      macro:$('macro').value,
+      territorio:$('territorio').value,
+      categoria:$('categoria').value,
+      tecnologia:$('tecnologia').value,
+      proveedor:$('proveedor').value,
+      tipo:$('tipo').value,
+      estado:$('estado').value
+    },
     counts:{
       current:rows.filter(r=>!isHistorical(r)).length,
       historical:rows.filter(isHistorical).length,
@@ -191,7 +198,7 @@ async function generateBriefWithAi(event){
     renderAiResult(data);
   }catch(error){
     generateLocalBrief();
-    $('briefOutput').textContent+=`\n\n[Fallback local] No se pudo ejecutar IA: ${error.message}`;
+    $('briefOutput').textContent+=`\n\n[Fallback local] No se pudo ejecutar IA: ${error.message}\n\nRevisa: 1) que el token se haya pegado en Configurar token IA, no en el cuadro de pregunta; 2) que Apps Script este implementado como nueva version; 3) que el acceso del Web App permita cargar desde GitHub Pages.`;
   }
 }
 function configureAiToken(event){

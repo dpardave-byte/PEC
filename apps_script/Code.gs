@@ -5,6 +5,35 @@ const CONFIG = {
   maxFilesPerScan: 1500,
   aiDefaultModel: 'gpt-5-mini',
   aiMaxRecords: 16,
+  aiVariables: [
+    'CAPEX y OPEX',
+    'Consumo energetico',
+    'Complejidad de O&M',
+    'Disponibilidad de repuestos',
+    'Calidad del efluente',
+    'Reuso y economia circular',
+    'Gestion de lodos',
+    'Huella de carbono',
+    'Riesgo social y predial',
+    'Permisos y salvaguardas',
+    'Madurez tecnologica',
+    'Escalabilidad Puno/Lima',
+    'Plazo de implementacion',
+    'Riesgo contractual'
+  ],
+  aiSpecialties: [
+    'Ingenieria sanitaria y PTAR',
+    'Economia circular y reuso',
+    'Estructuras y geotecnia',
+    'Electromecanica y energia',
+    'Ambiental y salvaguardas',
+    'Social y predial',
+    'Legal y contrataciones',
+    'Finanzas publicas y MEF',
+    'Adquisiciones Banco Mundial',
+    'Operacion y mantenimiento',
+    'Gestion documental y datos'
+  ],
   headers: [
     'id', 'edt', 'actividad', 'macro_actividad', 'territorio', 'categoria',
     'responsable', 'inicio', 'final', 'duracion', 'estado', 'alerta',
@@ -176,7 +205,9 @@ function runAiAnalysis_(params) {
 
 function parseAiRequest_(raw) {
   const request = raw ? JSON.parse(raw) : {};
-  const records = Array.isArray(request.records) ? request.records : [];
+  const records = Array.isArray(request.records) && request.records.length
+    ? request.records
+    : selectAiRecords_(request);
   request.records = records.slice(0, CONFIG.aiMaxRecords).map(row => ({
     id: row.id || '',
     edt: row.edt || '',
@@ -200,7 +231,92 @@ function parseAiRequest_(raw) {
   return request;
 }
 
+function selectAiRecords_(request) {
+  const filters = request.filters || {};
+  const allRecords = dedupeAiRecords_(defaultAiProgramRows_().concat(getRecords_()));
+  const q = String(filters.q || '').toLowerCase();
+  const fieldMap = {
+    macro: 'macro_actividad',
+    tipo: 'tipo_documento'
+  };
+
+  return allRecords
+    .filter(row => {
+      if (q && Object.keys(row).map(key => String(row[key] || '')).join(' ').toLowerCase().indexOf(q) < 0) return false;
+      return ['macro', 'territorio', 'categoria', 'tecnologia', 'proveedor', 'tipo', 'estado'].every(filterKey => {
+        const expected = String(filters[filterKey] || '');
+        if (!expected) return true;
+        const rowKey = fieldMap[filterKey] || filterKey;
+        return String(row[rowKey] || '') === expected;
+      });
+    })
+    .sort((a, b) => {
+      const aHist = isAiHistorical_(a) ? 1 : 0;
+      const bHist = isAiHistorical_(b) ? 1 : 0;
+      return aHist - bHist;
+    });
+}
+
+function dedupeAiRecords_(rows) {
+  const seen = {};
+  return rows.filter(row => {
+    const key = String(row.id || row.actividad || '') + '|' + String(row.url_drive || '');
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
+}
+
+function isAiHistorical_(row) {
+  return /historico|hist[oó]rico/i.test(String(row.tags || '') + ' ' + String(row.resumen || '')) || /^APP\d+/i.test(String(row.id || ''));
+}
+
+function defaultAiProgramRows_() {
+  return [
+    {
+      id: 'MOP2026',
+      edt: 'MOP',
+      actividad: 'Manual de Operaciones del Programa de Economia Circular (MOP 2026)',
+      macro_actividad: 'Programa Economia Circular 2026',
+      territorio: 'Puno y Lima',
+      categoria: 'Gobernanza',
+      responsable: 'DGPPCS',
+      inicio: '2026-04-09',
+      final: '2026-04-12',
+      estado: 'En Proceso',
+      tipo_documento: 'Word / Doc',
+      tecnologia: '',
+      proveedor: '',
+      criterio_comparacion: 'documento rector 2026',
+      puntaje: '',
+      resumen: 'MOP 2026 como documento rector nuevo del Programa de Economia Circular; no pertenece al historico Titicaca.',
+      tags: 'nuevo_2026;mop;programa;prestamo;gobernanza'
+    },
+    {
+      id: 'D0',
+      edt: '0',
+      actividad: 'Donacion / fase preparatoria previa al prestamo',
+      macro_actividad: 'Donacion preparatoria',
+      territorio: 'Puno y Lima',
+      categoria: 'Gobernanza',
+      responsable: 'DGPPCS/BM/PNSU/PASLC',
+      inicio: '2026-03-07',
+      final: '2026-06-17',
+      estado: 'En Proceso',
+      tipo_documento: 'Carpeta Drive',
+      tecnologia: '',
+      proveedor: '',
+      criterio_comparacion: '',
+      puntaje: '',
+      resumen: 'Condicion habilitante para iniciar el prestamo y el programa.',
+      tags: 'donacion;preparacion;BM'
+    }
+  ];
+}
+
 function buildAiPrompt_(request) {
+  const variables = request.variables || CONFIG.aiVariables;
+  const specialties = request.specialties || CONFIG.aiSpecialties;
   return [
     'Objetivo del usuario:',
     request.question || 'Analizar los siguientes pasos del Programa de Economia Circular.',
@@ -209,10 +325,10 @@ function buildAiPrompt_(request) {
     request.type || 'gerencial',
     '',
     'Variables que deben razonarse:',
-    JSON.stringify(request.variables || [], null, 2),
+    JSON.stringify(variables, null, 2),
     '',
     'Especialidades requeridas:',
-    JSON.stringify(request.specialties || [], null, 2),
+    JSON.stringify(specialties, null, 2),
     '',
     'Registros filtrados del tablero PEC:',
     JSON.stringify(request.records || [], null, 2),

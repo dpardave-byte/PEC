@@ -40,6 +40,12 @@ const CONFIG = {
 
 function doGet(e) {
   const params = e && e.parameter ? e.parameter : {};
+  const payload = { updatedAt: new Date().toISOString(), records: getRecords_() };
+  if (params.callback) {
+    return ContentService
+      .createTextOutput(params.callback + '(' + JSON.stringify(payload) + ');')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
   if (params.format === 'csv') {
     return ContentService
       .createTextOutput(recordsToCsv(getRecords_()))
@@ -47,7 +53,7 @@ function doGet(e) {
   }
   if (params.format === 'json') {
     return ContentService
-      .createTextOutput(JSON.stringify({ updatedAt: new Date().toISOString(), records: getRecords_() }))
+      .createTextOutput(JSON.stringify(payload))
       .setMimeType(ContentService.MimeType.JSON);
   }
   return HtmlService
@@ -74,6 +80,168 @@ function scanDriveToIndex() {
     sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, CONFIG.headers.length).setValues(rows);
   }
   return Object.assign(getEnvironmentStatus(), { importedFiles: rows.length });
+}
+
+function syncDriveUrlsToIndex() {
+  const root = getOrCreateRoot_();
+  const sheet = getOrCreateIndexSheet_();
+  const range = sheet.getDataRange();
+  const values = range.getValues();
+  if (values.length < 2) {
+    return Object.assign(getEnvironmentStatus(), { updatedRows: 0, scannedFiles: 0, unmatchedFiles: 0 });
+  }
+
+  const headers = values[0].map(String);
+  const idCol = headers.indexOf('id');
+  const activityCol = headers.indexOf('actividad');
+  const typeCol = headers.indexOf('tipo_documento');
+  const urlCol = headers.indexOf('url_drive');
+  const resumenCol = headers.indexOf('resumen');
+  const tagsCol = headers.indexOf('tags');
+  if (activityCol < 0 || urlCol < 0 || resumenCol < 0) {
+    throw new Error('No se encontraron las columnas actividad, url_drive y resumen en la hoja indice.');
+  }
+
+  const rows = [];
+  for (let index = 1; index < values.length; index++) {
+    const row = values[index];
+    const summaryPath = extractHistoricalPath_(row[resumenCol]);
+    const activityKey = normalizeFileKey_(row[activityCol]);
+    rows.push({
+      sheetRow: index + 1,
+      activityKey,
+      pathKey: normalizeFileKey_(summaryPath),
+      currentUrl: row[urlCol],
+      values: row
+    });
+  }
+
+  const driveFiles = [];
+  collectDriveFiles_(root, '', driveFiles);
+  const usedRows = new Set();
+  let updatedRows = 0;
+
+  driveFiles.forEach(entry => {
+    const pathKey = normalizeFileKey_(entry.relativePath + '/' + entry.file.getName());
+    const nameKey = normalizeFileKey_(entry.file.getName());
+    let match = rows.find(candidate =>
+      !usedRows.has(candidate.sheetRow) &&
+      !candidate.currentUrl &&
+      candidate.pathKey &&
+      (pathKey.endsWith(candidate.pathKey) || candidate.pathKey.endsWith(pathKey))
+    );
+
+    if (!match) {
+      const nameMatches = rows.filter(candidate =>
+        !usedRows.has(candidate.sheetRow) &&
+        !candidate.currentUrl &&
+        candidate.activityKey === nameKey
+      );
+      if (nameMatches.length === 1) match = nameMatches[0];
+    }
+
+    if (!match) return;
+
+    usedRows.add(match.sheetRow);
+    sheet.getRange(match.sheetRow, urlCol + 1).setValue(entry.file.getUrl());
+    if (idCol >= 0 && !match.values[idCol]) sheet.getRange(match.sheetRow, idCol + 1).setValue('FILE_' + entry.file.getId());
+    if (typeCol >= 0 && !match.values[typeCol]) sheet.getRange(match.sheetRow, typeCol + 1).setValue(mimeTypeToType_(entry.file.getMimeType(), entry.file.getName()));
+    if (tagsCol >= 0) {
+      const currentTags = String(match.values[tagsCol] || '');
+      if (!currentTags.includes('drive')) sheet.getRange(match.sheetRow, tagsCol + 1).setValue([currentTags, 'drive'].filter(Boolean).join(';'));
+    }
+    updatedRows++;
+  });
+
+  return Object.assign(getEnvironmentStatus(), {
+    updatedRows,
+    scannedFiles: driveFiles.length,
+    unmatchedFiles: Math.max(driveFiles.length - updatedRows, 0)
+  });
+}
+
+function organizeTiticacaFilesIntoDriveFolder() {
+  const target = getOrCreatePath_(getOrCreateRoot_(), '02_Puno/APP Titicaca');
+  const sheet = getOrCreateIndexSheet_();
+  const values = sheet.getDataRange().getValues();
+  if (values.length < 2) {
+    return { targetFolderUrl: target.getUrl(), organizedFiles: 0, skippedRows: 0 };
+  }
+
+  const headers = values[0].map(String);
+  const idCol = headers.indexOf('id');
+  const urlCol = headers.indexOf('url_drive');
+  const tagsCol = headers.indexOf('tags');
+  if (urlCol < 0) throw new Error('No se encontro la columna url_drive.');
+
+  let organizedFiles = 0;
+  let skippedRows = 0;
+
+  values.slice(1).forEach(row => {
+    const id = idCol >= 0 ? String(row[idCol] || '') : '';
+    const tags = tagsCol >= 0 ? String(row[tagsCol] || '') : '';
+    const url = String(row[urlCol] || '');
+    const isTiticacaRow = id.indexOf('APP') === 0 || tags.indexOf('historico') >= 0 || tags.indexOf('puno') >= 0;
+    const fileId = extractDriveFileId_(url);
+    if (!isTiticacaRow || !fileId) {
+      skippedRows++;
+      return;
+    }
+
+    try {
+      const file = DriveApp.getFileById(fileId);
+      target.addFile(file);
+      organizedFiles++;
+    } catch (error) {
+      skippedRows++;
+    }
+  });
+
+  return {
+    targetFolderName: 'PEC - Programa Economia Circular/02_Puno/APP Titicaca',
+    targetFolderUrl: target.getUrl(),
+    organizedFiles,
+    skippedRows
+  };
+}
+
+function backupAndRemoveAutoScanRows() {
+  const sheet = getOrCreateIndexSheet_();
+  const spreadsheet = sheet.getParent();
+  const values = sheet.getDataRange().getValues();
+  if (values.length < 2) {
+    return Object.assign(getEnvironmentStatus(), { removedRows: 0, backupSheetName: '' });
+  }
+
+  const headers = values[0].map(String);
+  const idCol = headers.indexOf('id');
+  if (idCol < 0) throw new Error('No se encontro la columna id.');
+
+  const rowsToBackup = [];
+  const rowsToDelete = [];
+  for (let index = 1; index < values.length; index++) {
+    const id = String(values[index][idCol] || '');
+    if (id.indexOf('FILE_') === 0) {
+      rowsToBackup.push(values[index]);
+      rowsToDelete.push(index + 1);
+    }
+  }
+
+  if (!rowsToDelete.length) {
+    return Object.assign(getEnvironmentStatus(), { removedRows: 0, backupSheetName: '' });
+  }
+
+  const backupSheetName = 'backup_FILE_rows_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd_HHmmss');
+  const backupSheet = spreadsheet.insertSheet(backupSheetName);
+  backupSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  backupSheet.getRange(2, 1, rowsToBackup.length, headers.length).setValues(rowsToBackup);
+
+  rowsToDelete.reverse().forEach(rowNumber => sheet.deleteRow(rowNumber));
+
+  return Object.assign(getEnvironmentStatus(), {
+    removedRows: rowsToDelete.length,
+    backupSheetName
+  });
 }
 
 function getEnvironmentStatus() {
@@ -165,6 +333,23 @@ function scanFolder_(folder, relativePath, rows, existing) {
   }
 }
 
+function collectDriveFiles_(folder, relativePath, rows) {
+  if (rows.length >= CONFIG.maxFilesPerScan) return;
+  const files = folder.getFiles();
+  while (files.hasNext() && rows.length < CONFIG.maxFilesPerScan) {
+    const file = files.next();
+    if (file.getMimeType() !== MimeType.GOOGLE_SHEETS || file.getName() !== CONFIG.sheetName) {
+      rows.push({ file, relativePath });
+    }
+  }
+  const folders = folder.getFolders();
+  while (folders.hasNext() && rows.length < CONFIG.maxFilesPerScan) {
+    const child = folders.next();
+    const path = relativePath ? relativePath + '/' + child.getName() : child.getName();
+    collectDriveFiles_(child, path, rows);
+  }
+}
+
 function fileToRow_(file, relativePath) {
   const inferred = inferMetadata_(relativePath, file.getName(), file.getMimeType());
   return [
@@ -217,6 +402,39 @@ function inferMetadata_(path, name, mimeType) {
     criterio: tecnologia ? 'evidencia documental' : '',
     tags: [macro, territorio, categoria, tecnologia, tipo].filter(Boolean).join(';')
   };
+}
+
+function extractHistoricalPath_(summary) {
+  const text = String(summary || '');
+  const match = text.match(/Archivo historico:\s*(.*?)\s*\|\s*Tamano/i);
+  return match ? match[1] : '';
+}
+
+function normalizeFileKey_(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\\/g, '/')
+    .replace(/\.[a-z0-9]+$/i, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9/]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\/+/g, '/')
+    .trim();
+}
+
+function extractDriveFileId_(url) {
+  const text = String(url || '');
+  const patterns = [
+    /\/d\/([a-zA-Z0-9_-]+)/,
+    /id=([a-zA-Z0-9_-]+)/,
+    /\/file\/d\/([a-zA-Z0-9_-]+)/
+  ];
+  for (let index = 0; index < patterns.length; index++) {
+    const match = text.match(patterns[index]);
+    if (match) return match[1];
+  }
+  return '';
 }
 
 function mimeTypeToType_(mimeType, name) {

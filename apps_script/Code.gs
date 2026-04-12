@@ -204,7 +204,7 @@ function runAiAnalysis_(params) {
 }
 
 function parseAiRequest_(raw) {
-  const request = raw ? JSON.parse(raw) : {};
+  const request = parseAiRequestPayload_(raw);
   const records = Array.isArray(request.records) && request.records.length
     ? request.records
     : selectAiRecords_(request);
@@ -229,6 +229,16 @@ function parseAiRequest_(raw) {
     tags: row.tags || ''
   }));
   return request;
+}
+
+function parseAiRequestPayload_(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
+  try {
+    return JSON.parse(String(raw));
+  } catch (error) {
+    throw new Error('Parametro request invalido: debe ser un JSON valido.');
+  }
 }
 
 function selectAiRecords_(request) {

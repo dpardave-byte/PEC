@@ -29,6 +29,7 @@ Este proyecto crea el entorno pesado para trabajar con Google Drive como reposit
 
    - `TU_OPENAI_API_KEY` queda guardada en `Script Properties`, no en GitHub Pages.
    - `TU_TOKEN_PRIVADO_PEC` es el token que luego pegaras en el panel con el boton `Configurar token IA`.
+   - Importante: en el panel se pega `TU_TOKEN_PRIVADO_PEC` (valor de `PEC_AI_TOKEN`), **no** la `OPENAI_API_KEY`.
    - Si quieres cambiar de modelo despues, vuelve a ejecutar `setOpenAiConfig('', 'NUEVO_MODELO', '')`.
 
 7. Despliega como `Web app`:

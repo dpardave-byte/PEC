@@ -37,6 +37,26 @@ id,edt,actividad,macro_actividad,territorio,categoria,responsable,inicio,final,d
 6. Pegar la URL en el campo `URL publica CSV/JSON de Google Sheets o Drive` del panel.
 7. Presionar `Actualizar desde URL`.
 
+## Opcion avanzada: Apps Script
+
+Se agrego un proyecto listo en `apps_script/` para automatizar la carga desde Drive.
+
+1. Crear un proyecto en <https://script.google.com/> llamado `PEC Drive Loader`.
+2. Copiar `apps_script/Code.gs`, `apps_script/Index.html` y `apps_script/appsscript.json`.
+3. Ejecutar `setupEnvironment` y autorizar permisos.
+4. Desplegar como Web App.
+5. Abrir la Web App y usar:
+   - `Crear estructura Drive + Sheet`
+   - `Escanear Drive y actualizar indice`
+6. Copiar la URL del Web App con `?format=json` o `?format=csv`.
+7. Pegar esa URL en el panel GitHub Pages.
+
+El endpoint JSON devuelve una forma compatible con el panel:
+
+```json
+{ "updatedAt": "2026-04-12T00:00:00.000Z", "records": [] }
+```
+
 ## Notas de seguridad
 
 - Los documentos sensibles deben quedar protegidos por permisos de Drive.

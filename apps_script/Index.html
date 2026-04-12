@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background: #f6f7f9; color: #1f2937; }
+    .wrap { max-width: 1040px; margin: 24px auto; background: white; border: 1px solid #d8dde6; border-radius: 10px; overflow: hidden; }
+    header { background: #1a3a5c; color: white; padding: 18px 22px; }
+    main { padding: 18px 22px; display: grid; gap: 14px; }
+    button { border: 0; border-radius: 8px; background: #185fa5; color: white; padding: 10px 14px; cursor: pointer; font-weight: 700; }
+    button.secondary { background: #3b6d11; }
+    .card { border: 1px solid #d8dde6; border-radius: 8px; padding: 14px; background: #f8fafc; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .label { color: #667085; font-size: 12px; text-transform: uppercase; letter-spacing: .4px; }
+    .value { font-size: 14px; overflow-wrap: anywhere; margin-top: 4px; }
+    .status { font-size: 13px; color: #667085; }
+    a { color: #185fa5; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h2>PEC Drive Loader</h2>
+      <div>Crear carpetas, escanear Drive y publicar datos para el panel GitHub Pages.</div>
+    </header>
+    <main>
+      <div>
+        <button onclick="setup()">Crear estructura Drive + Sheet</button>
+        <button class="secondary" onclick="scan()">Escanear Drive y actualizar indice</button>
+        <button onclick="refresh()">Actualizar estado</button>
+      </div>
+      <div id="status" class="status">Listo para iniciar.</div>
+      <div class="grid" id="cards"></div>
+      <div class="card">
+        <div class="label">Siguiente paso</div>
+        <div class="value">Copia la URL JSON o CSV del despliegue web y pegala en el panel: https://dpardave-byte.github.io/PEC/</div>
+      </div>
+    </main>
+  </div>
+  <script>
+    function setStatus(text) {
+      document.getElementById('status').textContent = text;
+    }
+    function render(data) {
+      const cards = [
+        ['Carpeta raiz', data.rootFolderUrl ? `<a href="${data.rootFolderUrl}" target="_blank">Abrir Drive</a>` : 'No creada'],
+        ['Sheet indice', data.spreadsheetUrl ? `<a href="${data.spreadsheetUrl}" target="_blank">Abrir Sheet</a>` : 'No creada'],
+        ['Registros', data.records || 0],
+        ['Endpoint JSON', data.webJsonHint || 'Despliega como Web App'],
+        ['Endpoint CSV', data.webCsvHint || 'Despliega como Web App'],
+        ['Archivos importados', data.importedFiles == null ? '-' : data.importedFiles]
+      ];
+      document.getElementById('cards').innerHTML = cards.map(([label, value]) => `
+        <div class="card"><div class="label">${label}</div><div class="value">${value}</div></div>
+      `).join('');
+    }
+    function handleSuccess(data) {
+      setStatus('Operacion completada.');
+      render(data);
+    }
+    function handleFailure(error) {
+      setStatus('Error: ' + error.message);
+    }
+    function setup() {
+      setStatus('Creando carpetas y Sheet...');
+      google.script.run.withSuccessHandler(handleSuccess).withFailureHandler(handleFailure).setupEnvironment();
+    }
+    function scan() {
+      setStatus('Escaneando Drive...');
+      google.script.run.withSuccessHandler(handleSuccess).withFailureHandler(handleFailure).scanDriveToIndex();
+    }
+    function refresh() {
+      setStatus('Actualizando estado...');
+      google.script.run.withSuccessHandler(handleSuccess).withFailureHandler(handleFailure).getEnvironmentStatus();
+    }
+    refresh();
+  </script>
+</body>
+</html>

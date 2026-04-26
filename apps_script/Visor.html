@@ -184,9 +184,11 @@ tbody tr:hover td{background:#f8fbfe}
 .filters .filter-picker .assign-item{padding:11px 12px;border-radius:12px;min-height:44px;align-items:center}
 .filters .filter-picker .assign-item span{font-size:15px;line-height:1.25;color:var(--ink);font-weight:600}
 .filters .filter-picker .assign-item input{margin-top:0}
-.operations-panel{margin-top:16px}
-.operations-panel .summary-list{margin-bottom:14px}
-.operations-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.operations-panel{margin-top:16px;padding:18px 20px}
+.operations-grid{display:grid;grid-template-columns:1.1fr 1.1fr .9fr;gap:14px;align-items:start}
+.operations-card{background:#fbfdff;border:1px solid var(--line);border-radius:10px;padding:14px;display:grid;gap:12px}
+.operations-card h3{margin:0;font-size:14px;color:var(--brand);text-transform:uppercase;letter-spacing:.08em}
+.operations-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
 .operations-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
 .local-note-box{display:grid;gap:10px;margin-top:16px}
 .summary-bullets{margin:8px 0 0;padding-left:18px;display:grid;gap:6px}
@@ -201,7 +203,7 @@ tbody tr:hover td{background:#f8fbfe}
   .cards{grid-template-columns:repeat(3,minmax(0,1fr))}
   .layout,.topbar,.split,.detail-grid,.filters,.toolbar{grid-template-columns:1fr}
   .hero{grid-template-columns:1fr}
-  .operations-grid{grid-template-columns:1fr}
+.operations-grid{grid-template-columns:1fr}
 }
 @media (max-width:760px){
   .app{padding:10px}
@@ -340,12 +342,9 @@ tbody tr:hover td{background:#f8fbfe}
 
   <section class="panel operations-panel">
     <h2>Operaciones y reportes</h2>
-    <div class="summary-list">
-      <div class="summary-item"><div><strong>Resumen ejecutivo</strong><span>Genera, revisa e imprime el consolidado del seguimiento.</span></div></div>
-      <div class="summary-item"><div><strong>Analitica</strong><span>Consulta avances por hito y concentración de riesgos en una ventana separada.</span></div></div>
-    </div>
     <div class="operations-grid">
-      <div class="ingest">
+      <div class="operations-card">
+        <h3>Fuente central</h3>
         <div class="field">
           <label for="xlsxInput">Cargar Excel</label>
           <input id="xlsxInput" type="file" accept=".xlsx,.xls,.xlsm,.xlsb,.csv">
@@ -353,13 +352,20 @@ tbody tr:hover td{background:#f8fbfe}
         <button id="loadXlsxBtn" class="ghost">Leer Excel</button>
         <button id="useEmbeddedBtn" class="soft">Usar datos embebidos</button>
       </div>
-      <div class="ingest">
+      <div class="operations-card">
+        <h3>Estructura editable</h3>
         <div class="field">
           <label for="structureInput">Cargar estructura editable</label>
           <input id="structureInput" type="file" accept=".xlsx,.xls,.json">
         </div>
         <button id="loadStructureBtn" class="ghost">Leer estructura</button>
         <button id="exportStructureXlsxBtn" class="soft">Exportar estructura XLSX</button>
+      </div>
+      <div class="operations-card">
+        <h3>Publicación</h3>
+        <div class="summary-item"><div><strong>Visor compartido</strong><span>Los cambios en fichas, estructura y portada se guardan y se reflejan en la vista común.</span></div></div>
+        <button id="editHeroBtn" class="secondary">Editar portada</button>
+        <button id="openAdminBtn" class="secondary" style="display:none">Panel admin</button>
       </div>
     </div>
     <div class="operations-actions">
@@ -370,11 +376,6 @@ tbody tr:hover td{background:#f8fbfe}
       <button id="exportJsonBtn" class="ghost">Exportar JSON filtrado</button>
       <button id="exportStructureJsonBtn" class="ghost">Exportar estructura JSON</button>
       <button id="printReportBtn" class="soft">Imprimir reporte</button>
-      <button id="editHeroBtn" class="secondary">Editar portada</button>
-      <button id="openAdminBtn" class="secondary" style="display:none">Panel admin</button>
-      <button id="openReportPanelBtn" hidden>Abrir resumen ejecutivo</button>
-      <button id="openAnalyticsPanelBtn" hidden class="ghost">Abrir analitica</button>
-      <button id="openAnalyticsBtnToolbar" hidden class="ghost">Ver analitica</button>
     </div>
   </section>
 </div>
@@ -2659,6 +2660,14 @@ function getMergedRecord(record){
   return merged;
 }
 
+function buildSummaryText(record){
+  return [
+    text(record.edt) ? `EDT ${text(record.edt)}` : '',
+    text(record.seguimiento_dgppcs) || text(record.responsable),
+    text(record.estado)
+  ].filter(Boolean).join(' | ');
+}
+
 function isExcludedRecord(record){
   return isSystemTrackingBlock(record);
 }
@@ -2680,7 +2689,51 @@ function normalizeRecords(records){
     if(isCommentOnlyRecord(record)) return;
     out.push(record);
   });
-  return out;
+  return rebalanceHierarchyRecords(out);
+}
+
+function rebalanceHierarchyRecords(records){
+  const ordered = sortBySourceOrder(records.map(record => ({...record})));
+  const stack = [];
+  const childIndex = new Map();
+  let topIndex = 0;
+
+  ordered.forEach(record => {
+    let level = Math.max(1, Number(record.nivel || deriveLevel(record.edt) || 1));
+    while(stack.length && stack[stack.length - 1].level >= level) stack.pop();
+    if(!stack.length) level = 1;
+    if(stack.length && level > stack[stack.length - 1].level + 1){
+      level = stack[stack.length - 1].level + 1;
+    }
+
+    let edt = '';
+    let parentEdtValue = '';
+    if(level === 1){
+      topIndex += 1;
+      edt = String(topIndex);
+    }else{
+      const parentNode = stack[stack.length - 1];
+      if(!parentNode){
+        topIndex += 1;
+        level = 1;
+        edt = String(topIndex);
+      }else{
+        parentEdtValue = parentNode.edt;
+        const next = (childIndex.get(parentEdtValue) || 0) + 1;
+        childIndex.set(parentEdtValue, next);
+        edt = parentEdtValue + '.' + next;
+      }
+    }
+
+    record.edt = edt;
+    record.parent_edt = parentEdtValue;
+    record.nivel = level;
+    record.grupo = deriveGroup(edt);
+    record.resumen = buildSummaryText(record);
+    stack.push({id: record.id, edt, level});
+  });
+
+  return ordered;
 }
 
 function hydrateData(payloadOverride){
@@ -4440,10 +4493,7 @@ function bindEvents(){
     document.getElementById('analyticsModal').classList.add('open');
   };
   document.getElementById('openReportBtn').addEventListener('click', openReport);
-  document.getElementById('openReportPanelBtn').addEventListener('click', openReport);
   document.getElementById('openAnalyticsBtn').addEventListener('click', openAnalytics);
-  document.getElementById('openAnalyticsBtnToolbar').addEventListener('click', openAnalytics);
-  document.getElementById('openAnalyticsPanelBtn').addEventListener('click', openAnalytics);
   document.getElementById('closeReportBtn').addEventListener('click', () => {
     document.getElementById('reportModal').classList.remove('open');
   });

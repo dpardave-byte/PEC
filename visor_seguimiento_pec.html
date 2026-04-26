@@ -36,6 +36,7 @@ body{min-height:100vh}
 .report-box .actions,.toolbar-actions{display:flex;gap:10px;flex-wrap:wrap}
 .toolbar{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;margin-bottom:16px}
 .filters{display:grid;grid-template-columns:1.4fr repeat(4,minmax(0,1fr));gap:10px}
+.ingest{display:grid;grid-template-columns:1.2fr auto auto;gap:10px;align-items:end}
 .field{display:grid;gap:6px}
 .field label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700}
 .field input,.field select,.field textarea{
@@ -166,12 +167,12 @@ tbody tr:hover td{background:#f8fbfe}
     <aside class="report-box">
       <h2>Reportes</h2>
       <div class="summary-list" id="quickReportSummary"></div>
-      <div class="toolbar-actions">
-        <button id="buildReportBtn">Generar reporte ejecutivo</button>
-        <button id="exportTxtBtn" class="secondary">Exportar TXT</button>
-        <button id="exportJsonBtn" class="ghost">Exportar JSON filtrado</button>
-        <button id="printReportBtn" class="soft">Imprimir reporte</button>
-      </div>
+    <div class="toolbar-actions">
+      <button id="buildReportBtn">Generar reporte ejecutivo</button>
+      <button id="exportTxtBtn" class="secondary">Exportar TXT</button>
+      <button id="exportJsonBtn" class="ghost">Exportar JSON filtrado</button>
+      <button id="printReportBtn" class="soft">Imprimir reporte</button>
+    </div>
     </aside>
   </section>
 
@@ -198,7 +199,15 @@ tbody tr:hover td{background:#f8fbfe}
         <select id="ownerFilter"></select>
       </div>
     </div>
-    <div class="toolbar-actions">
+    <div class="toolbar-actions" style="display:grid;gap:10px">
+      <div class="ingest">
+        <div class="field">
+          <label for="xlsxInput">Cargar Excel</label>
+          <input id="xlsxInput" type="file" accept=".xlsx,.xls,.xlsm,.xlsb,.csv">
+        </div>
+        <button id="loadXlsxBtn" class="ghost">Leer Excel</button>
+        <button id="useEmbeddedBtn" class="soft">Usar datos embebidos</button>
+      </div>
       <button id="resetFiltersBtn" class="secondary">Limpiar filtros</button>
       <button id="openReportBtn" class="ghost">Ver reporte</button>
     </div>
@@ -309,16 +318,21 @@ tbody tr:hover td{background:#f8fbfe}
   </div>
 </div>
 
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="./pec_tracking_data.js"></script>
 <script>
 const STORAGE_KEY = 'pec_tracking_notes_v1';
+const HEADER_ROW = 7;
+const SHEET_NAME = 'CRONOGRAMA';
+const SELECTED_COLUMNS = [1, 2, 3, 4, 5, 6, 7, 8, 248, 249, 250];
 const appState = {
   raw: [],
   filtered: [],
   notes: loadNotes(),
   selectedId: '',
   reportText: '',
-  reportHtml: ''
+  reportHtml: '',
+  sourceMode: 'embedded'
 };
 
 function loadNotes(){
@@ -388,8 +402,12 @@ function getMergedRecord(record){
 function hydrateData(){
   const payload = window.PEC_TRACKING_DATA || {meta:{},summary:{},records:[]};
   appState.raw = payload.records.map(getMergedRecord);
-  document.getElementById('metaGeneratedAt').textContent = payload.meta.generatedAt || '-';
-  document.getElementById('metaReferenceDate').textContent = payload.meta.referenceDate || '-';
+  updateMeta(payload.meta);
+}
+
+function updateMeta(meta){
+  document.getElementById('metaGeneratedAt').textContent = meta.generatedAt || '-';
+  document.getElementById('metaReferenceDate').textContent = meta.referenceDate || '-';
 }
 
 function uniqueSorted(values){
@@ -434,6 +452,192 @@ function applyFilters(){
   });
 
   renderAll();
+}
+
+function normalizeHeader(value, idx){
+  const cleaned = text(value).replace(/\s+/g, ' ');
+  return cleaned || ('col_' + idx);
+}
+
+function toIsoDate(value){
+  if(!value && value !== 0) return '';
+  if(value instanceof Date && !Number.isNaN(value.getTime())){
+    return value.toISOString().slice(0,10);
+  }
+  if(typeof value === 'number'){
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if(parsed){
+      const dt = new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d));
+      return dt.toISOString().slice(0,10);
+    }
+  }
+  const raw = text(value);
+  if(!raw) return '';
+  const direct = new Date(raw);
+  if(!Number.isNaN(direct.getTime())){
+    return new Date(direct.getTime() - direct.getTimezoneOffset() * 60000).toISOString().slice(0,10);
+  }
+  const m = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if(m){
+    return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  }
+  return '';
+}
+
+function toNumber(value){
+  if(value == null || value === '') return null;
+  if(typeof value === 'number') return value;
+  const raw = text(value).replace(/,/g,'');
+  if(!raw || raw === '#REF!') return null;
+  const num = Number(raw);
+  return Number.isFinite(num) ? num : null;
+}
+
+function deriveProgress(status){
+  const lower = text(status).toLowerCase();
+  if(lower.includes('completado')) return 100;
+  if(lower.includes('proceso')) return 55;
+  if(lower.includes('pendiente')) return 0;
+  return 15;
+}
+
+function deriveAlert(inicio, final, estado){
+  if(text(estado).toLowerCase().includes('completado')) return 'ok';
+  if(!final) return 'sin_fecha';
+  const end = parseIso(final);
+  const today = parseIso(todayIso());
+  if(!end || !today) return 'sin_fecha';
+  const delta = diffDays(end, today);
+  if(delta < 0) return 'vencido';
+  if(delta <= 7) return 'critico';
+  if(delta <= 15) return 'atencion';
+  return 'ok';
+}
+
+function deriveRemaining(final, estado){
+  if(!final || text(estado).toLowerCase().includes('completado')) return null;
+  const end = parseIso(final);
+  const today = parseIso(todayIso());
+  if(!end || !today) return null;
+  return diffDays(end, today);
+}
+
+function deriveLevel(edt){
+  return text(edt) ? text(edt).split('.').length : 0;
+}
+
+function deriveGroup(edt){
+  const raw = text(edt);
+  return raw ? raw.split('.')[0] : 'Sin grupo';
+}
+
+function buildRecordFromExcel(raw, idx){
+  const edt = text(raw.EDT);
+  const actividad = text(raw.Actividad);
+  const responsable = text(raw.Responsable);
+  const inicio = toIsoDate(raw.Inicio);
+  const final = toIsoDate(raw.Final);
+  const estado = text(raw.Estado) || 'Sin estado';
+  const seguimiento = text(raw['Responsable de Seguimiento DGPPCS']);
+  const contacto = text(raw.Contacto);
+  return {
+    id: `case-${String(idx).padStart(3,'0')}`,
+    edt,
+    actividad,
+    responsable,
+    inicio,
+    final,
+    duracion_cal: toNumber(raw['Duración (Días Calendario)']),
+    dias_habiles: toNumber(raw['Días Hábiless']),
+    dias_restantes: deriveRemaining(final, estado),
+    estado,
+    seguimiento_dgppcs: seguimiento,
+    contacto,
+    nivel: deriveLevel(edt),
+    grupo: deriveGroup(edt),
+    avance_estimado: deriveProgress(estado),
+    alerta: deriveAlert(inicio, final, estado),
+    resumen: [edt ? `EDT ${edt}` : '', seguimiento || responsable, estado].filter(Boolean).join(' | ')
+  };
+}
+
+function parseWorkbookRecords(workbook){
+  const sheet = workbook.Sheets[SHEET_NAME] || workbook.Sheets[workbook.SheetNames[0]];
+  if(!sheet) throw new Error('No se encontró ninguna hoja en el archivo.');
+  const records = [];
+  const range = XLSX.utils.decode_range(sheet['!ref']);
+  const headers = {};
+  SELECTED_COLUMNS.forEach(colIdx => {
+    headers[colIdx] = normalizeHeader(sheet[XLSX.utils.encode_cell({r:HEADER_ROW-1,c:colIdx-1})]?.v, colIdx);
+  });
+  for(let rowIdx = HEADER_ROW + 1; rowIdx <= range.e.r + 1; rowIdx++){
+    const raw = {};
+    let hasData = false;
+    SELECTED_COLUMNS.forEach(colIdx => {
+      const addr = XLSX.utils.encode_cell({r:rowIdx-1,c:colIdx-1});
+      const cell = sheet[addr];
+      const value = cell ? cell.v : '';
+      raw[headers[colIdx]] = value;
+      if(value !== '' && value != null) hasData = true;
+    });
+    if(!hasData) continue;
+    if(!text(raw.EDT) && !text(raw.Actividad)) continue;
+    records.push(buildRecordFromExcel(raw, records.length + 1));
+  }
+  return records;
+}
+
+function buildPayloadFromRecords(records, sourceFile){
+  const summary = {
+    total: records.length,
+    completed: records.filter(r => r.estado === 'Completado').length,
+    inProgress: records.filter(r => r.estado === 'En Proceso').length,
+    pending: records.filter(r => r.estado === 'Pendiente de Iniciar').length,
+    withoutStatus: records.filter(r => r.estado === 'Sin estado').length,
+    critical: records.filter(r => r.alerta === 'critico').length,
+    overdue: records.filter(r => r.alerta === 'vencido').length,
+    attention: records.filter(r => r.alerta === 'atencion').length
+  };
+  return {
+    meta: {
+      sourceFile,
+      sheetName: SHEET_NAME,
+      generatedAt: new Date().toISOString().slice(0,19),
+      referenceDate: todayIso(),
+      recordCount: records.length
+    },
+    summary,
+    records
+  };
+}
+
+async function loadExcelFromInput(){
+  const input = document.getElementById('xlsxInput');
+  const file = input.files && input.files[0];
+  if(!file){
+    alert('Selecciona primero un archivo Excel.');
+    return;
+  }
+  if(typeof XLSX === 'undefined'){
+    alert('La librería de lectura Excel no cargó. Recarga la página e intenta otra vez.');
+    return;
+  }
+  const buffer = await file.arrayBuffer();
+  const workbook = XLSX.read(buffer, {type:'array'});
+  const records = parseWorkbookRecords(workbook).map(getMergedRecord);
+  const payload = buildPayloadFromRecords(records, file.name);
+  appState.sourceMode = 'xlsx';
+  appState.raw = payload.records;
+  updateMeta(payload.meta);
+  initFilters();
+  applyFilters();
+}
+
+function useEmbeddedData(){
+  appState.sourceMode = 'embedded';
+  hydrateData();
+  initFilters();
+  applyFilters();
 }
 
 function renderAll(){
@@ -847,6 +1051,13 @@ function bindEvents(){
   document.getElementById('exportTxtBtn').addEventListener('click', exportTxt);
   document.getElementById('exportJsonBtn').addEventListener('click', exportJson);
   document.getElementById('printReportBtn').addEventListener('click', printReport);
+  document.getElementById('loadXlsxBtn').addEventListener('click', () => {
+    loadExcelFromInput().catch(error => {
+      console.error(error);
+      alert('No se pudo leer el Excel. Verifica que tenga la hoja CRONOGRAMA y estructura compatible.');
+    });
+  });
+  document.getElementById('useEmbeddedBtn').addEventListener('click', useEmbeddedData);
   document.body.addEventListener('click', event => {
     const row = event.target.closest('[data-open]');
     if(row) openDrawer(row.getAttribute('data-open'));
@@ -857,7 +1068,6 @@ function bindEvents(){
 
 function initFilters(){
   buildSelect('statusFilter', uniqueSorted(appState.raw.map(r => r.estado)), 'Todos los estados');
-  buildSelect('alertFilter', uniqueSorted(appState.raw.map(r => r.alerta)).map(a => alertLabel(a)), 'Todas las alertas');
   const alertSelect = document.getElementById('alertFilter');
   alertSelect.innerHTML = '<option value="">Todas las alertas</option>' +
     uniqueSorted(appState.raw.map(r => r.alerta)).map(v => '<option value="' + escapeHtml(v) + '">' + escapeHtml(alertLabel(v)) + '</option>').join('');

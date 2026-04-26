@@ -3952,7 +3952,7 @@ function buildExecutiveReport(){
     }
     people.forEach(owner => ownerRows.push({owner}));
   });
-  const byOwner = groupCount(ownerRows, 'owner').slice(0,5);
+  const byOwner = groupCount(ownerRows, 'owner');
   const responsibleRows = [];
   records.forEach(r => {
     const entities = splitEntities(r.responsable);
@@ -3962,7 +3962,7 @@ function buildExecutiveReport(){
     }
     entities.forEach(owner => responsibleRows.push({owner}));
   });
-  const byResponsible = groupCount(responsibleRows, 'owner').slice(0,5);
+  const byResponsible = groupCount(responsibleRows, 'owner');
   const nextMilestones = records
     .filter(r => r.final && r.estado !== 'Completado')
     .sort((a,b)=>text(a.final).localeCompare(text(b.final)))

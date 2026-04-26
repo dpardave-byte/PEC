@@ -2001,6 +2001,7 @@ window.PEC_TRACKING_DATA = {
 const STORAGE_KEY = 'pec_tracking_notes_v1';
 const EDIT_STORAGE_KEY = 'pec_tracking_edits_v1';
 const PEOPLE_STORAGE_KEY = 'pec_tracking_people_v1';
+const ENTITY_STORAGE_KEY = 'pec_tracking_entities_v1';
 const ALIAS_STORAGE_KEY = 'pec_tracking_aliases_v1';
 const CUSTOM_RECORD_STORAGE_KEY = 'pec_tracking_custom_records_v1';
 const PAYLOAD_STORAGE_KEY = 'pec_tracking_payload_v1';
@@ -2018,6 +2019,33 @@ const BASE_PEOPLE = [
   'Oriana Perez',
   'Marjorie Mellet'
 ];
+const BASE_ENTITIES = [
+  'DGPPCS',
+  'PNSU',
+  'PASLC',
+  'VMCS',
+  'OGAJ',
+  'OGPP',
+  'SG',
+  'BM',
+  'DGAA',
+  'DGPRCS',
+  'EMSAPUNO',
+  'MPP',
+  'UAL',
+  'EPS',
+  'BM/DGPPCS/PNSU/PASLC',
+  'EMSAPUNO/MPP/PNSU',
+  'PASLC/DGPPCS',
+  'PNSU/BM',
+  'PNSU/DGPPCS',
+  'PNSU/PASLC'
+];
+const DEFAULT_TITLE_BY_EDT = {
+  '3.2': 'Creación del Equipo Técnico de Gestión del Programa - Programa de Economía Circular (ETGP-PEC)',
+  '3.2.1': 'Aprobación de la RM de Creación del CCP-PEC',
+  '5': 'Inicio de Efectividad del Préstamo'
+};
 const appState = {
   raw: [],
   matched: [],
@@ -2025,6 +2053,7 @@ const appState = {
   notes: loadNotes(),
   edits: loadEdits(),
   customPeople: loadCustomPeople(),
+  customEntities: loadCustomEntities(),
   aliases: loadAliases(),
   customRecords: loadCustomRecords(),
   selectedId: '',
@@ -2069,6 +2098,18 @@ function loadCustomPeople(){
 
 function saveCustomPeople(){
   localStorage.setItem(PEOPLE_STORAGE_KEY, JSON.stringify(appState.customPeople));
+}
+
+function loadCustomEntities(){
+  try{
+    return JSON.parse(localStorage.getItem(ENTITY_STORAGE_KEY) || '[]');
+  }catch(error){
+    return [];
+  }
+}
+
+function saveCustomEntities(){
+  localStorage.setItem(ENTITY_STORAGE_KEY, JSON.stringify(appState.customEntities));
 }
 
 function loadAliases(){
@@ -2133,6 +2174,14 @@ function cleanPersonName(name){
   return text(name).replace(/\.+$/,'').replace(/\s+/g,' ');
 }
 
+function cleanEntityName(name){
+  return text(name)
+    .replace(/\.+$/,'')
+    .replace(/\s*\/\s*/g,'/')
+    .replace(/\s*-\s*/g,'-')
+    .replace(/\s+/g,' ');
+}
+
 function personKey(name){
   return cleanPersonName(name)
     .toLowerCase()
@@ -2149,10 +2198,38 @@ function canonicalPersonName(name){
   return preferred || cleaned;
 }
 
+function entityKey(name){
+  return cleanEntityName(name)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'');
+}
+
+function canonicalEntityName(name){
+  const cleaned = cleanEntityName(name);
+  if(!cleaned) return '';
+  const key = entityKey(cleaned);
+  if(key === entityKey('pascl')) return 'PASLC';
+  if(key === entityKey('pnsu-dgppcs') || key === entityKey('pnsu dgppcs')) return 'PNSU/DGPPCS';
+  if(key === entityKey('paslc-dgppcs') || key === entityKey('paslc dgppcs')) return 'PASLC/DGPPCS';
+  if(key === entityKey('pnsu-bm') || key === entityKey('pnsu bm')) return 'PNSU/BM';
+  if(key === entityKey('bm-dgppcs-pnsu-paslc') || key === entityKey('bm dgppcs pnsu paslc')) return 'BM/DGPPCS/PNSU/PASLC';
+  if(key === entityKey('emsapuno-mpp-pnsu') || key === entityKey('emsapuno mpp pnsu')) return 'EMSAPUNO/MPP/PNSU';
+  const preferred = BASE_ENTITIES.find(entity => entityKey(entity) === key);
+  return preferred || cleaned;
+}
+
 function splitPeople(value){
   return text(value)
     .split(/[\/,;]+/g)
     .map(canonicalPersonName)
+    .filter(Boolean);
+}
+
+function splitEntities(value){
+  return text(value)
+    .split(/[;,]+/g)
+    .map(canonicalEntityName)
     .filter(Boolean);
 }
 
@@ -2171,6 +2248,25 @@ function getAssignablePeople(){
     []
       .concat(BASE_PEOPLE)
       .concat(appState.customPeople || [])
+  );
+}
+
+function uniqueEntities(values){
+  const out = new Map();
+  values.flatMap(splitEntities).forEach(name => {
+    const key = entityKey(name);
+    if(!key) return;
+    if(!out.has(key)) out.set(key, canonicalEntityName(name));
+  });
+  return Array.from(out.values()).sort((a,b)=>a.localeCompare(b,'es'));
+}
+
+function getAssignableEntities(){
+  return uniqueEntities(
+    []
+      .concat(BASE_ENTITIES)
+      .concat(appState.customEntities || [])
+      .concat(appState.raw.map(r => r.responsable || ''))
   );
 }
 
@@ -2219,11 +2315,19 @@ function getMergedRecord(record){
     local_note:text(note.note),
     local_action:text(note.action)
   };
+  if(!text(merged.edt) && /inicio de efectividad del pr[eé]stamo/i.test(text(merged.actividad))){
+    merged.edt = '5';
+    merged.actividad = 'Inicio de Efectividad del Préstamo';
+  }
   merged.inicio = toIsoDate(merged.inicio);
   merged.final = toIsoDate(merged.final);
+  merged.edt = text(merged.edt);
+  merged.parent_edt = text(merged.parent_edt);
   merged.duracion_cal = toNumber(merged.duracion_cal);
   merged.dias_habiles = toNumber(merged.dias_habiles);
   merged.estado = text(merged.estado) || 'Sin estado';
+  merged.nivel = Math.max(1, toNumber(merged.nivel) || deriveLevel(merged.edt) || toNumber(record.nivel) || 1);
+  merged.grupo = text(merged.grupo) || deriveGroup(merged.edt) || text(record.grupo) || 'Sin grupo';
   merged.avance_estimado = deriveProgress(merged.estado);
   merged.dias_restantes = deriveRemaining(merged.final, merged.estado);
   merged.alerta = deriveAlert(merged.inicio, merged.final, merged.estado);
@@ -2233,9 +2337,7 @@ function getMergedRecord(record){
 }
 
 function isExcludedRecord(record){
-  const edt = text(record.edt);
-  const actividad = text(record.actividad).toLowerCase();
-  return edt === '4' && /elaboraci[oó]n del sistema de seguimiento/.test(actividad);
+  return false;
 }
 
 function isCommentOnlyRecord(record){
@@ -2327,7 +2429,7 @@ function applyFilters(){
     if(status && record.estado !== status) return false;
     if(alert && record.alerta !== alert) return false;
     if(group && record.grupo !== group) return false;
-    if(responsible && !splitPeople(record.responsable).some(person => personKey(person) === personKey(responsible))) return false;
+    if(responsible && !splitEntities(record.responsable).some(entity => entityKey(entity) === entityKey(responsible))) return false;
     if(owner && !splitPeople(record.seguimiento_dgppcs).some(person => personKey(person) === personKey(owner))) return false;
     return true;
   });
@@ -2345,16 +2447,11 @@ function parentEdt(edt){
 }
 
 function withAncestors(matched, all){
-  const ordered = all.slice().sort((a,b) => (Number(a.source_order) || 0) - (Number(b.source_order) || 0));
+  const {ordered, childrenMap} = buildHierarchyMaps(all);
   const parentById = new Map();
-  const stack = [];
-  ordered.forEach(record => {
-    const level = Math.max(1, Number(record.nivel || deriveLevel(record.edt) || 1));
-    while(stack.length && stack[stack.length - 1].level >= level) stack.pop();
-    parentById.set(record.id, stack.length ? stack[stack.length - 1].id : '');
-    stack.push({id: record.id, level});
+  childrenMap.forEach((items, parentId) => {
+    items.forEach(item => parentById.set(item.id, parentId === '__root__' ? '' : parentId));
   });
-
   const allById = new Map(ordered.map(record => [record.id, record]));
   const out = new Map();
   matched.forEach(record => {
@@ -2449,8 +2546,12 @@ function deriveGroup(edt){
 }
 
 function buildRecordFromExcel(raw, idx){
-  const edt = text(raw.EDT);
-  const actividad = text(raw.Actividad);
+  let edt = text(raw.EDT);
+  let actividad = text(raw.Actividad);
+  if(!edt && /inicio de efectividad del pr[eé]stamo/i.test(actividad)){
+    edt = '5';
+    actividad = 'Inicio de Efectividad del Préstamo';
+  }
   const responsable = text(raw.Responsable);
   const inicio = toIsoDate(raw.Inicio);
   const final = toIsoDate(raw.Final);
@@ -2583,21 +2684,32 @@ function sortBySourceOrder(records){
 function buildHierarchyMaps(records){
   const ordered = sortBySourceOrder(records);
   const childrenMap = new Map();
+  const edtMap = new Map();
+  ordered.forEach(record => {
+    const edt = text(record.edt);
+    if(edt && !edtMap.has(edt)) edtMap.set(edt, record.id);
+  });
   const stack = [];
   ordered.forEach(record => {
     const level = Math.max(1, Number(record.nivel || deriveLevel(record.edt) || 1));
     while(stack.length && stack[stack.length - 1].level >= level) stack.pop();
-    const parent = stack.length ? stack[stack.length - 1].id : '__root__';
+    let parent = '__root__';
+    const explicitParentEdt = text(record.parent_edt);
+    if(explicitParentEdt && edtMap.has(explicitParentEdt) && edtMap.get(explicitParentEdt) !== record.id){
+      parent = edtMap.get(explicitParentEdt);
+    }else if(stack.length){
+      parent = stack[stack.length - 1].id;
+    }
     if(!childrenMap.has(parent)) childrenMap.set(parent, []);
     childrenMap.get(parent).push(record);
     stack.push({id: record.id, level});
   });
-  return {ordered, childrenMap};
+  return {ordered, childrenMap, edtMap};
 }
 
 function displayTitle(record){
   const alias = text((appState.aliases && appState.aliases[record.id]) || '');
-  const label = alias || text(record.actividad);
+  const label = alias || DEFAULT_TITLE_BY_EDT[text(record.edt)] || text(record.actividad);
   return (record.edt ? record.edt + ' - ' : '') + label;
 }
 
@@ -2635,6 +2747,61 @@ function nextChildEdt(parentRecord, childrenMap){
     .filter(value => value != null);
   const next = (numbers.length ? Math.max(...numbers) : 0) + 1;
   return parentEdt + '.' + next;
+}
+
+function collectSubtreeRecords(rootId, childrenMap){
+  const out = [];
+  function walk(id){
+    const children = childrenMap.get(id) || [];
+    children.forEach(child => {
+      out.push(child);
+      walk(child.id);
+    });
+  }
+  walk(rootId);
+  return out;
+}
+
+function inferEditedRootEdt(record){
+  const manualEdt = text(document.getElementById('editEdt')?.value);
+  const manualGroup = text(document.getElementById('editGrupo')?.value);
+  const parentEdtValue = text(document.getElementById('editParentEdt')?.value);
+  if(manualEdt) return manualEdt;
+  const currentEdt = text(record.edt);
+  if(parentEdtValue){
+    const tail = currentEdt.includes('.') ? currentEdt.split('.').slice(-1)[0] : currentEdt;
+    return parentEdtValue + '.' + tail;
+  }
+  if(manualGroup && currentEdt){
+    const parts = currentEdt.split('.');
+    parts[0] = manualGroup;
+    return parts.join('.');
+  }
+  return currentEdt;
+}
+
+function applyHierarchyEdits(rootRecord, rootNewEdt){
+  const {childrenMap} = buildHierarchyMaps(appState.raw);
+  const descendants = collectSubtreeRecords(rootRecord.id, childrenMap);
+  const directChildren = childrenMap.get(rootRecord.id) || [];
+
+  function renumberChildren(parentRecord, parentNewEdt){
+    const children = childrenMap.get(parentRecord.id) || [];
+    children.forEach((child, index) => {
+      const childEdt = parentNewEdt + '.' + (index + 1);
+      const nextEdit = {...(appState.edits[child.id] || {})};
+      nextEdit.edt = childEdt;
+      nextEdit.parent_edt = parentNewEdt;
+      nextEdit.nivel = String(deriveLevel(childEdt));
+      nextEdit.grupo = deriveGroup(rootNewEdt);
+      appState.edits[child.id] = nextEdit;
+      renumberChildren(child, childEdt);
+    });
+  }
+
+  if(descendants.length || directChildren.length){
+    renumberChildren(rootRecord, rootNewEdt);
+  }
 }
 
 function makePendingState(value){
@@ -2767,14 +2934,14 @@ function renderOwnerBars(){
 
 function renderResponsibleBars(){
   const expandedOwners = [];
-  const allowed = new Set(getAssignablePeople().map(personKey));
+  const allowed = new Set(getAssignableEntities().map(entityKey));
   appState.matched.forEach(r => {
-    const people = splitPeople(r.responsable).filter(person => allowed.has(personKey(person)));
-    if(!people.length){
+    const entities = splitEntities(r.responsable).filter(entity => allowed.has(entityKey(entity)));
+    if(!entities.length){
       expandedOwners.push({owner:'Sin asignar'});
       return;
     }
-    people.forEach(owner => expandedOwners.push({owner}));
+    entities.forEach(owner => expandedOwners.push({owner}));
   });
   const groups = groupCount(expandedOwners, 'owner').slice(0,8);
   const max = Math.max(1, ...groups.map(x => x.count));
@@ -2921,14 +3088,28 @@ function openDrawer(recordId){
     '<div><b>Alerta:</b> ' + escapeHtml(alertLabel(record.alerta)) + '</div>' +
     '<div><b>Fechas:</b> ' + escapeHtml(fmtDate(record.inicio) + ' - ' + fmtDate(record.final)) + '</div>';
   document.getElementById('detailGrid').innerHTML = [
-    assignmentBox('Responsable','responsable', record.responsable),
-    assignmentBox('Seguimiento DGPPCS','seguimiento', record.seguimiento_dgppcs),
+    assignmentBox('Responsable','responsable', record.responsable, {
+      mode:'entity',
+      summaryEmpty:'Seleccionar entidad responsable',
+      extraPlaceholder:'Agregar otra entidad o área adicional',
+      newPlaceholder:'Agregar nueva entidad al catálogo local'
+    }),
+    assignmentBox('Seguimiento DGPPCS','seguimiento', record.seguimiento_dgppcs, {
+      mode:'person',
+      summaryEmpty:'Seleccionar seguimiento DGPPCS',
+      extraPlaceholder:'Agregar otra persona o grupo adicional',
+      newPlaceholder:'Agregar nueva persona al catálogo local'
+    }),
     editableBox('Contacto','editContacto','textarea',record.contacto,'Agrega correos, telefonos o nombres'),
     editableBox('Estado','editEstado','select',record.estado,'', ['Completado','En Proceso','Pendiente de Iniciar','Sin estado']),
     editableBox('Fecha inicio','editInicio','date',record.inicio,''),
     editableBox('Fecha final','editFinal','date',record.final,''),
     editableBox('Duracion calendario','editDuracion','number',record.duracion_cal != null ? String(record.duracion_cal) : '','Dias calendario'),
     editableBox('Dias habiles','editHabiles','number',record.dias_habiles != null ? String(record.dias_habiles) : '','Dias habiles'),
+    editableBox('EDT visible','editEdt','text',record.edt || '','Ej.: 2.3.1'),
+    editableBox('Padre EDT','editParentEdt','text',record.parent_edt || '','Ej.: 2 o 2.3'),
+    editableBox('Nivel visual','editNivel','number',record.nivel != null ? String(record.nivel) : '','1, 2, 3...'),
+    editableBox('Grupo EDT / categoria','editGrupo','text',record.grupo || deriveGroup(record.edt),'Agrupación visible'),
     editableBox('Titulo visible','editAlias','text',text(appState.aliases[record.id] || ''),'Renombrar este EDT en el visor'),
     editableBox('Resumen','editResumen','textarea',record.resumen,'Sintesis ejecutiva del caso'),
     readonlyBox('Dias restantes', record.dias_restantes != null ? String(record.dias_restantes) : '-'),
@@ -2964,28 +3145,32 @@ function readonlyBox(label, value){
   return '<div class="detail-box"><b>' + escapeHtml(label) + '</b><div>' + escapeHtml(value) + '</div></div>';
 }
 
-function assignmentBox(label, prefix, value){
-  const selected = new Set(splitPeople(value));
-  const options = getAssignablePeople();
-  const extra = splitPeople(value).filter(name => !options.includes(name)).join(' / ');
-  const selectedCount = selected.size + (extra ? splitPeople(extra).length : 0);
+function assignmentBox(label, prefix, value, config){
+  const mode = config && config.mode === 'entity' ? 'entity' : 'person';
+  const splitter = mode === 'entity' ? splitEntities : splitPeople;
+  const options = mode === 'entity' ? getAssignableEntities() : getAssignablePeople();
+  const selected = new Set(splitter(value));
+  const extra = splitter(value).filter(name => !options.includes(name)).join(' / ');
+  const selectedCount = selected.size + (extra ? splitter(extra).length : 0);
   return '<div class="detail-box"><b>' + escapeHtml(label) + '</b>' +
     '<details class="assign-picker">' +
-      '<summary>' + escapeHtml(selectedCount ? `Seleccionadas: ${selectedCount}` : 'Seleccionar asignacion') + '</summary>' +
+      '<summary>' + escapeHtml(selectedCount ? `Seleccionadas: ${selectedCount}` : ((config && config.summaryEmpty) || 'Seleccionar asignacion')) + '</summary>' +
       '<div class="assign-grid">' +
         options.map(name =>
           '<label class="assign-item"><input type="checkbox" class="assign-person assign-person-' + escapeHtml(prefix) + '" value="' + escapeHtml(name) + '"' + (selected.has(name) ? ' checked' : '') + '><span>' + escapeHtml(name) + '</span></label>'
         ).join('') +
       '</div>' +
-      '<div class="assign-extra"><input id="editExtra-' + escapeHtml(prefix) + '" type="text" value="' + escapeHtml(extra) + '" placeholder="Agregar otra persona o grupo adicional"></div>' +
-      '<div class="assign-extra"><input id="editNewPerson-' + escapeHtml(prefix) + '" type="text" value="" placeholder="Agregar nueva persona al catálogo local"></div>' +
+      '<div class="assign-extra"><input id="editExtra-' + escapeHtml(prefix) + '" type="text" value="' + escapeHtml(extra) + '" placeholder="' + escapeHtml((config && config.extraPlaceholder) || 'Agregar otra persona o grupo adicional') + '"></div>' +
+      '<div class="assign-extra"><input id="editNewPerson-' + escapeHtml(prefix) + '" type="text" value="" placeholder="' + escapeHtml((config && config.newPlaceholder) || 'Agregar nueva persona al catálogo local') + '"></div>' +
     '</details>' +
   '</div>';
 }
 
-function getSelectedPeople(prefix){
-  const selected = Array.from(document.querySelectorAll('.assign-person-' + prefix + ':checked')).map(input => canonicalPersonName(input.value));
-  const extra = splitPeople(document.getElementById('editExtra-' + prefix)?.value || '');
+function getSelectedValues(prefix, mode){
+  const canonicalize = mode === 'entity' ? canonicalEntityName : canonicalPersonName;
+  const splitter = mode === 'entity' ? splitEntities : splitPeople;
+  const selected = Array.from(document.querySelectorAll('.assign-person-' + prefix + ':checked')).map(input => canonicalize(input.value));
+  const extra = splitter(document.getElementById('editExtra-' + prefix)?.value || '');
   return Array.from(new Set(selected.concat(extra))).filter(Boolean);
 }
 
@@ -3022,6 +3207,7 @@ function addLocalChildRecord(){
     id: 'local-' + Date.now(),
     source_order: insertAfter + 0.001,
     edt,
+    parent_edt: parent.edt || '',
     actividad: title,
     responsable: '',
     inicio: start,
@@ -3042,20 +3228,34 @@ function addLocalChildRecord(){
   saveCustomRecords();
   hydrateData(appState.payload);
   if(parent.id) appState.expanded[parent.id] = true;
+  initFilters();
   applyFilters();
   openDrawer(child.id);
 }
 
 function saveCurrentCase(){
   if(!appState.selectedId) return;
-  const newPeople = splitPeople((document.getElementById('editNewPerson-responsable')?.value || '') + ' / ' + (document.getElementById('editNewPerson-seguimiento')?.value || ''));
+  const currentRecord = appState.raw.find(r => r.id === appState.selectedId);
+  if(!currentRecord) return;
+  const newPeople = splitPeople(document.getElementById('editNewPerson-seguimiento')?.value || '');
+  const newEntities = splitEntities(document.getElementById('editNewPerson-responsable')?.value || '');
   if(newPeople.length){
     appState.customPeople = uniquePeople([].concat(appState.customPeople || []).concat(newPeople));
     saveCustomPeople();
   }
+  if(newEntities.length){
+    appState.customEntities = uniqueEntities([].concat(appState.customEntities || []).concat(newEntities));
+    saveCustomEntities();
+  }
+  const nextEdt = inferEditedRootEdt(currentRecord);
+  const nextGroup = text(document.getElementById('editGrupo').value) || deriveGroup(nextEdt);
   appState.edits[appState.selectedId] = {
-    responsable: getSelectedPeople('responsable').join(' / '),
-    seguimiento_dgppcs: getSelectedPeople('seguimiento').join(' / '),
+    edt: nextEdt,
+    parent_edt: text(document.getElementById('editParentEdt').value),
+    nivel: text(document.getElementById('editNivel').value) || String(deriveLevel(nextEdt)),
+    grupo: nextGroup,
+    responsable: getSelectedValues('responsable', 'entity').join('; '),
+    seguimiento_dgppcs: getSelectedValues('seguimiento', 'person').join(' / '),
     contacto: text(document.getElementById('editContacto').value),
     estado: text(document.getElementById('editEstado').value),
     inicio: text(document.getElementById('editInicio').value),
@@ -3064,8 +3264,11 @@ function saveCurrentCase(){
     dias_habiles: text(document.getElementById('editHabiles').value),
     resumen: text(document.getElementById('editResumen').value)
   };
+  if(text(currentRecord.edt) !== nextEdt || text(currentRecord.grupo) !== nextGroup || text(document.getElementById('editParentEdt').value)){
+    applyHierarchyEdits(currentRecord, nextEdt);
+  }
   const edit = appState.edits[appState.selectedId];
-  if(!edit.responsable && !edit.seguimiento_dgppcs && !edit.contacto && !edit.estado && !edit.inicio && !edit.final && !edit.duracion_cal && !edit.dias_habiles && !edit.resumen){
+  if(!edit.edt && !edit.parent_edt && !edit.nivel && !edit.grupo && !edit.responsable && !edit.seguimiento_dgppcs && !edit.contacto && !edit.estado && !edit.inicio && !edit.final && !edit.duracion_cal && !edit.dias_habiles && !edit.resumen){
     delete appState.edits[appState.selectedId];
   }
   appState.notes[appState.selectedId] = {
@@ -3086,6 +3289,7 @@ function saveCurrentCase(){
   saveAliases();
   saveCurrentPayload();
   hydrateData(appState.payload);
+  initFilters();
   applyFilters();
   closeDrawer();
 }
@@ -3100,6 +3304,7 @@ function clearCurrentCase(){
   saveAliases();
   saveCurrentPayload();
   hydrateData(appState.payload);
+  initFilters();
   applyFilters();
   openDrawer(appState.selectedId);
 }
@@ -3342,7 +3547,7 @@ function initFilters(){
   alertSelect.innerHTML = '<option value="">Todas las alertas</option>' +
     uniqueSorted(appState.raw.map(r => r.alerta)).map(v => '<option value="' + escapeHtml(v) + '">' + escapeHtml(alertLabel(v)) + '</option>').join('');
   buildSelect('groupFilter', uniqueSorted(appState.raw.map(r => r.grupo)), 'Todos los grupos');
-  buildSelect('responsibleFilter', getAssignablePeople(), 'Todo responsable');
+  buildSelect('responsibleFilter', getAssignableEntities(), 'Toda entidad responsable');
   buildSelect('ownerFilter', getAssignablePeople(), 'Todo seguimiento');
   initSearchSuggestions();
 }

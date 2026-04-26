@@ -2085,20 +2085,13 @@ const BASE_PEOPLE = [
   'Marjorie Mellet'
 ];
 const BASE_ENTITIES = [
-  'DGPPCS',
   'PNSU',
   'PASLC',
+  'BM',
   'VMCS',
   'OGAJ',
-  'OGPP',
   'SG',
-  'BM',
-  'DGAA',
-  'DGPRCS',
-  'EMSAPUNO',
-  'MPP',
-  'UAL',
-  'EPS'
+  'OGPP'
 ];
 const DEFAULT_TITLE_BY_EDT = {
   '3.2': 'Creación del Equipo Técnico de Gestión del Programa - Programa de Economía Circular (ETGP-PEC)',
@@ -2346,7 +2339,9 @@ function splitPeople(value){
 }
 
 function splitEntities(value){
-  return text(value)
+  const normalized = text(value)
+    .replace(/([A-ZÁÉÍÓÚÑ]{2,})-([A-ZÁÉÍÓÚÑ]{2,})/g, '$1/$2');
+  return normalized
     .split(/[\/,;]+/g)
     .map(canonicalEntityName)
     .filter(Boolean);
@@ -2386,7 +2381,6 @@ function getAssignableEntities(){
     []
       .concat(BASE_ENTITIES)
       .concat(appState.customEntities || [])
-      .concat(appState.raw.map(r => r.responsable || ''))
   );
 }
 
@@ -3949,8 +3943,26 @@ function buildExecutiveReport(){
   const pending = records.filter(r => r.estado === 'Pendiente de Iniciar').length;
   const overdue = records.filter(r => r.alerta === 'vencido').sort((a,b)=>text(a.final).localeCompare(text(b.final)));
   const critical = records.filter(r => r.alerta === 'critico').sort((a,b)=>text(a.final).localeCompare(text(b.final)));
-  const byOwner = groupCount(records.map(r => ({owner:r.seguimiento_dgppcs || 'Sin asignar'})), 'owner').slice(0,5);
-  const byResponsible = groupCount(records.map(r => ({owner:r.responsable || 'Sin asignar'})), 'owner').slice(0,5);
+  const ownerRows = [];
+  records.forEach(r => {
+    const people = splitPeople(r.seguimiento_dgppcs);
+    if(!people.length){
+      ownerRows.push({owner:'Sin asignar'});
+      return;
+    }
+    people.forEach(owner => ownerRows.push({owner}));
+  });
+  const byOwner = groupCount(ownerRows, 'owner').slice(0,5);
+  const responsibleRows = [];
+  records.forEach(r => {
+    const entities = splitEntities(r.responsable);
+    if(!entities.length){
+      responsibleRows.push({owner:'Sin asignar'});
+      return;
+    }
+    entities.forEach(owner => responsibleRows.push({owner}));
+  });
+  const byResponsible = groupCount(responsibleRows, 'owner').slice(0,5);
   const nextMilestones = records
     .filter(r => r.final && r.estado !== 'Completado')
     .sort((a,b)=>text(a.final).localeCompare(text(b.final)))

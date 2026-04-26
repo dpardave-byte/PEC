@@ -204,12 +204,12 @@ tbody tr:hover td{background:#f8fbfe}
   <section class="topbar">
     <div class="hero">
       <div class="hero-copy">
-        <h1>Visor de Seguimiento PEC</h1>
-        <p>Programa de Economía Circular para Puno y Lima.</p>
+        <h1 id="heroTitle">Visor de Seguimiento PEC</h1>
+        <p id="heroSubtitle">Programa de Economía Circular para Puno y Lima.</p>
         <div class="hero-meta">
-          <div><b>DGPPCS</b></div>
-          <div><b>Puno y Lima</b></div>
-          <div><b>Seguimiento operativo</b></div>
+          <div><b id="heroMeta1">DGPPCS</b></div>
+          <div><b id="heroMeta2">Puno y Lima</b></div>
+          <div><b id="heroMeta3">Seguimiento operativo</b></div>
         </div>
       </div>
       <div class="hero-visual">
@@ -225,6 +225,7 @@ tbody tr:hover td{background:#f8fbfe}
       </figure>
     <div class="toolbar-actions">
       <button id="buildReportBtn">Generar reporte ejecutivo</button>
+      <button id="editHeroBtn" class="secondary">Editar portada</button>
       <button id="openAnalyticsBtn" class="ghost">Ver analitica</button>
       <button id="exportTxtBtn" class="secondary">Exportar TXT</button>
       <button id="exportJsonBtn" class="ghost">Exportar JSON filtrado</button>
@@ -445,6 +446,31 @@ tbody tr:hover td{background:#f8fbfe}
           <img src="./assets/mercados-mundiales.png" alt="Contexto financiero y mercados para lectura ejecutiva del programa" style="width:100%;height:220px;object-fit:cover;display:block">
         </figure>
       </div>
+    </div>
+  </div>
+</div>
+
+<div id="heroModal" class="modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <h3>Editar portada</h3>
+        <div class="hero-meta">
+          <div><b>Configura</b> título, subtítulo y etiquetas visibles</div>
+        </div>
+      </div>
+      <button id="closeHeroBtn" class="secondary">Cerrar</button>
+    </div>
+    <div class="detail-grid">
+      <div class="detail-box"><b>Título principal</b><input id="heroEditTitle" type="text" value=""></div>
+      <div class="detail-box"><b>Subtítulo</b><input id="heroEditSubtitle" type="text" value=""></div>
+      <div class="detail-box"><b>Etiqueta 1</b><input id="heroEditMeta1" type="text" value=""></div>
+      <div class="detail-box"><b>Etiqueta 2</b><input id="heroEditMeta2" type="text" value=""></div>
+      <div class="detail-box"><b>Etiqueta 3</b><input id="heroEditMeta3" type="text" value=""></div>
+    </div>
+    <div class="toolbar-actions" style="margin-top:14px">
+      <button id="saveHeroBtn">Guardar portada</button>
+      <button id="resetHeroBtn" class="secondary">Restablecer</button>
     </div>
   </div>
 </div>
@@ -2003,6 +2029,7 @@ const EDIT_STORAGE_KEY = 'pec_tracking_edits_v1';
 const PEOPLE_STORAGE_KEY = 'pec_tracking_people_v1';
 const ENTITY_STORAGE_KEY = 'pec_tracking_entities_v1';
 const ALIAS_STORAGE_KEY = 'pec_tracking_aliases_v1';
+const HERO_STORAGE_KEY = 'pec_tracking_hero_v1';
 const CUSTOM_RECORD_STORAGE_KEY = 'pec_tracking_custom_records_v1';
 const PAYLOAD_STORAGE_KEY = 'pec_tracking_payload_v1';
 const SOURCE_MODE_STORAGE_KEY = 'pec_tracking_source_mode_v1';
@@ -2046,6 +2073,13 @@ const DEFAULT_TITLE_BY_EDT = {
   '3.2.1': 'Aprobación de la RM de Creación del CCP-PEC',
   '5': 'Inicio de Efectividad del Préstamo'
 };
+const DEFAULT_HERO = {
+  title: 'Visor de Seguimiento PEC',
+  subtitle: 'Programa de Economía Circular para Puno y Lima.',
+  meta1: 'DGPPCS',
+  meta2: 'Puno y Lima',
+  meta3: 'Seguimiento operativo'
+};
 const appState = {
   raw: [],
   matched: [],
@@ -2055,6 +2089,7 @@ const appState = {
   customPeople: loadCustomPeople(),
   customEntities: loadCustomEntities(),
   aliases: loadAliases(),
+  hero: loadHeroConfig(),
   customRecords: loadCustomRecords(),
   selectedId: '',
   reportText: '',
@@ -2110,6 +2145,25 @@ function loadCustomEntities(){
 
 function saveCustomEntities(){
   localStorage.setItem(ENTITY_STORAGE_KEY, JSON.stringify(appState.customEntities));
+}
+
+function loadHeroConfig(){
+  try{
+    const saved = JSON.parse(localStorage.getItem(HERO_STORAGE_KEY) || '{}');
+    return {
+      title: text(saved.title) || DEFAULT_HERO.title,
+      subtitle: text(saved.subtitle) || DEFAULT_HERO.subtitle,
+      meta1: text(saved.meta1) || DEFAULT_HERO.meta1,
+      meta2: text(saved.meta2) || DEFAULT_HERO.meta2,
+      meta3: text(saved.meta3) || DEFAULT_HERO.meta3
+    };
+  }catch(error){
+    return {...DEFAULT_HERO};
+  }
+}
+
+function saveHeroConfig(){
+  localStorage.setItem(HERO_STORAGE_KEY, JSON.stringify(appState.hero || DEFAULT_HERO));
 }
 
 function loadAliases(){
@@ -2374,6 +2428,15 @@ function updateMeta(meta){
   const referenceEl = document.getElementById('metaReferenceDate');
   if(generatedEl) generatedEl.textContent = meta.generatedAt || '-';
   if(referenceEl) referenceEl.textContent = meta.referenceDate || '-';
+}
+
+function renderHero(){
+  const hero = appState.hero || DEFAULT_HERO;
+  document.getElementById('heroTitle').textContent = hero.title || DEFAULT_HERO.title;
+  document.getElementById('heroSubtitle').textContent = hero.subtitle || DEFAULT_HERO.subtitle;
+  document.getElementById('heroMeta1').textContent = hero.meta1 || DEFAULT_HERO.meta1;
+  document.getElementById('heroMeta2').textContent = hero.meta2 || DEFAULT_HERO.meta2;
+  document.getElementById('heroMeta3').textContent = hero.meta3 || DEFAULT_HERO.meta3;
 }
 
 function resetExpandedState(){
@@ -3178,6 +3241,40 @@ function closeDrawer(){
   document.getElementById('drawer').classList.remove('open');
 }
 
+function openHeroModal(){
+  const hero = appState.hero || DEFAULT_HERO;
+  document.getElementById('heroEditTitle').value = hero.title || DEFAULT_HERO.title;
+  document.getElementById('heroEditSubtitle').value = hero.subtitle || DEFAULT_HERO.subtitle;
+  document.getElementById('heroEditMeta1').value = hero.meta1 || DEFAULT_HERO.meta1;
+  document.getElementById('heroEditMeta2').value = hero.meta2 || DEFAULT_HERO.meta2;
+  document.getElementById('heroEditMeta3').value = hero.meta3 || DEFAULT_HERO.meta3;
+  document.getElementById('heroModal').classList.add('open');
+}
+
+function closeHeroModal(){
+  document.getElementById('heroModal').classList.remove('open');
+}
+
+function saveHeroModal(){
+  appState.hero = {
+    title: text(document.getElementById('heroEditTitle').value) || DEFAULT_HERO.title,
+    subtitle: text(document.getElementById('heroEditSubtitle').value) || DEFAULT_HERO.subtitle,
+    meta1: text(document.getElementById('heroEditMeta1').value) || DEFAULT_HERO.meta1,
+    meta2: text(document.getElementById('heroEditMeta2').value) || DEFAULT_HERO.meta2,
+    meta3: text(document.getElementById('heroEditMeta3').value) || DEFAULT_HERO.meta3
+  };
+  saveHeroConfig();
+  renderHero();
+  closeHeroModal();
+}
+
+function resetHeroModal(){
+  appState.hero = {...DEFAULT_HERO};
+  saveHeroConfig();
+  renderHero();
+  openHeroModal();
+}
+
 function addLocalChildRecord(){
   if(!appState.selectedId) return;
   const parent = appState.raw.find(r => r.id === appState.selectedId);
@@ -3488,6 +3585,10 @@ function bindEvents(){
     applyFilters();
   });
   document.getElementById('closeDrawerBtn').addEventListener('click', closeDrawer);
+  document.getElementById('editHeroBtn').addEventListener('click', openHeroModal);
+  document.getElementById('closeHeroBtn').addEventListener('click', closeHeroModal);
+  document.getElementById('saveHeroBtn').addEventListener('click', saveHeroModal);
+  document.getElementById('resetHeroBtn').addEventListener('click', resetHeroModal);
   document.getElementById('addChildBtn').addEventListener('click', addLocalChildRecord);
   document.getElementById('saveCaseNoteBtn').addEventListener('click', saveCurrentCase);
   document.getElementById('clearCaseNoteBtn').addEventListener('click', clearCurrentCase);
@@ -3536,6 +3637,7 @@ function bindEvents(){
     const row = event.target.closest('[data-open]');
     if(row) openDrawer(row.getAttribute('data-open'));
     if(event.target.id === 'drawer') closeDrawer();
+    if(event.target.id === 'heroModal') closeHeroModal();
     if(event.target.id === 'reportModal') document.getElementById('reportModal').classList.remove('open');
     if(event.target.id === 'analyticsModal') document.getElementById('analyticsModal').classList.remove('open');
   });
@@ -3554,6 +3656,7 @@ function initFilters(){
 
 function init(){
   hydrateData();
+  renderHero();
   initFilters();
   bindEvents();
   applyFilters();

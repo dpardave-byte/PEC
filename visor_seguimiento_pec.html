@@ -89,7 +89,7 @@ button.soft{background:#e8f5f1;color:#0e615a}
 .fill.amber{background:linear-gradient(90deg,#c78818,#ffd082)}
 .timeline-shell{overflow:auto;padding-bottom:6px}
 .timeline-head,.timeline-row{
-  display:grid;grid-template-columns:320px minmax(780px,1fr) 130px;gap:12px;align-items:center
+  display:grid;grid-template-columns:340px minmax(680px,1fr) 130px 110px;gap:12px;align-items:center
 }
 .timeline-head{margin-bottom:10px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
 .months{display:grid;grid-template-columns:repeat(var(--months),1fr);gap:4px}
@@ -98,6 +98,7 @@ button.soft{background:#e8f5f1;color:#0e615a}
 .timeline-row{padding:10px 0;border-top:1px solid #edf2f6}
 .timeline-title strong{display:block}
 .timeline-title span{display:block;color:var(--muted);font-size:12px;margin-top:4px}
+.timeline-title .edt-cell{align-items:center}
 .gantt-track{height:26px;background:#eef3f8;border-radius:999px;position:relative;overflow:hidden}
 .gantt-bar{
   position:absolute;top:4px;height:18px;border-radius:999px;
@@ -109,6 +110,8 @@ button.soft{background:#e8f5f1;color:#0e615a}
 .gantt-bar.done{background:linear-gradient(90deg,#547c4a,#86b378)}
 .gantt-today{position:absolute;top:0;bottom:0;width:2px;background:#1d4ed8;opacity:.7}
 .gantt-label{font-size:12px;color:var(--muted);text-align:right}
+.gantt-progress{display:grid;gap:4px}
+.gantt-progress .progress-track{width:100%}
 .table-shell{overflow:auto}
 table{width:100%;min-width:1200px;border-collapse:collapse}
 th,td{padding:10px 12px;border-bottom:1px solid #edf2f6;text-align:left;vertical-align:top;font-size:13px}
@@ -240,6 +243,7 @@ tbody tr:hover td{background:#f8fbfe}
             <div>Actividad</div>
             <div class="months" id="timelineMonths"></div>
             <div>Estado</div>
+            <div>Avance</div>
           </div>
           <div class="gantt-list" id="ganttList"></div>
         </div>
@@ -343,6 +347,7 @@ const SHEET_NAME = 'CRONOGRAMA';
 const SELECTED_COLUMNS = [1, 2, 3, 4, 5, 6, 7, 8, 248, 249, 250];
 const appState = {
   raw: [],
+  matched: [],
   filtered: [],
   notes: loadNotes(),
   selectedId: '',
@@ -476,6 +481,7 @@ function applyFilters(){
     return true;
   });
 
+  appState.matched = matched;
   appState.filtered = withAncestors(matched, appState.raw);
 
   renderAll();
@@ -700,8 +706,39 @@ function renderAll(){
   renderTable();
 }
 
+function sortByEdt(records){
+  return records
+    .slice()
+    .sort((a,b) => text(a.edt).localeCompare(text(b.edt), 'es', {numeric:true}));
+}
+
+function buildHierarchyMaps(records){
+  const ordered = sortByEdt(records);
+  const childrenMap = new Map();
+  ordered.forEach(record => {
+    const parent = parentEdt(record.edt) || '__root__';
+    if(!childrenMap.has(parent)) childrenMap.set(parent, []);
+    childrenMap.get(parent).push(record);
+  });
+  return {ordered, childrenMap};
+}
+
+function getVisibleHierarchy(records){
+  const {ordered, childrenMap} = buildHierarchyMaps(records);
+  const visible = [];
+  function walk(parentKey){
+    const items = childrenMap.get(parentKey) || [];
+    items.forEach(record => {
+      visible.push(record);
+      if(appState.expanded[record.edt]) walk(record.edt);
+    });
+  }
+  walk('__root__');
+  return {ordered, childrenMap, visible};
+}
+
 function renderKpis(){
-  const records = appState.filtered;
+  const records = appState.matched;
   const total = records.length;
   const completed = records.filter(r => r.estado === 'Completado').length;
   const inProgress = records.filter(r => r.estado === 'En Proceso').length;
@@ -734,7 +771,7 @@ function pctText(part, total){
 }
 
 function renderQuickSummary(){
-  const records = appState.filtered;
+  const records = appState.matched;
   const nextDue = records
     .filter(r => ['critico','atencion'].includes(r.alerta))
     .sort((a,b) => text(a.final).localeCompare(text(b.final)))
@@ -751,7 +788,7 @@ function renderQuickSummary(){
 }
 
 function renderAlerts(){
-  const list = appState.filtered
+  const list = appState.matched
     .filter(r => ['vencido','critico','atencion','sin_fecha'].includes(r.alerta))
     .sort((a,b) => alertRank(a.alerta) - alertRank(b.alerta) || text(a.final).localeCompare(text(b.final)))
     .slice(0,12);
@@ -774,7 +811,7 @@ function alertRank(alert){
 }
 
 function renderStatusBars(){
-  const groups = groupCount(appState.filtered, 'estado');
+  const groups = groupCount(appState.matched, 'estado');
   const max = Math.max(1, ...groups.map(x => x.count));
   document.getElementById('statusBars').innerHTML = groups.map(item =>
     barRow(item.label, item.count, max, statusBarClass(item.label))
@@ -789,7 +826,7 @@ function statusBarClass(label){
 }
 
 function renderOwnerBars(){
-  const groups = groupCount(appState.filtered.map(r => ({
+  const groups = groupCount(appState.matched.map(r => ({
     owner: r.seguimiento_dgppcs || 'Sin asignar'
   })), 'owner').slice(0,8);
   const max = Math.max(1, ...groups.map(x => x.count));
@@ -815,14 +852,19 @@ function groupCount(records, key){
 }
 
 function renderGantt(){
-  const records = appState.filtered.filter(r => r.inicio && r.final)
-    .sort((a,b) => text(a.inicio).localeCompare(text(b.inicio)))
-    .slice(0,28);
+  const source = appState.filtered.filter(r => r.inicio && r.final);
   const monthsEl = document.getElementById('timelineMonths');
   const listEl = document.getElementById('ganttList');
-  if(!records.length){
+  if(!source.length){
     monthsEl.innerHTML = '';
     listEl.innerHTML = '<div class="empty">No hay actividades con fechas para construir el Gantt.</div>';
+    return;
+  }
+  const {childrenMap, visible} = getVisibleHierarchy(source);
+  const records = visible.filter(r => r.inicio && r.final);
+  if(!records.length){
+    monthsEl.innerHTML = '';
+    listEl.innerHTML = '<div class="empty">No hay actividades visibles con fechas para construir el Gantt.</div>';
     return;
   }
   const today = parseIso(todayIso());
@@ -834,17 +876,24 @@ function renderGantt(){
   const totalDays = Math.max(1, diffDays(maxDate, minDate) + 1);
   const todayOffset = clamp(diffDays(today, minDate) / totalDays * 100, 0, 100);
   listEl.innerHTML = records.map(r => {
+    const kids = childrenMap.get(r.edt) || [];
+    const hasChildren = kids.length > 0;
+    const level = Math.max(1, Number(r.nivel || deriveLevel(r.edt) || 1));
+    const indent = (level - 1) * 18;
     const start = parseIso(r.inicio);
     const end = parseIso(r.final);
     const left = clamp(diffDays(start, minDate) / totalDays * 100, 0, 100);
     const width = clamp((diffDays(end, start) + 1) / totalDays * 100, 1.5, 100);
     const stateCls = r.estado === 'Completado' ? 'done' : r.alerta === 'vencido' ? 'overdue' : r.alerta === 'critico' ? 'overdue' : r.alerta === 'atencion' ? 'attention' : r.estado === 'Pendiente de Iniciar' ? 'pending' : '';
     return '<div class="timeline-row" data-open="' + escapeHtml(r.id) + '">' +
-      '<div class="timeline-title"><strong>' + escapeHtml((r.edt ? r.edt + ' - ' : '') + r.actividad) + '</strong><span>' +
-      escapeHtml((r.seguimiento_dgppcs || r.responsable || 'Sin responsable') + ' | ' + fmtDate(r.inicio) + ' a ' + fmtDate(r.final)) +
-      '</span></div>' +
+      '<div class="timeline-title"><div class="edt-cell" style="padding-left:' + indent + 'px">' +
+      '<button class="tree-toggle' + (hasChildren ? '' : ' empty') + '" data-toggle="' + escapeHtml(r.edt) + '" ' + (hasChildren ? '' : 'tabindex="-1" aria-hidden="true"') + '>' + (hasChildren ? (appState.expanded[r.edt] ? '−' : '+') : '+') + '</button>' +
+      '<div><strong>' + escapeHtml((r.edt ? r.edt + ' - ' : '') + r.actividad) + '</strong><span>' +
+      escapeHtml((r.seguimiento_dgppcs || r.responsable || 'Sin responsable') + ' | ' + fmtDate(r.inicio) + ' a ' + fmtDate(r.final) + (hasChildren ? ' | ' + kids.length + ' subactividad(es)' : '')) +
+      '</span></div></div></div>' +
       '<div class="gantt-track"><div class="gantt-today" style="left:' + todayOffset + '%"></div><div class="gantt-bar ' + stateCls + '" style="left:' + left + '%;width:' + width + '%"></div></div>' +
       '<div class="gantt-label"><span class="status-pill st-' + slugify(r.estado) + '">' + escapeHtml(r.estado) + '</span></div>' +
+      '<div class="gantt-progress"><div class="progress-track"><i style="width:' + clamp(r.avance_estimado,0,100) + '%"></i></div><span>' + escapeHtml(String(r.avance_estimado)) + '%</span></div>' +
     '</div>';
   }).join('');
 }
@@ -875,24 +924,7 @@ function renderTable(){
     return;
   }
   empty.hidden = true;
-  const ordered = appState.filtered
-    .slice()
-    .sort((a,b) => text(a.edt).localeCompare(text(b.edt), 'es', {numeric:true}));
-  const childrenMap = new Map();
-  ordered.forEach(record => {
-    const parent = parentEdt(record.edt) || '__root__';
-    if(!childrenMap.has(parent)) childrenMap.set(parent, []);
-    childrenMap.get(parent).push(record);
-  });
-  const visible = [];
-  function walk(parentKey){
-    const items = childrenMap.get(parentKey) || [];
-    items.forEach(record => {
-      visible.push(record);
-      if(appState.expanded[record.edt]) walk(record.edt);
-    });
-  }
-  walk('__root__');
+  const {childrenMap, visible} = getVisibleHierarchy(appState.filtered);
   tbody.innerHTML = visible.map(r => {
       const kids = childrenMap.get(r.edt) || [];
       const hasChildren = kids.length > 0;
@@ -976,7 +1008,7 @@ function clearCurrentCase(){
 }
 
 function buildExecutiveReport(){
-  const records = appState.filtered.slice();
+  const records = appState.matched.slice();
   const total = records.length;
   const completed = records.filter(r => r.estado === 'Completado').length;
   const inProgress = records.filter(r => r.estado === 'En Proceso').length;

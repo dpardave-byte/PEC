@@ -136,7 +136,7 @@ tbody tr:hover td{background:#f8fbfe}
   min-height:26px;height:26px;min-width:26px;width:26px;padding:0;border-radius:8px;
   background:#eef4fb;color:var(--brand);font-size:12px;line-height:1
 }
-.tree-toggle.empty{visibility:hidden}
+.tree-toggle.empty{visibility:visible;opacity:.42;cursor:default}
 .edt-chip{
   display:inline-flex;align-items:center;min-height:26px;padding:3px 8px;border-radius:999px;
   background:#f2f6fa;color:var(--brand);font-weight:700;font-size:12px
@@ -2463,16 +2463,16 @@ function getMergedRecord(record){
   merged.final = toIsoDate(merged.final);
   merged.edt = text(merged.edt);
   merged.parent_edt = text(merged.parent_edt);
-  if(merged.edt && !merged.edt.includes('.')){
+  if(isTopLevelEdt(merged.edt)){
     merged.parent_edt = '';
-    merged.nivel = 1;
   }else if(merged.edt && !merged.parent_edt){
     merged.parent_edt = parentEdt(merged.edt);
   }
   merged.duracion_cal = toNumber(merged.duracion_cal);
   merged.dias_habiles = toNumber(merged.dias_habiles);
   merged.estado = text(merged.estado) || 'Sin estado';
-  merged.nivel = Math.max(1, toNumber(merged.nivel) || deriveLevel(merged.edt) || toNumber(record.nivel) || 1);
+  merged.nivel = normalizedLevelValue(merged.edt, toNumber(merged.nivel) || toNumber(record.nivel));
+  if(isTopLevelEdt(merged.edt)) merged.parent_edt = '';
   merged.grupo = text(merged.grupo) || deriveGroup(merged.edt) || text(record.grupo) || 'Sin grupo';
   merged.avance_estimado = deriveProgress(merged.estado);
   merged.dias_restantes = deriveRemaining(merged.final, merged.estado);
@@ -2739,6 +2739,16 @@ function deriveRemaining(final, estado){
 
 function deriveLevel(edt){
   return text(edt) ? text(edt).split('.').length : 0;
+}
+
+function isTopLevelEdt(edt){
+  const raw = text(edt);
+  return Boolean(raw) && !raw.includes('.');
+}
+
+function normalizedLevelValue(edt, fallback){
+  if(isTopLevelEdt(edt)) return 1;
+  return Math.max(1, Number(fallback || deriveLevel(edt) || 1));
 }
 
 function deriveGroup(edt){
@@ -3171,7 +3181,7 @@ function buildHierarchyMaps(records){
   });
   const stack = [];
   ordered.forEach(record => {
-    const level = Math.max(1, Number(record.nivel || deriveLevel(record.edt) || 1));
+    const level = normalizedLevelValue(record.edt, record.nivel);
     while(stack.length && stack[stack.length - 1].level >= level) stack.pop();
     let parent = '__root__';
     const explicitParentEdt = text(record.parent_edt);
@@ -3596,7 +3606,7 @@ function renderGantt(){
     const r = item.record;
     const kids = childrenMap.get(r.id) || [];
     const hasChildren = kids.length > 0;
-    const level = Math.max(1, Number(r.nivel || deriveLevel(r.edt) || 1));
+    const level = normalizedLevelValue(r.edt, r.nivel);
     const indent = (level - 1) * 18;
     const start = item.range.start;
     const end = item.range.end;
@@ -3608,7 +3618,7 @@ function renderGantt(){
     const stateCls = ganttState === 'Completado' ? 'done' : r.alerta === 'vencido' ? 'overdue' : r.alerta === 'critico' ? 'overdue' : 'pending';
     return '<div class="timeline-row" data-open="' + escapeHtml(r.id) + '">' +
       '<div class="timeline-title"><div class="edt-cell" style="padding-left:' + indent + 'px">' +
-      '<button class="tree-toggle' + (hasChildren ? '' : ' empty') + '" data-toggle="' + escapeHtml(r.id) + '" ' + (hasChildren ? '' : 'tabindex="-1" aria-hidden="true"') + '>' + (hasChildren ? (appState.expanded[r.id] ? '−' : '+') : '+') + '</button>' +
+      '<button class="tree-toggle' + (hasChildren ? '' : ' empty') + '"' + (hasChildren ? ' data-toggle="' + escapeHtml(r.id) + '"' : ' type="button" disabled') + '>' + (hasChildren ? (appState.expanded[r.id] ? '−' : '+') : '•') + '</button>' +
       '<div><strong>' + escapeHtml(displayTitle(r)) + '</strong><span>' +
       escapeHtml((r.seguimiento_dgppcs || r.responsable || 'Sin responsable') + ' | ' + fmtDate(startIso) + ' a ' + fmtDate(endIso) + (hasChildren ? ' | ' + kids.length + ' subactividad(es)' : '')) +
       '</span></div></div></div>' +
@@ -3651,12 +3661,12 @@ function renderTable(){
   tbody.innerHTML = visible.map(r => {
       const kids = childrenMap.get(r.id) || [];
       const hasChildren = kids.length > 0;
-      const level = Math.max(1, Number(r.nivel || deriveLevel(r.edt) || 1));
+      const level = normalizedLevelValue(r.edt, r.nivel);
       const indent = (level - 1) * 18;
       return '<tr class="row-level-' + level + '" data-open="' + escapeHtml(r.id) + '">' +
         '<td>' +
           '<div class="edt-cell" style="padding-left:' + indent + 'px">' +
-            '<button class="tree-toggle' + (hasChildren ? '' : ' empty') + '" data-toggle="' + escapeHtml(r.id) + '" ' + (hasChildren ? '' : 'tabindex="-1" aria-hidden="true"') + '>' + (hasChildren ? (appState.expanded[r.id] ? '−' : '+') : '+') + '</button>' +
+            '<button class="tree-toggle' + (hasChildren ? '' : ' empty') + '"' + (hasChildren ? ' data-toggle="' + escapeHtml(r.id) + '"' : ' type="button" disabled') + '>' + (hasChildren ? (appState.expanded[r.id] ? '−' : '+') : '•') + '</button>' +
             '<span class="edt-chip">' + escapeHtml(r.edt || '-') + '</span>' +
           '</div>' +
         '</td>' +
@@ -3707,7 +3717,7 @@ function openDrawer(recordId){
     editableBox('Dias habiles','editHabiles','number',record.dias_habiles != null ? String(record.dias_habiles) : '','Dias habiles'),
     editableBox('EDT visible','editEdt','text',record.edt || '','Ej.: 2.3.1'),
     moveTargetBox(record),
-    editableBox('Nivel visual','editNivel','number',record.nivel != null ? String(record.nivel) : '','1, 2, 3...'),
+      editableBox('Nivel visual','editNivel','number',String(normalizedLevelValue(record.edt, record.nivel)),'1, 2, 3...'),
     selectBox('Grupo EDT / categoria','editGrupo',record.grupo || deriveGroup(record.edt), groupOptions),
     editableBox('Titulo visible','editAlias','text',text(appState.aliases[record.id] || ''),'Renombrar este EDT en el visor'),
     editableBox('Resumen','editResumen','textarea',record.resumen,'Sintesis ejecutiva del caso'),
@@ -3832,13 +3842,13 @@ function addLocalChildRecord(){
   const parentIndex = ordered.findIndex(item => item.id === parent.id);
   let insertAfter = Number(parent.source_order || 0);
   if(parentIndex >= 0){
-    const parentLevel = Math.max(1, Number(parent.nivel || deriveLevel(parent.edt) || 1));
-    for(let i = parentIndex + 1; i < ordered.length; i++){
-      const row = ordered[i];
-      const level = Math.max(1, Number(row.nivel || deriveLevel(row.edt) || 1));
-      if(level <= parentLevel) break;
-      insertAfter = Math.max(insertAfter, Number(row.source_order || insertAfter));
-    }
+      const parentLevel = normalizedLevelValue(parent.edt, parent.nivel);
+      for(let i = parentIndex + 1; i < ordered.length; i++){
+        const row = ordered[i];
+        const level = normalizedLevelValue(row.edt, row.nivel);
+        if(level <= parentLevel) break;
+        insertAfter = Math.max(insertAfter, Number(row.source_order || insertAfter));
+      }
   }
   const edt = nextChildEdt(parent, childrenMap) || '';
   const start = text(document.getElementById('newChildStart').value);
@@ -3859,7 +3869,7 @@ function addLocalChildRecord(){
     estado: state,
     seguimiento_dgppcs: '',
     contacto: '',
-    nivel: Math.max(1, Number(parent.nivel || deriveLevel(parent.edt) || 1) + 1),
+      nivel: normalizedLevelValue(parent.edt, parent.nivel) + 1,
     grupo: parent.grupo || deriveGroup(edt),
     avance_estimado: deriveProgress(state),
     alerta: deriveAlert(start, end, state),
@@ -3928,12 +3938,13 @@ function saveCurrentCase(){
   }else if(manualEdt){
     nextGroup = deriveGroup(manualEdt);
   }
+  if(isTopLevelEdt(nextEdt)) nextParentEdt = '';
 
-  appState.edits[appState.selectedId] = {
-    edt: nextEdt,
-    parent_edt: nextParentEdt,
-    nivel: text(document.getElementById('editNivel').value) || String(deriveLevel(nextEdt)),
-    grupo: nextGroup,
+    appState.edits[appState.selectedId] = {
+      edt: nextEdt,
+      parent_edt: nextParentEdt,
+      nivel: String(normalizedLevelValue(nextEdt, text(document.getElementById('editNivel').value))),
+      grupo: nextGroup,
     responsable: getSelectedValues('responsable', 'entity').join('; '),
     seguimiento_dgppcs: getSelectedValues('seguimiento', 'person').join(' / '),
     contacto: text(document.getElementById('editContacto').value),

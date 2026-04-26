@@ -271,6 +271,17 @@ tbody tr:hover td{background:#f8fbfe}
         <button id="loadXlsxBtn" class="ghost">Leer Excel</button>
         <button id="useEmbeddedBtn" class="soft">Usar datos embebidos</button>
       </div>
+      <div class="ingest">
+        <div class="field">
+          <label for="structureInput">Cargar estructura editable</label>
+          <input id="structureInput" type="file" accept=".xlsx,.xls,.json">
+        </div>
+        <button id="loadStructureBtn" class="ghost">Leer estructura</button>
+        <button id="exportStructureXlsxBtn" class="soft">Exportar estructura XLSX</button>
+      </div>
+      <div class="toolbar-actions">
+        <button id="exportStructureJsonBtn" class="ghost">Exportar estructura JSON</button>
+      </div>
       <button id="resetFiltersBtn" class="secondary">Limpiar filtros</button>
       <button id="openReportBtn" class="ghost">Ver reporte</button>
       <button id="openAnalyticsBtnToolbar" class="ghost">Ver analitica</button>
@@ -2033,6 +2044,10 @@ const HERO_STORAGE_KEY = 'pec_tracking_hero_v1';
 const CUSTOM_RECORD_STORAGE_KEY = 'pec_tracking_custom_records_v1';
 const PAYLOAD_STORAGE_KEY = 'pec_tracking_payload_v1';
 const SOURCE_MODE_STORAGE_KEY = 'pec_tracking_source_mode_v1';
+const STRUCTURE_SHEET_NAME = 'GANTT_ESTRUCTURA';
+const STRUCTURE_CONFIG_SHEET = 'CONFIG_VISOR';
+const STRUCTURE_PEOPLE_SHEET = 'CATALOGO_PERSONAS';
+const STRUCTURE_ENTITY_SHEET = 'CATALOGO_ENTIDADES';
 const HEADER_ROW = 7;
 const SHEET_NAME = 'CRONOGRAMA';
 const SELECTED_COLUMNS = [1, 2, 3, 4, 5, 6, 7, 8, 248, 249, 250];
@@ -2322,6 +2337,17 @@ function getAssignableEntities(){
       .concat(appState.customEntities || [])
       .concat(appState.raw.map(r => r.responsable || ''))
   );
+}
+
+function getGroupRecords(records){
+  return sortBySourceOrder(records || appState.raw).filter(record => Number(record.nivel || deriveLevel(record.edt) || 1) === 1 && text(record.edt));
+}
+
+function getGroupOptionList(records){
+  return getGroupRecords(records).map(record => ({
+    value: text(record.edt),
+    label: text(record.edt) + ' - ' + (text(appState.aliases[record.id]) || text(record.actividad) || text(record.edt))
+  }));
 }
 
 function fmtDate(value){
@@ -2695,6 +2721,203 @@ function buildPayloadFromRecords(records, sourceFile){
   };
 }
 
+function serializeStructureRows(){
+  return sortBySourceOrder(appState.raw).map(record => ({
+    id: text(record.id),
+    source_order: Number(record.source_order || 0),
+    edt: text(record.edt),
+    parent_edt: text(record.parent_edt),
+    nivel: Number(record.nivel || deriveLevel(record.edt) || 1),
+    grupo: text(record.grupo),
+    actividad: text(record.actividad),
+    titulo_visible: text(appState.aliases[record.id] || ''),
+    responsable: text(record.responsable),
+    seguimiento_dgppcs: text(record.seguimiento_dgppcs),
+    contacto: text(record.contacto),
+    inicio: text(record.inicio),
+    final: text(record.final),
+    duracion_cal: record.duracion_cal == null ? '' : record.duracion_cal,
+    dias_habiles: record.dias_habiles == null ? '' : record.dias_habiles,
+    estado: text(record.estado),
+    resumen: text(record.resumen),
+    comentario_seguimiento: text(record.local_note),
+    proximo_paso: text(record.local_action)
+  }));
+}
+
+function exportStructureJson(){
+  const bundle = {
+    format: 'pec-gantt-structure-v1',
+    exportedAt: new Date().toISOString(),
+    sourceMode: appState.sourceMode || 'embedded',
+    hero: appState.hero || DEFAULT_HERO,
+    customPeople: appState.customPeople || [],
+    customEntities: appState.customEntities || [],
+    rows: serializeStructureRows()
+  };
+  downloadBlob('gantt_estructura_pec.json', 'application/json;charset=utf-8', JSON.stringify(bundle, null, 2));
+}
+
+function exportStructureXlsx(){
+  if(typeof XLSX === 'undefined'){
+    alert('La librería Excel no cargó. Recarga la página e intenta otra vez.');
+    return;
+  }
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(serializeStructureRows()), STRUCTURE_SHEET_NAME);
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([
+    {clave:'format', valor:'pec-gantt-structure-v1'},
+    {clave:'sourceMode', valor:appState.sourceMode || 'embedded'},
+    {clave:'title', valor:text((appState.hero || DEFAULT_HERO).title)},
+    {clave:'subtitle', valor:text((appState.hero || DEFAULT_HERO).subtitle)},
+    {clave:'meta1', valor:text((appState.hero || DEFAULT_HERO).meta1)},
+    {clave:'meta2', valor:text((appState.hero || DEFAULT_HERO).meta2)},
+    {clave:'meta3', valor:text((appState.hero || DEFAULT_HERO).meta3)}
+  ]), STRUCTURE_CONFIG_SHEET);
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet((appState.customPeople || []).map(value => ({persona:value}))), STRUCTURE_PEOPLE_SHEET);
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet((appState.customEntities || []).map(value => ({entidad:value}))), STRUCTURE_ENTITY_SHEET);
+  XLSX.writeFile(workbook, 'gantt_estructura_pec.xlsx');
+}
+
+function normalizeStructureRow(raw, idx){
+  const estado = text(raw.estado) || 'Sin estado';
+  const inicio = toIsoDate(raw.inicio);
+  const final = toIsoDate(raw.final);
+  return {
+    id: text(raw.id) || `imported-${String(idx).padStart(3,'0')}`,
+    source_order: Number(raw.source_order || idx),
+    edt: text(raw.edt),
+    parent_edt: text(raw.parent_edt),
+    actividad: text(raw.actividad),
+    responsable: text(raw.responsable),
+    inicio,
+    final,
+    duracion_cal: toNumber(raw.duracion_cal),
+    dias_habiles: toNumber(raw.dias_habiles),
+    dias_restantes: deriveRemaining(final, estado),
+    estado,
+    seguimiento_dgppcs: text(raw.seguimiento_dgppcs),
+    contacto: text(raw.contacto),
+    nivel: Math.max(1, toNumber(raw.nivel) || deriveLevel(raw.edt) || 1),
+    grupo: text(raw.grupo) || deriveGroup(raw.edt),
+    avance_estimado: deriveProgress(estado),
+    alerta: deriveAlert(inicio, final, estado),
+    resumen: text(raw.resumen) || [text(raw.edt) ? `EDT ${text(raw.edt)}` : '', text(raw.seguimiento_dgppcs) || text(raw.responsable), estado].filter(Boolean).join(' | '),
+    titulo_visible: text(raw.titulo_visible),
+    comentario_seguimiento: text(raw.comentario_seguimiento),
+    proximo_paso: text(raw.proximo_paso)
+  };
+}
+
+function resetLocalTrackingState(){
+  appState.edits = {};
+  appState.notes = {};
+  appState.aliases = {};
+  appState.customRecords = [];
+  saveEdits();
+  saveNotes();
+  saveAliases();
+  saveCustomRecords();
+}
+
+function applyImportedStructure(rows, options){
+  const normalized = normalizeRecords(rows.map(normalizeStructureRow));
+  resetLocalTrackingState();
+  const aliasMap = {};
+  const notesMap = {};
+  normalized.forEach(record => {
+    if(text(record.titulo_visible)) aliasMap[record.id] = text(record.titulo_visible);
+    if(text(record.comentario_seguimiento) || text(record.proximo_paso)){
+      notesMap[record.id] = {
+        note: text(record.comentario_seguimiento),
+        action: text(record.proximo_paso)
+      };
+    }
+  });
+  appState.aliases = aliasMap;
+  appState.notes = notesMap;
+  if(options && options.hero) appState.hero = options.hero;
+  if(options && Array.isArray(options.customPeople)) appState.customPeople = uniquePeople([].concat(BASE_PEOPLE).concat(options.customPeople));
+  if(options && Array.isArray(options.customEntities)) appState.customEntities = uniqueEntities([].concat(BASE_ENTITIES).concat(options.customEntities));
+  saveAliases();
+  saveNotes();
+  saveHeroConfig();
+  saveCustomPeople();
+  saveCustomEntities();
+  appState.payload = buildPayloadFromRecords(normalized.map(record => ({
+    id: record.id,
+    source_order: record.source_order,
+    edt: record.edt,
+    parent_edt: record.parent_edt,
+    actividad: record.actividad,
+    responsable: record.responsable,
+    inicio: record.inicio,
+    final: record.final,
+    duracion_cal: record.duracion_cal,
+    dias_habiles: record.dias_habiles,
+    estado: record.estado,
+    seguimiento_dgppcs: record.seguimiento_dgppcs,
+    contacto: record.contacto,
+    nivel: record.nivel,
+    grupo: record.grupo,
+    resumen: record.resumen
+  })), (options && options.sourceFile) || 'estructura_importada');
+  appState.sourceMode = 'structure';
+  saveCurrentPayload();
+  hydrateData(appState.payload);
+  initFilters();
+  applyFilters();
+}
+
+async function loadStructureFromInput(){
+  const input = document.getElementById('structureInput');
+  const file = input.files && input.files[0];
+  if(!file){
+    alert('Selecciona primero un archivo de estructura.');
+    return;
+  }
+  const lower = file.name.toLowerCase();
+  if(lower.endsWith('.json')){
+    const parsed = JSON.parse(await file.text());
+    const rows = Array.isArray(parsed.rows) ? parsed.rows : [];
+    applyImportedStructure(rows, {
+      sourceFile: file.name,
+      hero: parsed.hero || appState.hero,
+      customPeople: parsed.customPeople || [],
+      customEntities: parsed.customEntities || []
+    });
+    return;
+  }
+  if(typeof XLSX === 'undefined'){
+    alert('La librería Excel no cargó. Recarga la página e intenta otra vez.');
+    return;
+  }
+  const workbook = XLSX.read(await file.arrayBuffer(), {type:'array'});
+  const structureSheet = workbook.Sheets[STRUCTURE_SHEET_NAME] || workbook.Sheets[workbook.SheetNames[0]];
+  if(!structureSheet) throw new Error('No se encontró la hoja de estructura.');
+  const rows = XLSX.utils.sheet_to_json(structureSheet, {defval:''});
+  const configSheet = workbook.Sheets[STRUCTURE_CONFIG_SHEET];
+  const hero = {...DEFAULT_HERO};
+  if(configSheet){
+    const configRows = XLSX.utils.sheet_to_json(configSheet, {defval:''});
+    configRows.forEach(row => {
+      const key = text(row.clave || row.Clave);
+      const value = text(row.valor || row.Valor);
+      if(['title','subtitle','meta1','meta2','meta3'].includes(key)) hero[key] = value || hero[key];
+    });
+  }
+  const peopleSheet = workbook.Sheets[STRUCTURE_PEOPLE_SHEET];
+  const entitySheet = workbook.Sheets[STRUCTURE_ENTITY_SHEET];
+  const people = peopleSheet ? XLSX.utils.sheet_to_json(peopleSheet, {defval:''}).map(row => text(row.persona || row.Persona)).filter(Boolean) : [];
+  const entities = entitySheet ? XLSX.utils.sheet_to_json(entitySheet, {defval:''}).map(row => text(row.entidad || row.Entidad)).filter(Boolean) : [];
+  applyImportedStructure(rows, {
+    sourceFile: file.name,
+    hero,
+    customPeople: people,
+    customEntities: entities
+  });
+}
+
 async function loadExcelFromInput(){
   const input = document.getElementById('xlsxInput');
   const file = input.files && input.files[0];
@@ -2812,6 +3035,14 @@ function nextChildEdt(parentRecord, childrenMap){
   return parentEdt + '.' + next;
 }
 
+function nextTopLevelEdt(records){
+  const tops = getGroupRecords(records);
+  const numbers = tops
+    .map(record => /^\d+$/.test(text(record.edt)) ? Number(text(record.edt)) : null)
+    .filter(value => value != null);
+  return String((numbers.length ? Math.max(...numbers) : 0) + 1);
+}
+
 function collectSubtreeRecords(rootId, childrenMap){
   const out = [];
   function walk(id){
@@ -2823,6 +3054,111 @@ function collectSubtreeRecords(rootId, childrenMap){
   }
   walk(rootId);
   return out;
+}
+
+function getCurrentParentRecord(record, ordered, childrenMap){
+  const explicitParentEdt = text(record.parent_edt);
+  if(explicitParentEdt){
+    return ordered.find(item => text(item.edt) === explicitParentEdt) || null;
+  }
+  for(const [parentId, children] of childrenMap.entries()){
+    if(parentId === '__root__') continue;
+    if(children.some(child => child.id === record.id)){
+      return ordered.find(item => item.id === parentId) || null;
+    }
+  }
+  return null;
+}
+
+function getMoveTargetOptions(record){
+  const {ordered, childrenMap} = buildHierarchyMaps(appState.raw);
+  const blocked = new Set([record.id].concat(collectSubtreeRecords(record.id, childrenMap).map(item => item.id)));
+  const currentParent = getCurrentParentRecord(record, ordered, childrenMap);
+  const options = [{
+    value: '__KEEP__',
+    label: 'Mantener ubicación actual',
+    selected: !currentParent
+  }];
+  getGroupRecords(ordered).forEach(groupRecord => {
+    options.push({
+      value: '__GROUP__:' + groupRecord.id,
+      label: 'Mover al grupo ' + text(groupRecord.edt) + ' - ' + (text(appState.aliases[groupRecord.id]) || text(groupRecord.actividad) || text(groupRecord.edt)),
+      selected: false
+    });
+  });
+  ordered.forEach(item => {
+    if(blocked.has(item.id)) return;
+    const level = Math.max(1, Number(item.nivel || deriveLevel(item.edt) || 1));
+    const prefix = '· '.repeat(Math.max(0, level - 1));
+    options.push({
+      value: item.id,
+      label: prefix + displayTitle(item),
+      selected: currentParent ? currentParent.id === item.id : false
+    });
+  });
+  return options;
+}
+
+function moveTargetBox(record){
+  const options = getMoveTargetOptions(record);
+  return '<div class="detail-box"><b>Destino visual</b><select id="editMoveTarget">' +
+    options.map(option =>
+      '<option value="' + escapeHtml(option.value) + '"' + (option.selected ? ' selected' : '') + '>' + escapeHtml(option.label) + '</option>'
+    ).join('') +
+  '</select></div>';
+}
+
+function selectBox(label, id, value, options){
+  return '<div class="detail-box"><b>' + escapeHtml(label) + '</b><select id="' + escapeHtml(id) + '">' +
+    options.map(option =>
+      '<option value="' + escapeHtml(option.value) + '"' + (text(option.value) === text(value) ? ' selected' : '') + '>' + escapeHtml(option.label) + '</option>'
+    ).join('') +
+  '</select></div>';
+}
+
+function reorderMovedSubtree(rootRecord, destination){
+  const {ordered, childrenMap} = buildHierarchyMaps(appState.raw);
+  const subtreeIds = [rootRecord.id].concat(collectSubtreeRecords(rootRecord.id, childrenMap).map(item => item.id));
+  const subtreeSet = new Set(subtreeIds);
+  const moving = ordered.filter(record => subtreeSet.has(record.id));
+  let remaining = ordered.filter(record => !subtreeSet.has(record.id));
+  let insertIndex = remaining.length;
+  let parentRecord = null;
+  let parentEdt = '';
+  let rootNewEdt = text(rootRecord.edt);
+
+  if(destination && destination.kind === 'group'){
+    parentRecord = remaining.find(record => record.id === destination.groupId) || null;
+    if(parentRecord){
+      const remainingMaps = buildHierarchyMaps(remaining);
+      const subtree = [parentRecord].concat(collectSubtreeRecords(parentRecord.id, remainingMaps.childrenMap));
+      const lastId = subtree.length ? subtree[subtree.length - 1].id : parentRecord.id;
+      insertIndex = remaining.findIndex(record => record.id === lastId) + 1;
+      parentEdt = text(parentRecord.edt);
+      rootNewEdt = nextChildEdt(parentRecord, remainingMaps.childrenMap) || nextTopLevelEdt(remaining);
+    }else{
+      rootNewEdt = nextTopLevelEdt(remaining);
+    }
+  }else if(destination && destination.kind === 'parent'){
+    parentRecord = remaining.find(record => record.id === destination.parentId) || null;
+    if(parentRecord){
+      const remainingMaps = buildHierarchyMaps(remaining);
+      const subtree = [parentRecord].concat(collectSubtreeRecords(parentRecord.id, remainingMaps.childrenMap));
+      const lastId = subtree.length ? subtree[subtree.length - 1].id : parentRecord.id;
+      insertIndex = remaining.findIndex(record => record.id === lastId) + 1;
+      parentEdt = text(parentRecord.edt);
+      rootNewEdt = nextChildEdt(parentRecord, remainingMaps.childrenMap) || rootNewEdt;
+    }
+  }
+
+  const reordered = remaining.slice(0, insertIndex).concat(moving, remaining.slice(insertIndex));
+  reordered.forEach((record, index) => {
+    const nextEdit = {...(appState.edits[record.id] || {})};
+    nextEdit.source_order = index + 1;
+    appState.edits[record.id] = nextEdit;
+  });
+
+  return {parentRecord, parentEdt, rootNewEdt};
 }
 
 function inferEditedRootEdt(record){
@@ -3144,6 +3480,7 @@ function openDrawer(recordId){
   const record = appState.raw.find(r => r.id === recordId);
   if(!record) return;
   const {childrenMap} = buildHierarchyMaps(appState.raw);
+  const groupOptions = getGroupOptionList(appState.raw);
   appState.selectedId = record.id;
   document.getElementById('drawerTitle').textContent = displayTitle(record);
   document.getElementById('drawerSubtitle').innerHTML =
@@ -3170,13 +3507,13 @@ function openDrawer(recordId){
     editableBox('Duracion calendario','editDuracion','number',record.duracion_cal != null ? String(record.duracion_cal) : '','Dias calendario'),
     editableBox('Dias habiles','editHabiles','number',record.dias_habiles != null ? String(record.dias_habiles) : '','Dias habiles'),
     editableBox('EDT visible','editEdt','text',record.edt || '','Ej.: 2.3.1'),
-    editableBox('Padre EDT','editParentEdt','text',record.parent_edt || '','Ej.: 2 o 2.3'),
+    moveTargetBox(record),
     editableBox('Nivel visual','editNivel','number',record.nivel != null ? String(record.nivel) : '','1, 2, 3...'),
-    editableBox('Grupo EDT / categoria','editGrupo','text',record.grupo || deriveGroup(record.edt),'Agrupación visible'),
+    selectBox('Grupo EDT / categoria','editGrupo',record.grupo || deriveGroup(record.edt), groupOptions),
     editableBox('Titulo visible','editAlias','text',text(appState.aliases[record.id] || ''),'Renombrar este EDT en el visor'),
     editableBox('Resumen','editResumen','textarea',record.resumen,'Sintesis ejecutiva del caso'),
     readonlyBox('Dias restantes', record.dias_restantes != null ? String(record.dias_restantes) : '-'),
-    readonlyBox('Grupo EDT', record.grupo || '-'),
+    readonlyBox('Ubicacion actual', [record.parent_edt || 'Raiz', record.grupo || '-'].join(' | ')),
     readonlyBox('Alerta calculada', alertLabel(record.alerta))
   ].join('');
   document.getElementById('localNote').value = record.local_note || '';
@@ -3344,11 +3681,46 @@ function saveCurrentCase(){
     appState.customEntities = uniqueEntities([].concat(appState.customEntities || []).concat(newEntities));
     saveCustomEntities();
   }
-  const nextEdt = inferEditedRootEdt(currentRecord);
-  const nextGroup = text(document.getElementById('editGrupo').value) || deriveGroup(nextEdt);
+  const currentGroup = text(currentRecord.grupo) || deriveGroup(currentRecord.edt);
+  const selectedGroup = text(document.getElementById('editGrupo')?.value) || currentGroup;
+  const manualEdt = text(document.getElementById('editEdt')?.value);
+  const moveTargetValue = text(document.getElementById('editMoveTarget')?.value);
+  let nextEdt = manualEdt || text(currentRecord.edt);
+  let nextParentEdt = text(currentRecord.parent_edt);
+  let nextGroup = selectedGroup || deriveGroup(nextEdt);
+  let hierarchyChanged = false;
+
+  if(moveTargetValue && moveTargetValue !== '__KEEP__'){
+    hierarchyChanged = true;
+    if(moveTargetValue.startsWith('__GROUP__:')){
+      const move = reorderMovedSubtree(currentRecord, {kind:'group', groupId:moveTargetValue.replace('__GROUP__:','')});
+      nextParentEdt = move.parentEdt || '';
+      nextEdt = move.rootNewEdt || nextEdt;
+      nextGroup = deriveGroup(nextEdt);
+    }else{
+      const move = reorderMovedSubtree(currentRecord, {kind:'parent', parentId:moveTargetValue});
+      nextParentEdt = move.parentEdt || '';
+      nextEdt = move.rootNewEdt || nextEdt;
+      nextGroup = deriveGroup(nextEdt);
+    }
+  }else if(selectedGroup && selectedGroup !== currentGroup){
+    const groupRecord = appState.raw.find(record => text(record.edt) === selectedGroup);
+    if(groupRecord && groupRecord.id !== currentRecord.id){
+      hierarchyChanged = true;
+      const move = reorderMovedSubtree(currentRecord, {kind:'group', groupId:groupRecord.id});
+      nextParentEdt = move.parentEdt || '';
+      nextEdt = move.rootNewEdt || nextEdt;
+      nextGroup = deriveGroup(nextEdt);
+    }else if(manualEdt){
+      nextGroup = selectedGroup;
+    }
+  }else if(manualEdt){
+    nextGroup = deriveGroup(manualEdt);
+  }
+
   appState.edits[appState.selectedId] = {
     edt: nextEdt,
-    parent_edt: text(document.getElementById('editParentEdt').value),
+    parent_edt: nextParentEdt,
     nivel: text(document.getElementById('editNivel').value) || String(deriveLevel(nextEdt)),
     grupo: nextGroup,
     responsable: getSelectedValues('responsable', 'entity').join('; '),
@@ -3361,11 +3733,11 @@ function saveCurrentCase(){
     dias_habiles: text(document.getElementById('editHabiles').value),
     resumen: text(document.getElementById('editResumen').value)
   };
-  if(text(currentRecord.edt) !== nextEdt || text(currentRecord.grupo) !== nextGroup || text(document.getElementById('editParentEdt').value)){
+  if(hierarchyChanged || text(currentRecord.edt) !== nextEdt || text(currentRecord.grupo) !== nextGroup || text(currentRecord.parent_edt) !== nextParentEdt){
     applyHierarchyEdits(currentRecord, nextEdt);
   }
   const edit = appState.edits[appState.selectedId];
-  if(!edit.edt && !edit.parent_edt && !edit.nivel && !edit.grupo && !edit.responsable && !edit.seguimiento_dgppcs && !edit.contacto && !edit.estado && !edit.inicio && !edit.final && !edit.duracion_cal && !edit.dias_habiles && !edit.resumen){
+  if(!edit.edt && !edit.parent_edt && !edit.nivel && !edit.grupo && !edit.responsable && !edit.seguimiento_dgppcs && !edit.contacto && !edit.estado && !edit.inicio && !edit.final && !edit.duracion_cal && !edit.dias_habiles && !edit.resumen && !edit.source_order){
     delete appState.edits[appState.selectedId];
   }
   appState.notes[appState.selectedId] = {
@@ -3618,10 +3990,18 @@ function bindEvents(){
   document.getElementById('exportTxtBtn').addEventListener('click', exportTxt);
   document.getElementById('exportJsonBtn').addEventListener('click', exportJson);
   document.getElementById('printReportBtn').addEventListener('click', printReport);
+  document.getElementById('exportStructureJsonBtn').addEventListener('click', exportStructureJson);
+  document.getElementById('exportStructureXlsxBtn').addEventListener('click', exportStructureXlsx);
   document.getElementById('loadXlsxBtn').addEventListener('click', () => {
     loadExcelFromInput().catch(error => {
       console.error(error);
       alert('No se pudo leer el Excel. Verifica que tenga la hoja CRONOGRAMA y estructura compatible.');
+    });
+  });
+  document.getElementById('loadStructureBtn').addEventListener('click', () => {
+    loadStructureFromInput().catch(error => {
+      console.error(error);
+      alert('No se pudo leer la estructura editable. Verifica el formato JSON o la hoja GANTT_ESTRUCTURA.');
     });
   });
   document.getElementById('useEmbeddedBtn').addEventListener('click', useEmbeddedData);

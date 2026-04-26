@@ -230,6 +230,7 @@ tbody tr:hover td{background:#f8fbfe}
       <button id="exportTxtBtn" class="secondary">Exportar TXT</button>
       <button id="exportJsonBtn" class="ghost">Exportar JSON filtrado</button>
       <button id="printReportBtn" class="soft">Imprimir reporte</button>
+      <button id="openAdminBtn" class="secondary" style="display:none">Panel admin</button>
     </div>
     </aside>
   </section>
@@ -483,6 +484,26 @@ tbody tr:hover td{background:#f8fbfe}
       <button id="saveHeroBtn">Guardar portada</button>
       <button id="resetHeroBtn" class="secondary">Restablecer</button>
     </div>
+  </div>
+</div>
+
+<div id="adminModal" class="modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <h3>Panel administrador</h3>
+        <div class="hero-meta">
+          <div><b>Actor:</b> Darwin Pardavé</div>
+          <div><b>Modo:</b> Auditoría local</div>
+        </div>
+      </div>
+      <button id="closeAdminBtn" class="secondary">Cerrar</button>
+    </div>
+    <div class="toolbar-actions" style="margin-bottom:12px">
+      <button id="exportAuditBtn" class="ghost">Exportar auditoria</button>
+      <button id="exportBackupBtn" class="soft">Exportar backup del dia</button>
+    </div>
+    <div class="summary-list" id="adminAuditList"></div>
   </div>
 </div>
 
@@ -2044,6 +2065,8 @@ const HERO_STORAGE_KEY = 'pec_tracking_hero_v1';
 const CUSTOM_RECORD_STORAGE_KEY = 'pec_tracking_custom_records_v1';
 const PAYLOAD_STORAGE_KEY = 'pec_tracking_payload_v1';
 const SOURCE_MODE_STORAGE_KEY = 'pec_tracking_source_mode_v1';
+const AUDIT_STORAGE_KEY = 'pec_tracking_audit_v1';
+const BACKUP_INDEX_STORAGE_KEY = 'pec_tracking_backup_index_v1';
 const STRUCTURE_SHEET_NAME = 'GANTT_ESTRUCTURA';
 const STRUCTURE_CONFIG_SHEET = 'CONFIG_VISOR';
 const STRUCTURE_PEOPLE_SHEET = 'CATALOGO_PERSONAS';
@@ -2100,12 +2123,14 @@ const appState = {
   aliases: loadAliases(),
   hero: loadHeroConfig(),
   customRecords: loadCustomRecords(),
+  audit: loadAuditLog(),
   selectedId: '',
   reportText: '',
   reportHtml: '',
   payload: loadSavedPayload(),
   sourceMode: loadSourceMode(),
-  expanded: {}
+  expanded: {},
+  adminEnabled: isAdminMode()
 };
 
 function loadNotes(){
@@ -2198,6 +2223,40 @@ function loadCustomRecords(){
 
 function saveCustomRecords(){
   localStorage.setItem(CUSTOM_RECORD_STORAGE_KEY, JSON.stringify(appState.customRecords || []));
+}
+
+function isAdminMode(){
+  try{
+    const params = new URLSearchParams(window.location.search);
+    return params.get('admin') === 'darwin' || localStorage.getItem('pec_admin_enabled_v1') === '1';
+  }catch(error){
+    return false;
+  }
+}
+
+function loadAuditLog(){
+  try{
+    const rows = JSON.parse(localStorage.getItem(AUDIT_STORAGE_KEY) || '[]');
+    return Array.isArray(rows) ? rows : [];
+  }catch(error){
+    return [];
+  }
+}
+
+function saveAuditLog(){
+  localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify((appState.audit || []).slice(-500)));
+}
+
+function appendAudit(action, detail){
+  if(!appState.adminEnabled) return;
+  appState.audit = appState.audit || [];
+  appState.audit.unshift({
+    at: new Date().toISOString(),
+    actor: 'Darwin Pardavé',
+    action,
+    detail
+  });
+  saveAuditLog();
 }
 
 function loadSavedPayload(){
@@ -2308,6 +2367,7 @@ function getAssignablePeople(){
     []
       .concat(BASE_PEOPLE)
       .concat(appState.customPeople || [])
+      .concat(appState.raw.map(r => r.seguimiento_dgppcs || ''))
   );
 }
 
@@ -2398,6 +2458,12 @@ function getMergedRecord(record){
   merged.final = toIsoDate(merged.final);
   merged.edt = text(merged.edt);
   merged.parent_edt = text(merged.parent_edt);
+  if(merged.edt && !merged.edt.includes('.')){
+    merged.parent_edt = '';
+    merged.nivel = 1;
+  }else if(merged.edt && !merged.parent_edt){
+    merged.parent_edt = parentEdt(merged.edt);
+  }
   merged.duracion_cal = toNumber(merged.duracion_cal);
   merged.dias_habiles = toNumber(merged.dias_habiles);
   merged.estado = text(merged.estado) || 'Sin estado';
@@ -2766,7 +2832,7 @@ function serializeStructureRows(){
 }
 
 function exportStructureJson(){
-  const bundle = {
+  return {
     format: 'pec-gantt-structure-v1',
     exportedAt: new Date().toISOString(),
     sourceMode: appState.sourceMode || 'embedded',
@@ -2775,6 +2841,10 @@ function exportStructureJson(){
     customEntities: appState.customEntities || [],
     rows: serializeStructureRows()
   };
+}
+
+function downloadStructureJson(){
+  const bundle = exportStructureJson();
   downloadBlob('gantt_estructura_pec.json', 'application/json;charset=utf-8', JSON.stringify(bundle, null, 2));
 }
 
@@ -2889,6 +2959,60 @@ function applyImportedStructure(rows, options){
   applyFilters();
 }
 
+function ensureDailyBackup(){
+  if(!appState.adminEnabled) return;
+  const today = new Date().toISOString().slice(0,10);
+  const backupKey = 'pec_tracking_backup_' + today;
+  if(localStorage.getItem(backupKey)) return;
+  const bundle = exportStructureJson();
+  localStorage.setItem(backupKey, JSON.stringify(bundle));
+  let index = [];
+  try{
+    index = JSON.parse(localStorage.getItem(BACKUP_INDEX_STORAGE_KEY) || '[]');
+    if(!Array.isArray(index)) index = [];
+  }catch(error){
+    index = [];
+  }
+  if(!index.includes(today)) index.unshift(today);
+  localStorage.setItem(BACKUP_INDEX_STORAGE_KEY, JSON.stringify(index.slice(0,60)));
+  appendAudit('backup_diario', 'Respaldo local generado para ' + today);
+}
+
+function renderAdminAudit(){
+  const host = document.getElementById('adminAuditList');
+  if(!host) return;
+  if(!appState.adminEnabled){
+    host.innerHTML = '<div class="empty">Modo administrador no habilitado.</div>';
+    return;
+  }
+  const list = (appState.audit || []).slice(0,40);
+  host.innerHTML = list.length
+    ? list.map(item => '<div class="summary-item"><div><strong>' + escapeHtml(item.action) + '</strong><span>' + escapeHtml([item.actor, item.at, item.detail].filter(Boolean).join(' | ')) + '</span></div></div>').join('')
+    : '<div class="empty">Sin cambios auditados todavía.</div>';
+}
+
+function openAdminModal(){
+  if(!appState.adminEnabled) return;
+  renderAdminAudit();
+  document.getElementById('adminModal').classList.add('open');
+}
+
+function closeAdminModal(){
+  const modal = document.getElementById('adminModal');
+  if(modal) modal.classList.remove('open');
+}
+
+function exportAuditLog(){
+  downloadBlob('auditoria_visor_pec.json', 'application/json;charset=utf-8', JSON.stringify(appState.audit || [], null, 2));
+}
+
+function exportLatestBackup(){
+  const today = new Date().toISOString().slice(0,10);
+  const backupKey = 'pec_tracking_backup_' + today;
+  const backup = localStorage.getItem(backupKey) || JSON.stringify(exportStructureJson(), null, 2);
+  downloadBlob('backup_visor_pec_' + today + '.json', 'application/json;charset=utf-8', backup);
+}
+
 async function loadStructureFromInput(){
   const input = document.getElementById('structureInput');
   const file = input.files && input.files[0];
@@ -2956,6 +3080,8 @@ async function loadExcelFromInput(){
   appState.payload = payload;
   appState.sourceMode = 'xlsx';
   saveCurrentPayload();
+  appendAudit('cargar_excel', file.name);
+  ensureDailyBackup();
   hydrateData(payload);
   initFilters();
   applyFilters();
@@ -2965,6 +3091,7 @@ function useEmbeddedData(){
   appState.payload = window.PEC_TRACKING_DATA || {meta:{},summary:{},records:[]};
   appState.sourceMode = 'embedded';
   clearSavedPayload();
+  appendAudit('usar_embebido', 'Se restauró la fuente embebida');
   hydrateData(appState.payload);
   initFilters();
   applyFilters();
@@ -3001,8 +3128,13 @@ function buildHierarchyMaps(records){
     while(stack.length && stack[stack.length - 1].level >= level) stack.pop();
     let parent = '__root__';
     const explicitParentEdt = text(record.parent_edt);
-    if(explicitParentEdt && edtMap.has(explicitParentEdt) && edtMap.get(explicitParentEdt) !== record.id){
+    const inferredParentEdt = parentEdt(record.edt);
+    if(level === 1 || !text(record.edt).includes('.')){
+      parent = '__root__';
+    }else if(explicitParentEdt && edtMap.has(explicitParentEdt) && edtMap.get(explicitParentEdt) !== record.id){
       parent = edtMap.get(explicitParentEdt);
+    }else if(inferredParentEdt && edtMap.has(inferredParentEdt) && edtMap.get(inferredParentEdt) !== record.id){
+      parent = edtMap.get(inferredParentEdt);
     }else if(stack.length){
       parent = stack[stack.length - 1].id;
     }
@@ -3621,6 +3753,8 @@ function saveHeroModal(){
     meta3: text(document.getElementById('heroEditMeta3').value) || DEFAULT_HERO.meta3
   };
   saveHeroConfig();
+  appendAudit('editar_portada', appState.hero.title);
+  ensureDailyBackup();
   renderHero();
   closeHeroModal();
 }
@@ -3680,6 +3814,8 @@ function addLocalChildRecord(){
   };
   appState.customRecords = sortBySourceOrder([].concat(appState.customRecords || []).concat(child));
   saveCustomRecords();
+  appendAudit('agregar_subactividad', child.edt + ' | ' + child.actividad);
+  ensureDailyBackup();
   hydrateData(appState.payload);
   if(parent.id) appState.expanded[parent.id] = true;
   initFilters();
@@ -3696,10 +3832,12 @@ function saveCurrentCase(){
   if(newPeople.length){
     appState.customPeople = uniquePeople([].concat(appState.customPeople || []).concat(newPeople));
     saveCustomPeople();
+    appendAudit('catalogo_seguimiento', 'Se agregaron: ' + newPeople.join(', '));
   }
   if(newEntities.length){
     appState.customEntities = uniqueEntities([].concat(appState.customEntities || []).concat(newEntities));
     saveCustomEntities();
+    appendAudit('catalogo_responsable', 'Se agregaron: ' + newEntities.join(', '));
   }
   const currentGroup = text(currentRecord.grupo) || deriveGroup(currentRecord.edt);
   const selectedGroup = text(document.getElementById('editGrupo')?.value) || currentGroup;
@@ -3777,6 +3915,8 @@ function saveCurrentCase(){
   saveNotes();
   saveAliases();
   saveCurrentPayload();
+  appendAudit('guardar_ficha', nextEdt + ' | ' + (text(document.getElementById('editAlias')?.value) || text(currentRecord.actividad)));
+  ensureDailyBackup();
   hydrateData(appState.payload);
   initFilters();
   applyFilters();
@@ -3785,6 +3925,7 @@ function saveCurrentCase(){
 
 function clearCurrentCase(){
   if(!appState.selectedId) return;
+  appendAudit('limpiar_ficha', appState.selectedId);
   delete appState.edits[appState.selectedId];
   delete appState.notes[appState.selectedId];
   delete appState.aliases[appState.selectedId];
@@ -3792,6 +3933,7 @@ function clearCurrentCase(){
   saveNotes();
   saveAliases();
   saveCurrentPayload();
+  ensureDailyBackup();
   hydrateData(appState.payload);
   initFilters();
   applyFilters();
@@ -3801,6 +3943,7 @@ function clearCurrentCase(){
 function buildExecutiveReport(){
   const records = appState.matched.slice();
   const total = records.length;
+  const hero = appState.hero || DEFAULT_HERO;
   const completed = records.filter(r => r.estado === 'Completado').length;
   const inProgress = records.filter(r => r.estado === 'En Proceso').length;
   const pending = records.filter(r => r.estado === 'Pendiente de Iniciar').length;
@@ -3814,7 +3957,8 @@ function buildExecutiveReport(){
     .slice(0,8);
 
   const lines = [];
-  lines.push('REPORTE EJECUTIVO DE SEGUIMIENTO PEC');
+  lines.push((hero.title || 'Visor de Seguimiento PEC').toUpperCase());
+  if(text(hero.subtitle)) lines.push(hero.subtitle);
   lines.push('');
   lines.push('Fecha de corte: ' + fmtDateLong(todayIso()));
   lines.push('Registros analizados: ' + total);
@@ -3873,7 +4017,8 @@ function buildExecutiveReport(){
   lines.push('- Registrar acuerdos y proximo paso en la ficha de cada caso para que el visor sirva como bitacora operativa.');
 
   const html = `
-    <h1>Reporte Ejecutivo de Seguimiento PEC</h1>
+    <h1>${escapeHtml(hero.title || 'Visor de Seguimiento PEC')}</h1>
+    ${text(hero.subtitle) ? '<p><strong>Marco:</strong> ' + escapeHtml(hero.subtitle) + '</p>' : ''}
     <p><strong>Fecha de corte:</strong> ${escapeHtml(fmtDateLong(todayIso()))}</p>
     <p><strong>Registros analizados:</strong> ${total}</p>
     <h2>1. Resumen directivo</h2>
@@ -3947,7 +4092,7 @@ function downloadBlob(filename, type, content){
 }
 
 function exportTxt(){
-  if(!appState.reportText) buildExecutiveReport();
+  buildExecutiveReport();
   downloadBlob('reporte_seguimiento_pec.txt', 'text/plain;charset=utf-8', appState.reportText);
 }
 
@@ -3956,7 +4101,7 @@ function exportJson(){
 }
 
 function printReport(){
-  if(!appState.reportHtml) buildExecutiveReport();
+  buildExecutiveReport();
   const w = window.open('', '_blank');
   if(!w) return;
   w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Reporte PEC</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:28px;line-height:1.55;color:#102132}h1,h2{color:#103958}ul{padding-left:20px}</style></head><body>' + appState.reportHtml + '</body></html>');
@@ -3978,9 +4123,15 @@ function bindEvents(){
   });
   document.getElementById('closeDrawerBtn').addEventListener('click', closeDrawer);
   document.getElementById('editHeroBtn').addEventListener('click', openHeroModal);
+  const adminBtn = document.getElementById('openAdminBtn');
+  if(appState.adminEnabled && adminBtn) adminBtn.style.display = '';
+  if(adminBtn) adminBtn.addEventListener('click', openAdminModal);
   document.getElementById('closeHeroBtn').addEventListener('click', closeHeroModal);
   document.getElementById('saveHeroBtn').addEventListener('click', saveHeroModal);
   document.getElementById('resetHeroBtn').addEventListener('click', resetHeroModal);
+  document.getElementById('closeAdminBtn').addEventListener('click', closeAdminModal);
+  document.getElementById('exportAuditBtn').addEventListener('click', exportAuditLog);
+  document.getElementById('exportBackupBtn').addEventListener('click', exportLatestBackup);
   document.getElementById('addChildBtn').addEventListener('click', addLocalChildRecord);
   document.getElementById('saveCaseNoteBtn').addEventListener('click', saveCurrentCase);
   document.getElementById('clearCaseNoteBtn').addEventListener('click', clearCurrentCase);
@@ -3989,7 +4140,7 @@ function bindEvents(){
     document.getElementById('reportModal').classList.add('open');
   });
   const openReport = () => {
-    if(!appState.reportHtml) buildExecutiveReport();
+    buildExecutiveReport();
     document.getElementById('reportModal').classList.add('open');
   };
   const openAnalytics = () => {
@@ -4010,7 +4161,7 @@ function bindEvents(){
   document.getElementById('exportTxtBtn').addEventListener('click', exportTxt);
   document.getElementById('exportJsonBtn').addEventListener('click', exportJson);
   document.getElementById('printReportBtn').addEventListener('click', printReport);
-  document.getElementById('exportStructureJsonBtn').addEventListener('click', exportStructureJson);
+  document.getElementById('exportStructureJsonBtn').addEventListener('click', downloadStructureJson);
   document.getElementById('exportStructureXlsxBtn').addEventListener('click', exportStructureXlsx);
   document.getElementById('loadXlsxBtn').addEventListener('click', () => {
     loadExcelFromInput().catch(error => {
@@ -4040,6 +4191,7 @@ function bindEvents(){
     if(event.target.id === 'heroModal') closeHeroModal();
     if(event.target.id === 'reportModal') document.getElementById('reportModal').classList.remove('open');
     if(event.target.id === 'analyticsModal') document.getElementById('analyticsModal').classList.remove('open');
+    if(event.target.id === 'adminModal') closeAdminModal();
   });
 }
 
@@ -4057,6 +4209,7 @@ function initFilters(){
 function init(){
   hydrateData();
   renderHero();
+  ensureDailyBackup();
   initFilters();
   bindEvents();
   applyFilters();

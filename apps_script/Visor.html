@@ -1,0 +1,4509 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Visor de Seguimiento PEC</title>
+<style>
+:root{
+  --bg:#eef3f8;
+  --panel:#ffffff;
+  --ink:#102132;
+  --muted:#5f7287;
+  --line:#d7e0ea;
+  --brand:#103958;
+  --brand-2:#1b6f6a;
+  --blue:#1663c7;
+  --green:#2f7d32;
+  --amber:#9a6200;
+  --red:#ba2d3b;
+  --soft:#f6f9fc;
+  --shadow:0 18px 44px rgba(16,33,50,.10);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:linear-gradient(180deg,#f2f6fb 0,#eef3f8 100%);color:var(--ink);font-family:Arial,Helvetica,sans-serif}
+body{min-height:100vh}
+.app{max-width:1500px;margin:0 auto;padding:18px}
+.topbar{display:grid;grid-template-columns:1.2fr .8fr;gap:16px;margin-bottom:16px}
+.hero,.report-box,.panel,.drawer-card,.modal-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+.hero{padding:0;overflow:hidden;display:grid;grid-template-columns:1.15fr .85fr;min-height:320px}
+.hero-copy{padding:34px 28px;background:linear-gradient(135deg,rgba(16,57,88,.96),rgba(14,90,106,.90));color:#fff;display:flex;flex-direction:column;justify-content:center}
+.hero-copy h1{margin:0;font-size:58px;line-height:1.02;color:#fff;letter-spacing:-.02em}
+.hero-copy p{margin:16px 0 0;color:rgba(255,255,255,.94);max-width:820px;font-size:28px;line-height:1.25}
+.hero-copy .hero-meta{color:rgba(255,255,255,.92);font-size:18px;gap:20px}
+.hero-visual{position:relative;background:#dbe9f4}
+.hero-visual img{width:100%;height:100%;object-fit:cover;display:block}
+.hero-visual:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(16,57,88,.18),rgba(16,57,88,.02))}
+.hero-meta{display:flex;gap:18px;flex-wrap:wrap;margin-top:14px;font-size:13px;color:var(--muted)}
+.hero-meta b{color:var(--ink)}
+.hero-copy .hero-meta b{color:#fff}
+.report-box figure{margin:0;border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+.report-box figure img{width:100%;height:180px;object-fit:cover;display:block}
+.report-box figcaption{padding:10px 12px;font-size:12px;color:var(--muted);background:#fbfdff}
+.report-box{padding:18px;display:grid;gap:14px}
+.report-box h2{margin:0;font-size:16px;color:var(--brand)}
+.report-box .actions,.toolbar-actions{display:flex;gap:10px;flex-wrap:wrap}
+.toolbar{display:grid;grid-template-columns:1fr;gap:12px;align-items:start;margin-bottom:16px}
+.filters{display:grid;grid-template-columns:1.4fr repeat(5,minmax(150px,1fr));gap:16px;align-items:start}
+.ingest{display:grid;grid-template-columns:1.2fr auto auto;gap:10px;align-items:end}
+.field{display:grid;gap:6px;min-width:0}
+.field label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700}
+.field input,.field select,.field textarea{
+  width:100%;min-height:40px;border:1px solid var(--line);border-radius:10px;background:#fff;
+  color:var(--ink);padding:10px 12px;font:14px Arial,Helvetica,sans-serif
+}
+.field textarea{min-height:110px;resize:vertical}
+button{
+  border:0;border-radius:10px;background:var(--blue);color:#fff;font-weight:700;cursor:pointer;
+  min-height:40px;padding:0 14px
+}
+button.secondary{background:#41586f}
+button.ghost{background:#edf4ff;color:var(--blue)}
+button.soft{background:#e8f5f1;color:#0e615a}
+.layout{display:grid;grid-template-columns:1.6fr .9fr;gap:16px}
+.stack{display:grid;gap:16px}
+.cards{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow)}
+.card span{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700}
+.card b{display:block;font-size:30px;margin-top:6px;color:var(--brand)}
+.card small{display:block;margin-top:8px;color:var(--muted)}
+.card.alert b{color:var(--red)}
+.panel{padding:16px}
+.panel h2{margin:0 0 12px;font-size:15px;color:var(--brand);text-transform:uppercase;letter-spacing:.5px}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.mini-list,.alert-list,.summary-list,.report-output{display:grid;gap:10px}
+.mini-item,.alert-item,.summary-item{
+  display:flex;justify-content:space-between;gap:12px;align-items:flex-start;
+  padding:10px 12px;border:1px solid #e8eef5;border-radius:10px;background:var(--soft)
+}
+.summary-item strong,.alert-item strong{display:block}
+.summary-item span,.alert-item span{color:var(--muted);font-size:12px}
+.status-pill,.alert-pill{
+  display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;
+  border-radius:999px;padding:4px 9px;font-size:11px;font-weight:700
+}
+.st-completado{background:#e6f5e8;color:var(--green)}
+.st-en-proceso{background:#e9f2ff;color:var(--blue)}
+.st-pendiente-de-iniciar{background:#f5efe1;color:var(--amber)}
+.st-sin-estado{background:#eef2f6;color:#5d6a79}
+.al-ok{background:#eaf5ef;color:var(--green)}
+.al-critico,.al-vencido{background:#fdecee;color:var(--red)}
+.al-atencion,.al-sin-fecha{background:#fbf1e3;color:var(--amber)}
+.bar-list{display:grid;gap:10px}
+.bar-row{display:grid;grid-template-columns:minmax(120px,1.2fr) minmax(180px,2.4fr) 48px;gap:10px;align-items:center}
+.track{height:14px;border-radius:999px;background:#e8edf3;overflow:hidden}
+.fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--blue),#7db3ff)}
+.fill.green{background:linear-gradient(90deg,var(--brand-2),#4fb8a5)}
+.fill.red{background:linear-gradient(90deg,#d64f5e,#ff9aa5)}
+.fill.amber{background:linear-gradient(90deg,#c78818,#ffd082)}
+.timeline-shell{overflow:auto;padding-bottom:6px}
+.timeline-head,.timeline-row{
+  display:grid;grid-template-columns:420px minmax(680px,1fr) 130px 110px;gap:16px;align-items:center
+}
+.timeline-head{margin-bottom:12px;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.6px}
+.months{display:grid;grid-template-columns:repeat(var(--months),1fr);gap:4px}
+.months div{padding:7px 0;background:#f2f6fa;border-radius:8px;text-align:center;font-size:13px}
+.gantt-list{display:grid;gap:12px}
+.timeline-row{padding:14px 0;border-top:1px solid #edf2f6}
+.timeline-title strong{display:block;font-size:20px;line-height:1.12}
+.timeline-title span{display:block;color:var(--muted);font-size:14px;line-height:1.25;margin-top:5px}
+.timeline-title small{display:block;color:var(--brand-2);font-size:14px;line-height:1.25;margin-top:6px;font-weight:700}
+.timeline-title .edt-cell{align-items:center}
+.gantt-track{height:26px;background:#eef3f8;border-radius:999px;position:relative;overflow:hidden}
+.gantt-bar{
+  position:absolute;top:4px;height:18px;border-radius:999px;
+  background:linear-gradient(90deg,var(--brand-2),#53b0a0);box-shadow:0 8px 20px rgba(27,111,106,.22)
+}
+.gantt-bar.overdue{background:linear-gradient(90deg,#b32738,#ff7a88)}
+.gantt-bar.attention{background:linear-gradient(90deg,#b5750d,#ffc363)}
+.gantt-bar.pending{background:linear-gradient(90deg,#74879d,#b4c0ce)}
+.gantt-bar.done{background:linear-gradient(90deg,#547c4a,#86b378)}
+.gantt-today{position:absolute;top:0;bottom:0;width:2px;background:#1d4ed8;opacity:.7}
+.gantt-label{font-size:12px;color:var(--muted);text-align:right}
+.gantt-progress{display:grid;gap:4px}
+.gantt-progress .progress-track{width:100%}
+.table-shell{overflow:auto}
+table{width:100%;min-width:1200px;border-collapse:collapse}
+th,td{padding:10px 12px;border-bottom:1px solid #edf2f6;text-align:left;vertical-align:top;font-size:13px}
+th{background:#f4f8fb;position:sticky;top:0;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:#f8fbfe}
+.progress{display:grid;gap:4px}
+.progress-track{width:92px;height:8px;border-radius:999px;background:#e6ebf2;overflow:hidden}
+.progress-track i{display:block;height:100%;background:linear-gradient(90deg,var(--blue),#8dc0ff)}
+.edt-cell{display:flex;align-items:flex-start;gap:8px}
+.tree-toggle{
+  min-height:26px;height:26px;min-width:26px;width:26px;padding:0;border-radius:8px;
+  background:#eef4fb;color:var(--brand);font-size:12px;line-height:1
+}
+.tree-toggle.empty{visibility:visible;opacity:.42;cursor:default}
+.edt-chip{
+  display:inline-flex;align-items:center;min-height:26px;padding:3px 8px;border-radius:999px;
+  background:#f2f6fa;color:var(--brand);font-weight:700;font-size:12px
+}
+.row-level-1 td{background:#fbfdff}
+.row-level-2 td{background:#fdfefe}
+.row-level-3 td,.row-level-4 td,.row-level-5 td{background:#fff}
+.activity-wrap{display:grid;gap:4px}
+.activity-meta{display:flex;gap:8px;flex-wrap:wrap}
+.child-count{font-size:11px;color:var(--muted)}
+.report-output{
+  border:1px solid var(--line);border-radius:12px;background:#fbfdff;padding:14px;
+  min-height:210px;white-space:pre-wrap;line-height:1.5
+}
+.drawer,.modal{
+  position:fixed;inset:0;background:rgba(15,23,42,.42);display:none;z-index:50
+}
+.drawer.open,.modal.open{display:block}
+.drawer-card{
+  margin-left:auto;width:min(620px,100%);height:100%;padding:18px;overflow:auto;border-radius:0
+}
+.drawer-head,.modal-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:14px}
+.drawer-head h3,.modal-head h3{margin:0;color:var(--brand)}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.detail-box{border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--soft)}
+.detail-box b{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.detail-box input,.detail-box select,.detail-box textarea{
+  width:100%;min-height:40px;border:1px solid var(--line);border-radius:10px;background:#fff;
+  color:var(--ink);padding:10px 12px;font:14px Arial,Helvetica,sans-serif
+}
+.detail-box textarea{min-height:96px;resize:vertical}
+.assign-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-height:180px;overflow:auto;padding:2px}
+.assign-item{display:flex;gap:8px;align-items:flex-start;padding:8px;border:1px solid #e6edf5;border-radius:10px;background:#fff}
+.assign-item input{min-height:auto;width:auto;margin-top:2px}
+.assign-extra{margin-top:10px}
+.assign-picker{margin-top:4px;position:relative}
+.assign-picker summary{cursor:pointer;list-style:none;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;font-weight:700;color:var(--brand)}
+.assign-picker summary::-webkit-details-marker{display:none}
+.assign-picker[open] summary{border-color:#c7d5e5}
+.filter-picker{z-index:1}
+.filter-picker[open]{z-index:30}
+.filter-picker summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.filters .filter-picker{width:100%}
+.filters .filter-picker .assign-grid{grid-template-columns:1fr;max-height:260px;overflow:auto;padding-right:2px;position:absolute;left:0;right:0;top:calc(100% + 8px);background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);z-index:40}
+.filters .filter-picker .assign-item{padding:11px 12px;border-radius:12px;min-height:44px;align-items:center}
+.filters .filter-picker .assign-item span{font-size:15px;line-height:1.25;color:var(--ink);font-weight:600}
+.filters .filter-picker .assign-item input{margin-top:0}
+.operations-panel{margin-top:16px}
+.operations-panel .summary-list{margin-bottom:14px}
+.operations-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.operations-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.local-note-box{display:grid;gap:10px;margin-top:16px}
+.summary-bullets{margin:8px 0 0;padding-left:18px;display:grid;gap:6px}
+.summary-bullets li{color:var(--muted);font-size:14px;line-height:1.3}
+.modal{padding:20px;overflow:auto}
+.modal-card{max-width:960px;margin:0 auto;padding:18px}
+.report-preview{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;line-height:1.6}
+.report-preview h1,.report-preview h2,.report-preview h3{color:var(--brand)}
+.analytics-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.empty{padding:32px;text-align:center;color:var(--muted)}
+@media (max-width:1200px){
+  .cards{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .layout,.topbar,.split,.detail-grid,.filters,.toolbar{grid-template-columns:1fr}
+  .hero{grid-template-columns:1fr}
+  .operations-grid{grid-template-columns:1fr}
+}
+@media (max-width:760px){
+  .app{padding:10px}
+  .cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .timeline-head,.timeline-row{grid-template-columns:1fr}
+  .gantt-label{text-align:left}
+  .assign-grid,.analytics-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <section class="topbar">
+    <div class="hero">
+      <div class="hero-copy">
+        <h1 id="heroTitle">Visor de Seguimiento PEC</h1>
+        <p id="heroSubtitle">Programa de Economía Circular para Puno y Lima.</p>
+        <div class="hero-meta" id="heroMetaList"></div>
+      </div>
+      <div class="hero-visual">
+        <img src="./assets/ingeniero-40.jpeg" alt="Ingeniería y tecnologías aplicadas al seguimiento del programa">
+      </div>
+    </div>
+    <aside class="report-box">
+      <h2>Resumen rapido</h2>
+      <div class="summary-list" id="quickReportSummary"></div>
+      <figure>
+        <img src="./assets/planta-tratamiento-2.jpg" alt="Planta de tratamiento y enfoque de economía circular">
+        <figcaption>Seguimiento de hitos, riesgos, inversión y operación del programa.</figcaption>
+      </figure>
+    </aside>
+  </section>
+
+  <section class="toolbar">
+    <div class="filters">
+      <div class="field">
+        <label for="searchInput">Busqueda</label>
+        <input id="searchInput" list="searchSuggestions" type="search" placeholder="Actividad, EDT, responsable, seguimiento o contacto">
+        <datalist id="searchSuggestions"></datalist>
+      </div>
+      <div class="field">
+        <label for="statusFilter">Estado</label>
+        <details class="assign-picker filter-picker" id="statusFilterBox">
+          <summary id="statusFilterSummary">Todos los estados</summary>
+          <div class="assign-grid" id="statusFilterOptions"></div>
+        </details>
+      </div>
+      <div class="field">
+        <label for="alertFilter">Alerta</label>
+        <details class="assign-picker filter-picker" id="alertFilterBox">
+          <summary id="alertFilterSummary">Todas las alertas</summary>
+          <div class="assign-grid" id="alertFilterOptions"></div>
+        </details>
+      </div>
+      <div class="field">
+        <label for="groupFilter">Grupo EDT</label>
+        <select id="groupFilter"></select>
+      </div>
+      <div class="field">
+        <label for="responsibleFilter">Responsable</label>
+        <select id="responsibleFilter"></select>
+      </div>
+      <div class="field">
+        <label for="ownerFilter">Seguimiento DGPPCS</label>
+        <select id="ownerFilter"></select>
+      </div>
+    </div>
+    <div class="toolbar-actions">
+      <button id="resetFiltersBtn" class="secondary">Limpiar filtros</button>
+    </div>
+  </section>
+
+  <section class="cards" id="kpiGrid"></section>
+
+  <section class="layout" style="margin-top:16px">
+    <div class="stack">
+      <div class="panel">
+        <h2>Seguimiento maestro</h2>
+        <div class="timeline-shell">
+          <div class="timeline-head">
+            <div>Actividad y detalle</div>
+            <div class="months" id="timelineMonths"></div>
+            <div>Estado</div>
+            <div>Avance</div>
+          </div>
+          <div class="gantt-list" id="ganttList"></div>
+        </div>
+      </div>
+
+      <div class="panel" id="tablePanel" hidden>
+        <h2>Portafolio de casos</h2>
+        <div class="table-shell">
+          <table>
+            <thead>
+              <tr>
+                <th>EDT</th>
+                <th>Actividad</th>
+                <th>Responsable</th>
+                <th>Seguimiento DGPPCS</th>
+                <th>Fechas</th>
+                <th>Estado</th>
+                <th>Alerta</th>
+                <th>Avance</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+        <div id="tableEmpty" class="empty" hidden>No hay registros con los filtros actuales.</div>
+      </div>
+    </div>
+
+    <div class="stack">
+      <div class="panel">
+        <h2>Alertas criticas</h2>
+        <div class="alert-list" id="alertList"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Distribucion por estado</h2>
+        <div class="bar-list" id="statusBars"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Carga operativa por responsable</h2>
+        <div class="bar-list" id="responsibleBars"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Carga de seguimiento DGPPCS</h2>
+        <div class="bar-list" id="ownerBars"></div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="panel operations-panel">
+    <h2>Operaciones y reportes</h2>
+    <div class="summary-list">
+      <div class="summary-item"><div><strong>Resumen ejecutivo</strong><span>Genera, revisa e imprime el consolidado del seguimiento.</span></div></div>
+      <div class="summary-item"><div><strong>Analitica</strong><span>Consulta avances por hito y concentración de riesgos en una ventana separada.</span></div></div>
+    </div>
+    <div class="operations-grid">
+      <div class="ingest">
+        <div class="field">
+          <label for="xlsxInput">Cargar Excel</label>
+          <input id="xlsxInput" type="file" accept=".xlsx,.xls,.xlsm,.xlsb,.csv">
+        </div>
+        <button id="loadXlsxBtn" class="ghost">Leer Excel</button>
+        <button id="useEmbeddedBtn" class="soft">Usar datos embebidos</button>
+      </div>
+      <div class="ingest">
+        <div class="field">
+          <label for="structureInput">Cargar estructura editable</label>
+          <input id="structureInput" type="file" accept=".xlsx,.xls,.json">
+        </div>
+        <button id="loadStructureBtn" class="ghost">Leer estructura</button>
+        <button id="exportStructureXlsxBtn" class="soft">Exportar estructura XLSX</button>
+      </div>
+    </div>
+    <div class="operations-actions">
+      <button id="buildReportBtn">Generar reporte ejecutivo</button>
+      <button id="openReportBtn" class="ghost">Ver reporte</button>
+      <button id="openAnalyticsBtn" class="ghost">Ver analitica</button>
+      <button id="exportTxtBtn" class="secondary">Exportar TXT</button>
+      <button id="exportJsonBtn" class="ghost">Exportar JSON filtrado</button>
+      <button id="exportStructureJsonBtn" class="ghost">Exportar estructura JSON</button>
+      <button id="printReportBtn" class="soft">Imprimir reporte</button>
+      <button id="editHeroBtn" class="secondary">Editar portada</button>
+      <button id="openAdminBtn" class="secondary" style="display:none">Panel admin</button>
+      <button id="openReportPanelBtn" hidden>Abrir resumen ejecutivo</button>
+      <button id="openAnalyticsPanelBtn" hidden class="ghost">Abrir analitica</button>
+      <button id="openAnalyticsBtnToolbar" hidden class="ghost">Ver analitica</button>
+    </div>
+  </section>
+</div>
+
+<div id="drawer" class="drawer">
+  <div class="drawer-card">
+    <div class="drawer-head">
+      <div>
+        <h3 id="drawerTitle">Caso</h3>
+        <div id="drawerSubtitle" class="hero-meta"></div>
+      </div>
+      <button id="closeDrawerBtn" class="secondary">Cerrar</button>
+    </div>
+    <div class="detail-grid" id="detailGrid"></div>
+    <div class="local-note-box">
+      <div class="field">
+        <label for="localNote">Comentario de seguimiento</label>
+        <textarea id="localNote" placeholder="Registra acuerdos, observaciones, riesgos o decisiones para este caso."></textarea>
+      </div>
+      <div class="field">
+        <label for="localAction">Proximo paso</label>
+        <textarea id="localAction" placeholder="Define accion concreta, responsable y fecha objetivo."></textarea>
+      </div>
+      <div class="split">
+        <div class="field">
+          <label for="newChildTitle">Nueva subactividad</label>
+          <input id="newChildTitle" type="text" placeholder="Descripcion de la nueva accion">
+        </div>
+        <div class="field">
+          <label for="newChildState">Estado de nueva subactividad</label>
+          <select id="newChildState">
+            <option value="Pendiente de Iniciar">Pendiente de Iniciar</option>
+            <option value="En Proceso">En Proceso</option>
+            <option value="Completado">Completado</option>
+            <option value="Sin estado">Sin estado</option>
+          </select>
+        </div>
+      </div>
+      <div class="split">
+        <div class="field">
+          <label for="newChildStart">Inicio de nueva subactividad</label>
+          <input id="newChildStart" type="date">
+        </div>
+        <div class="field">
+          <label for="newChildEnd">Final de nueva subactividad</label>
+          <input id="newChildEnd" type="date">
+        </div>
+      </div>
+      <div class="toolbar-actions">
+        <button id="addChildBtn" class="soft">Agregar subactividad</button>
+        <button id="saveCaseNoteBtn">Guardar informacion</button>
+        <button id="clearCaseNoteBtn" class="secondary">Limpiar informacion local</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="reportModal" class="modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <h3>Reporte ejecutivo</h3>
+        <div class="hero-meta">
+          <div><b>Registros filtrados:</b> <span id="reportCount">0</span></div>
+        </div>
+      </div>
+      <button id="closeReportBtn" class="secondary">Cerrar</button>
+    </div>
+    <div class="report-preview" id="reportPreview"></div>
+  </div>
+</div>
+
+<div id="analyticsModal" class="modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <h3>Analitica de avances y riesgos</h3>
+        <div class="hero-meta">
+          <div><b>Base:</b> vista filtrada actual</div>
+        </div>
+      </div>
+      <button id="closeAnalyticsBtn" class="secondary">Cerrar</button>
+    </div>
+    <div class="analytics-grid">
+      <div class="panel">
+        <h2>Avance por hito principal</h2>
+        <div class="bar-list" id="analyticsProgress"></div>
+      </div>
+      <div class="panel">
+        <h2>Riesgo por hito principal</h2>
+        <div class="bar-list" id="analyticsRisk"></div>
+      </div>
+      <div class="panel" style="grid-column:1 / -1">
+        <figure style="margin:0;border-radius:12px;overflow:hidden;border:1px solid var(--line)">
+          <img src="./assets/mercados-mundiales.png" alt="Contexto financiero y mercados para lectura ejecutiva del programa" style="width:100%;height:220px;object-fit:cover;display:block">
+        </figure>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="heroModal" class="modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <h3>Editar portada</h3>
+        <div class="hero-meta">
+          <div><b>Configura</b> título, subtítulo y etiquetas visibles</div>
+        </div>
+      </div>
+      <button id="closeHeroBtn" class="secondary">Cerrar</button>
+    </div>
+    <div class="detail-grid">
+      <div class="detail-box"><b>Título principal</b><input id="heroEditTitle" type="text" value=""></div>
+      <div class="detail-box"><b>Subtítulo</b><input id="heroEditSubtitle" type="text" value=""></div>
+      <div class="detail-box"><b>Etiqueta 1</b><input id="heroEditMeta1" type="text" value=""></div>
+      <div class="detail-box"><b>Etiqueta 2</b><input id="heroEditMeta2" type="text" value=""></div>
+      <div class="detail-box"><b>Etiqueta 3</b><input id="heroEditMeta3" type="text" value=""></div>
+      <div class="detail-box"><b>Etiquetas adicionales</b><input id="heroEditMetaExtra" type="text" value="" placeholder="Separar con |"></div>
+    </div>
+    <div class="toolbar-actions" style="margin-top:14px">
+      <button id="saveHeroBtn">Guardar portada</button>
+      <button id="resetHeroBtn" class="secondary">Restablecer</button>
+    </div>
+  </div>
+</div>
+
+<div id="adminModal" class="modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <h3>Panel administrador</h3>
+        <div class="hero-meta">
+          <div><b>Actor:</b> Darwin Pardavé</div>
+          <div><b>Modo:</b> Auditoría local</div>
+        </div>
+      </div>
+      <button id="closeAdminBtn" class="secondary">Cerrar</button>
+    </div>
+    <div class="toolbar-actions" style="margin-bottom:12px">
+      <button id="exportAuditBtn" class="ghost">Exportar auditoria</button>
+      <button id="exportBackupBtn" class="soft">Exportar backup del dia</button>
+    </div>
+    <div class="summary-list" id="adminAuditList"></div>
+  </div>
+</div>
+
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="./pec_tracking_data.js"></script>
+<script>
+if(!window.PEC_TRACKING_DATA){
+window.PEC_TRACKING_DATA = {
+  "meta": {
+    "sourceFile": "C:\\Users\\Dpard\\OneDrive\\Documentos\\DGPPCS\\BM\\Visor\\Sistema Seguimiento-PEC - 20.04.26.xlsx",
+    "sheetName": "CRONOGRAMA",
+    "generatedAt": "2026-04-25T20:50:34",
+    "referenceDate": "2026-04-25",
+    "recordCount": 80
+  },
+  "summary": {
+    "total": 80,
+    "completed": 12,
+    "inProgress": 49,
+    "pending": 16,
+    "withoutStatus": 3,
+    "critical": 17,
+    "overdue": 17,
+    "attention": 1
+  },
+  "records": [
+    {
+      "id": "case-001",
+      "edt": "1",
+      "actividad": "DS de aprobación de endeudamiento",
+      "responsable": "",
+      "inicio": "2026-03-07",
+      "final": "2026-03-07",
+      "duracion_cal": 1,
+      "dias_habiles": null,
+      "dias_restantes": null,
+      "estado": "Completado",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 1,
+      "grupo": "1",
+      "avance_estimado": 100,
+      "alerta": "ok",
+      "resumen": "EDT 1 | Completado"
+    },
+    {
+      "id": "case-002",
+      "edt": "1.1",
+      "actividad": "Firma del Contrato de préstamo",
+      "responsable": "",
+      "inicio": "2026-03-07",
+      "final": "2026-03-20",
+      "duracion_cal": 14,
+      "dias_habiles": null,
+      "dias_restantes": null,
+      "estado": "Completado",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 2,
+      "grupo": "1",
+      "avance_estimado": 100,
+      "alerta": "ok",
+      "resumen": "EDT 1.1 | Completado"
+    },
+    {
+      "id": "case-003",
+      "edt": "2",
+      "actividad": "Cumplimiento de condiciones de efectividad del préstamo",
+      "responsable": "",
+      "inicio": "2026-03-20",
+      "final": "2026-06-17",
+      "duracion_cal": 90,
+      "dias_habiles": 64,
+      "dias_restantes": 53,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "Rolando Carpio/ Betsabe Araindia",
+      "contacto": "Banco Mundial\nKaren Leon Altuna \nCel: 923873135\nCorreo: kleonaltuna@worldbank.org",
+      "nivel": 1,
+      "grupo": "2",
+      "avance_estimado": 55,
+      "alerta": "ok",
+      "resumen": "EDT 2 | Rolando Carpio/ Betsabe Araindia | En Proceso"
+    },
+    {
+      "id": "case-004",
+      "edt": "*",
+      "actividad": "Plazo para cumplimiento de condiciones de efectividad",
+      "responsable": "",
+      "inicio": "2026-03-20",
+      "final": "2026-06-17",
+      "duracion_cal": 90,
+      "dias_habiles": null,
+      "dias_restantes": 53,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 1,
+      "grupo": "*",
+      "avance_estimado": 55,
+      "alerta": "ok",
+      "resumen": "EDT * | En Proceso"
+    },
+    {
+      "id": "case-005",
+      "edt": "2.1",
+      "actividad": "Aprobación de Manual de Operaciones (MOP) de la ETGP",
+      "responsable": "",
+      "inicio": "2026-03-20",
+      "final": "2026-06-17",
+      "duracion_cal": 90,
+      "dias_habiles": null,
+      "dias_restantes": 53,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "Betsabé Araindia /Rolando Carpio",
+      "contacto": "PNSU:\nJessica Milagros De la Cruz Valdez (Jefa de Unidad de Proyectos del PNSU)\nCel: 969025469\n Correo: jdelacruz@vivienda.gob.pe\n\nJoan Paolo Horna Benavente (Coordinador de la Subunidad de Estudios)\nCel: 942880583\nCorreo: jhornab@vivienda.gob.pe\n\nJeniffer Hortensia Gonzales Armas ( Encargada del Convenio 25 y PTAR Puno)\nCel: 992245687\nCorreo: jgonzalesa@vivienda.gob.pe\n\nPASLC:\nYuri Vladimir Sullon Reyes ( Coordinador de Proyectos PTAR Julio C Tello y José Galvez)\nCel: 949283490\nCorreo: ysullon@vivienda.gob.pe\n\nEdison Joe Salvatierra Trinidad ( Especialista de Proyecto)\nCel:988898685\nCorreo: esalvatierra@vivienda.gob.pe",
+      "nivel": 2,
+      "grupo": "2",
+      "avance_estimado": 55,
+      "alerta": "ok",
+      "resumen": "EDT 2.1 | Betsabé Araindia /Rolando Carpio | En Proceso"
+    },
+    {
+      "id": "case-006",
+      "edt": "2.1.1",
+      "actividad": "Revisión y culminación de versión inicial del MOP",
+      "responsable": "DGPPCS",
+      "inicio": "2026-03-20",
+      "final": "2026-04-16",
+      "duracion_cal": 28,
+      "dias_habiles": null,
+      "dias_restantes": null,
+      "estado": "Completado",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "2",
+      "avance_estimado": 100,
+      "alerta": "ok",
+      "resumen": "EDT 2.1.1 | DGPPCS | Completado"
+    },
+    {
+      "id": "case-007",
+      "edt": "2.1.2",
+      "actividad": "Envío versión inicial del MOP al BM para revisión",
+      "responsable": "BM/DGPPCS/PNSU/PASLC",
+      "inicio": "2026-04-16",
+      "final": "2026-04-16",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": null,
+      "estado": "Completado",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "2",
+      "avance_estimado": 100,
+      "alerta": "ok",
+      "resumen": "EDT 2.1.2 | BM/DGPPCS/PNSU/PASLC | Completado"
+    },
+    {
+      "id": "case-008",
+      "edt": "2.1.3",
+      "actividad": "Respuesta del BM a la DGPPCS",
+      "responsable": "BM",
+      "inicio": "2026-04-17",
+      "final": "2026-04-20",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": -5,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "2",
+      "avance_estimado": 55,
+      "alerta": "vencido",
+      "resumen": "EDT 2.1.3 | BM | En Proceso"
+    },
+    {
+      "id": "case-009",
+      "edt": "2.1.4",
+      "actividad": "Revisión y culminación de versión 2 del MOP",
+      "responsable": "DGPPCS",
+      "inicio": "2026-04-21",
+      "final": "2026-04-23",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": -2,
+      "estado": "Pendiente de Iniciar",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "2",
+      "avance_estimado": 0,
+      "alerta": "vencido",
+      "resumen": "EDT 2.1.4 | DGPPCS | Pendiente de Iniciar"
+    },
+    {
+      "id": "case-010",
+      "edt": "2.1.5",
+      "actividad": "Envío versión 2 del MOP al BM para su no objeción",
+      "responsable": "BM",
+      "inicio": "2026-04-24",
+      "final": "2026-04-24",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": -1,
+      "estado": "Pendiente de Iniciar",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "2",
+      "avance_estimado": 0,
+      "alerta": "vencido",
+      "resumen": "EDT 2.1.5 | BM | Pendiente de Iniciar"
+    },
+    {
+      "id": "case-011",
+      "edt": "2.1.6",
+      "actividad": "DGPPCS remite VF-MOP a PNSU, PASLC, DGPRCS, DGAA solicitando informe técnico-legal con la opinión favorable y remisión de correo para conocimiento de la OILCC.",
+      "responsable": "DGPPCS",
+      "inicio": "2026-04-24",
+      "final": "2026-04-27",
+      "duracion_cal": 4,
+      "dias_habiles": null,
+      "dias_restantes": 2,
+      "estado": "Pendiente de Iniciar",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "2",
+      "avance_estimado": 0,
+      "alerta": "critico",
+      "resumen": "EDT 2.1.6 | DGPPCS | Pendiente de Iniciar"
+    },
+    {
+      "id": "case-012",
+      "edt": "2.1.7",
+      "actividad": "DGPRCS, DGAA ,PNSU y PASLC remiten opinión favorable a DGPPCS",
+      "responsable": "PNSU/PASLC",
+      "inicio": "2026-04-27",
+      "final": "2026-04-27",
+      "duracion_cal": 1,
+      "dias_habiles": null,
+      "dias_restantes": 2,
+      "estado": "Pendiente de Iniciar",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "2",
+      "avance_estimado": 0,
+      "alerta": "critico",
+      "resumen": "EDT 2.1.7 | PNSU/PASLC | Pendiente de Iniciar"
+    },
+    {
+      "id": "case-013",
+      "edt": "2.1.8",
+      "actividad": "Envio de DGPPCS a VMCS para opinión",
+      "responsable": "DGPPCS",
+      "inicio": "2026-04-27",
+      "final": "2026-04-27",
+      "duracion_cal": 1,
+      "dias_habiles": null,
+      "dias_restantes": 2,
+      "estado": "Pendiente de Iniciar",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "2",
+      "avance_estimado": 0,
+      "alerta": "critico",
+      "resumen": "EDT 2.1.8 | DGPPCS | Pendiente de Iniciar"
+    },
+    {
+      "id": "case-014",
+      "edt": "2.1.9",
+      "actividad": "Envio de VMCS a OGPP (OI, OPM y OCAI) para opinión",
+      "responsable": "VMCS",
+      "inicio": "2026-04-27",
+      "final": "2026-04-27",
+      "duracion_cal": 1,
+      "dias_habiles": null,
+      "dias_restantes": 2,
+      "estado": "Pendiente de Iniciar",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "2",
+      "avance_estimado": 0,
+      "alerta": "critico",
+      "resumen": "EDT 2.1.9 | VMCS | Pendiente de Iniciar"
+    },
+    {
+      "id": "case-015",
+      "edt": "2.1.10",
+      "actividad": "Opinión de OGPP y envio a OGAJ",
+      "responsable": "OGPP",
+      "inicio": "2026-04-30",
+      "final": "2026-05-01",
+      "duracion_cal": 2,
+      "dias_habiles": null,
+      "dias_restantes": 6,
+      "estado": "Pendiente de Iniciar",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "2",
+      "avance_estimado": 0,
+      "alerta": "critico",
+      "resumen": "EDT 2.1.10 | OGPP | Pendiente de Iniciar"
+    },
+    {
+      "id": "case-016",
+      "edt": "2.1.11",
+      "actividad": "Opinión de OGAJ y envío a SG",
+      "responsable": "OGAJ",
+      "inicio": "2026-05-01",
+      "final": "2026-05-02",
+      "duracion_cal": 2,
+      "dias_habiles": null,
+      "dias_restantes": 7,
+      "estado": "Pendiente de Iniciar",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "2",
+      "avance_estimado": 0,
+      "alerta": "critico",
+      "resumen": "EDT 2.1.11 | OGAJ | Pendiente de Iniciar"
+    },
+    {
+      "id": "case-017",
+      "edt": "2.1.12",
+      "actividad": "SG gestiona firmas.",
+      "responsable": "SG",
+      "inicio": "2026-05-02",
+      "final": "2026-05-02",
+      "duracion_cal": 1,
+      "dias_habiles": null,
+      "dias_restantes": 7,
+      "estado": "Pendiente de Iniciar",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "2",
+      "avance_estimado": 0,
+      "alerta": "critico",
+      "resumen": "EDT 2.1.12 | SG | Pendiente de Iniciar"
+    },
+    {
+      "id": "case-018",
+      "edt": "2.1.13",
+      "actividad": "Publicaciòn de la RM / Portal Institucional.",
+      "responsable": "SG",
+      "inicio": "2026-05-03",
+      "final": "2026-05-03",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": 8,
+      "estado": "Pendiente de Iniciar",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "2",
+      "avance_estimado": 0,
+      "alerta": "atencion",
+      "resumen": "EDT 2.1.13 | SG | Pendiente de Iniciar"
+    },
+    {
+      "id": "case-019",
+      "edt": "2.2",
+      "actividad": "Suscripción de convenios interinstitucionales",
+      "responsable": "",
+      "inicio": "2026-03-20",
+      "final": "2026-07-28",
+      "duracion_cal": 131,
+      "dias_habiles": null,
+      "dias_restantes": 94,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "Carlos Portocarrero/Fredy Ruiz",
+      "contacto": "Joan Paolo Horna Benavente (Coordinador de la Subunidad de Estudios)\nCel: 942880583\nCorreo: jhornab@vivienda.gob.pe",
+      "nivel": 2,
+      "grupo": "2",
+      "avance_estimado": 55,
+      "alerta": "ok",
+      "resumen": "EDT 2.2 | Carlos Portocarrero/Fredy Ruiz | En Proceso"
+    },
+    {
+      "id": "case-020",
+      "edt": "2.2.1",
+      "actividad": "Convenio de cooperación Puno (PNSU)",
+      "responsable": "",
+      "inicio": "2026-03-20",
+      "final": "2026-07-28",
+      "duracion_cal": 131,
+      "dias_habiles": null,
+      "dias_restantes": 94,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "2",
+      "avance_estimado": 55,
+      "alerta": "ok",
+      "resumen": "EDT 2.2.1 | En Proceso"
+    },
+    {
+      "id": "case-021",
+      "edt": "2.2.1.1",
+      "actividad": "Seguimiento al cierre de los proyectos zona Norte y Centro Histórico  relacionado al Convenio 25",
+      "responsable": "EMSAPUNO/MPP/PNSU",
+      "inicio": "2026-03-20",
+      "final": "2026-06-30",
+      "duracion_cal": 103,
+      "dias_habiles": null,
+      "dias_restantes": 66,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 4,
+      "grupo": "2",
+      "avance_estimado": 55,
+      "alerta": "ok",
+      "resumen": "EDT 2.2.1.1 | EMSAPUNO/MPP/PNSU | En Proceso"
+    },
+    {
+      "id": "case-022",
+      "edt": "2.2.1.2",
+      "actividad": "Gestión del convenio con EPS EMSAPUNO , MPP y PNSU             (Por definir en negociación)",
+      "responsable": "EMSAPUNO/MPP/PNSU",
+      "inicio": "2026-07-03",
+      "final": "2026-07-18",
+      "duracion_cal": 16,
+      "dias_habiles": null,
+      "dias_restantes": 84,
+      "estado": "Pendiente de Iniciar",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 4,
+      "grupo": "2",
+      "avance_estimado": 0,
+      "alerta": "ok",
+      "resumen": "EDT 2.2.1.2 | EMSAPUNO/MPP/PNSU | Pendiente de Iniciar"
+    },
+    {
+      "id": "case-023",
+      "edt": "2.2.1.3",
+      "actividad": "Revisión y conformidad de Unidad de Asesoria Legal(UAL)  a proyecto de convenio",
+      "responsable": "PNSU",
+      "inicio": "2026-07-19",
+      "final": "2026-07-22",
+      "duracion_cal": 4,
+      "dias_habiles": null,
+      "dias_restantes": 88,
+      "estado": "Pendiente de Iniciar",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 4,
+      "grupo": "2",
+      "avance_estimado": 0,
+      "alerta": "ok",
+      "resumen": "EDT 2.2.1.3 | PNSU | Pendiente de Iniciar"
+    },
+    {
+      "id": "case-024",
+      "edt": "2.2.1.4",
+      "actividad": "Solicitud de no objeción del BM  a proyecto de convenio",
+      "responsable": "BM",
+      "inicio": "2026-07-22",
+      "final": "2026-07-26",
+      "duracion_cal": 5,
+      "dias_habiles": null,
+      "dias_restantes": 92,
+      "estado": "Pendiente de Iniciar",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 4,
+      "grupo": "2",
+      "avance_estimado": 0,
+      "alerta": "ok",
+      "resumen": "EDT 2.2.1.4 | BM | Pendiente de Iniciar"
+    },
+    {
+      "id": "case-025",
+      "edt": "2.2.1.5",
+      "actividad": "Suscripción del convenio ( MPP suscribe previa autorización de una sesión de concejo, EPS  será autorizado previa sesión del directorio)",
+      "responsable": "PNSU",
+      "inicio": "2026-07-27",
+      "final": "2026-07-28",
+      "duracion_cal": 2,
+      "dias_habiles": null,
+      "dias_restantes": null,
+      "estado": "Completado",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 4,
+      "grupo": "2",
+      "avance_estimado": 100,
+      "alerta": "ok",
+      "resumen": "EDT 2.2.1.5 | PNSU | Completado"
+    },
+    {
+      "id": "case-026",
+      "edt": "2.2.2",
+      "actividad": "Convenio Lima (PASLC)",
+      "responsable": "PASLC",
+      "inicio": "2026-03-20",
+      "final": "2026-07-28",
+      "duracion_cal": 131,
+      "dias_habiles": null,
+      "dias_restantes": 94,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "2",
+      "avance_estimado": 55,
+      "alerta": "ok",
+      "resumen": "EDT 2.2.2 | PASLC | En Proceso"
+    },
+    {
+      "id": "case-027",
+      "edt": "2.2.2.1",
+      "actividad": "Desarrollo estimado (Pendiente de confirmación  PASLC)",
+      "responsable": "PASCL",
+      "inicio": "2026-03-20",
+      "final": "2026-05-20",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": 25,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "YURI SULLON (Coordinador de la Unidad de Inversiones) Cel: 949283490     PouL Huamani (Asesor de DE PASLC) Cel: 977162409",
+      "nivel": 4,
+      "grupo": "2",
+      "avance_estimado": 55,
+      "alerta": "ok",
+      "resumen": "EDT 2.2.2.1 | PASCL | En Proceso"
+    },
+    {
+      "id": "case-028",
+      "edt": "2.3",
+      "actividad": "Conformación equipo transitorio - PNSU / PASLC",
+      "responsable": "",
+      "inicio": "2026-03-20",
+      "final": "",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": null,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 2,
+      "grupo": "2",
+      "avance_estimado": 55,
+      "alerta": "sin_fecha",
+      "resumen": "EDT 2.3 | En Proceso"
+    },
+    {
+      "id": "case-029",
+      "edt": "2.3.1",
+      "actividad": "Publlicación de la RD de conformación del equipo transitorio PNSU",
+      "responsable": "",
+      "inicio": "2026-04-13",
+      "final": "2026-04-13",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": null,
+      "estado": "Completado",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "2",
+      "avance_estimado": 100,
+      "alerta": "ok",
+      "resumen": "EDT 2.3.1 | Completado"
+    },
+    {
+      "id": "case-030",
+      "edt": "2.3.2",
+      "actividad": "No objeción a la RD de conformación del equipo transitorio PNSU",
+      "responsable": "",
+      "inicio": "2026-04-14",
+      "final": "2026-04-24",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": -1,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "2",
+      "avance_estimado": 55,
+      "alerta": "vencido",
+      "resumen": "EDT 2.3.2 | En Proceso"
+    },
+    {
+      "id": "case-031",
+      "edt": "2.3.3",
+      "actividad": "Seguimiento a la conformación del equipo PASLC",
+      "responsable": "",
+      "inicio": "2026-04-13",
+      "final": "2026-04-23",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": -2,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "PouL Huamani (Asesor de DE PASLC) Cel: 977162409",
+      "nivel": 3,
+      "grupo": "2",
+      "avance_estimado": 55,
+      "alerta": "vencido",
+      "resumen": "EDT 2.3.3 | En Proceso"
+    },
+    {
+      "id": "case-032",
+      "edt": "2.3.4",
+      "actividad": "Publlicación de la RD de conformación del equipo transitorio PASLC",
+      "responsable": "",
+      "inicio": "2026-04-13",
+      "final": "2026-04-23",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": -2,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "2",
+      "avance_estimado": 55,
+      "alerta": "vencido",
+      "resumen": "EDT 2.3.4 | En Proceso"
+    },
+    {
+      "id": "case-033",
+      "edt": "2.3.5",
+      "actividad": "No objeción a la RD de conformación del equipo transitorio PASLC",
+      "responsable": "",
+      "inicio": "2026-04-13",
+      "final": "2026-04-23",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": -2,
+      "estado": "Pendiente de Iniciar",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "2",
+      "avance_estimado": 0,
+      "alerta": "vencido",
+      "resumen": "EDT 2.3.5 | Pendiente de Iniciar"
+    },
+    {
+      "id": "case-034",
+      "edt": "2.4",
+      "actividad": "Conformación equipo clave",
+      "responsable": "",
+      "inicio": "2026-03-20",
+      "final": "2026-04-30",
+      "duracion_cal": 42,
+      "dias_habiles": null,
+      "dias_restantes": 5,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "Betsabé Araindia/Rolando Carpio",
+      "contacto": "Joan Paolo Horna Benavente (Coordinador de la Subunidad de Estudios)\nCel: 942880583\nCorreo: jhornab@vivienda.gob.pe",
+      "nivel": 2,
+      "grupo": "2",
+      "avance_estimado": 55,
+      "alerta": "critico",
+      "resumen": "EDT 2.4 | Betsabé Araindia/Rolando Carpio | En Proceso"
+    },
+    {
+      "id": "case-035",
+      "edt": "2.3.1",
+      "actividad": "Conformación EIP- Puno (PNSU)",
+      "responsable": "",
+      "inicio": "2026-03-20",
+      "final": "2026-04-30",
+      "duracion_cal": 42,
+      "dias_habiles": null,
+      "dias_restantes": 5,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "2",
+      "avance_estimado": 55,
+      "alerta": "critico",
+      "resumen": "EDT 2.3.1 | En Proceso"
+    },
+    {
+      "id": "case-036",
+      "edt": "2.3.1.1",
+      "actividad": "Propuesta de conformación equipo clave para efectividad (incluyendo coordinaciones internas con el BM)",
+      "responsable": "PNSU/BM",
+      "inicio": "2026-03-20",
+      "final": "2026-04-10",
+      "duracion_cal": 22,
+      "dias_habiles": null,
+      "dias_restantes": null,
+      "estado": "Completado",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 4,
+      "grupo": "2",
+      "avance_estimado": 100,
+      "alerta": "ok",
+      "resumen": "EDT 2.3.1.1 | PNSU/BM | Completado"
+    },
+    {
+      "id": "case-037",
+      "edt": "2.3.1.2",
+      "actividad": "Solicitud de no objeción del BM",
+      "responsable": "PNSU-DGPPCS",
+      "inicio": "2026-04-10",
+      "final": "2026-04-15",
+      "duracion_cal": 6,
+      "dias_habiles": null,
+      "dias_restantes": null,
+      "estado": "Completado",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 4,
+      "grupo": "2",
+      "avance_estimado": 100,
+      "alerta": "ok",
+      "resumen": "EDT 2.3.1.2 | PNSU-DGPPCS | Completado"
+    },
+    {
+      "id": "case-038",
+      "edt": "2.3.1.3",
+      "actividad": "No objeción del BM en forma y contenido satisfactorio",
+      "responsable": "BM",
+      "inicio": "2026-04-15",
+      "final": "2026-04-15",
+      "duracion_cal": 1,
+      "dias_habiles": null,
+      "dias_restantes": null,
+      "estado": "Completado",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 4,
+      "grupo": "2",
+      "avance_estimado": 100,
+      "alerta": "ok",
+      "resumen": "EDT 2.3.1.3 | BM | Completado"
+    },
+    {
+      "id": "case-039",
+      "edt": "2.3.1.4",
+      "actividad": "RD de conformación de equipo y RD de funciones",
+      "responsable": "PNSU",
+      "inicio": "2026-04-15",
+      "final": "2026-04-30",
+      "duracion_cal": 16,
+      "dias_habiles": null,
+      "dias_restantes": 5,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 4,
+      "grupo": "2",
+      "avance_estimado": 55,
+      "alerta": "critico",
+      "resumen": "EDT 2.3.1.4 | PNSU | En Proceso"
+    },
+    {
+      "id": "case-040",
+      "edt": "2.3.2",
+      "actividad": "Conformación EIP-Lima (PASLC)",
+      "responsable": "",
+      "inicio": "2026-03-20",
+      "final": "2026-04-30",
+      "duracion_cal": 42,
+      "dias_habiles": null,
+      "dias_restantes": 5,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "2",
+      "avance_estimado": 55,
+      "alerta": "critico",
+      "resumen": "EDT 2.3.2 | En Proceso"
+    },
+    {
+      "id": "case-041",
+      "edt": "2.3.2.1",
+      "actividad": "Propuesta de conformación equipo clave para efectividad",
+      "responsable": "PASLC",
+      "inicio": "2026-03-20",
+      "final": "2026-04-10",
+      "duracion_cal": 22,
+      "dias_habiles": null,
+      "dias_restantes": null,
+      "estado": "Completado",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 4,
+      "grupo": "2",
+      "avance_estimado": 100,
+      "alerta": "ok",
+      "resumen": "EDT 2.3.2.1 | PASLC | Completado"
+    },
+    {
+      "id": "case-042",
+      "edt": "2.3.2.2",
+      "actividad": "Solicitud de no objeción del BM",
+      "responsable": "PASLC-DGPPCS",
+      "inicio": "2026-04-10",
+      "final": "2026-04-15",
+      "duracion_cal": 6,
+      "dias_habiles": null,
+      "dias_restantes": null,
+      "estado": "Completado",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 4,
+      "grupo": "2",
+      "avance_estimado": 100,
+      "alerta": "ok",
+      "resumen": "EDT 2.3.2.2 | PASLC-DGPPCS | Completado"
+    },
+    {
+      "id": "case-043",
+      "edt": "2.3.2.3",
+      "actividad": "No objeción del BM en forma y contenido satisfactorio",
+      "responsable": "BM",
+      "inicio": "2026-04-15",
+      "final": "2026-04-15",
+      "duracion_cal": 1,
+      "dias_habiles": null,
+      "dias_restantes": null,
+      "estado": "Completado",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 4,
+      "grupo": "2",
+      "avance_estimado": 100,
+      "alerta": "ok",
+      "resumen": "EDT 2.3.2.3 | BM | Completado"
+    },
+    {
+      "id": "case-044",
+      "edt": "2.3.2.4",
+      "actividad": "RD de conformación de equipo y RD de funciones",
+      "responsable": "PASLC",
+      "inicio": "2026-04-15",
+      "final": "2026-04-30",
+      "duracion_cal": 16,
+      "dias_habiles": null,
+      "dias_restantes": 5,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 4,
+      "grupo": "2",
+      "avance_estimado": 55,
+      "alerta": "critico",
+      "resumen": "EDT 2.3.2.4 | PASLC | En Proceso"
+    },
+    {
+      "id": "case-045",
+      "edt": "2.3.3",
+      "actividad": "Conformación Equipo ETGP- (DGPPCS)",
+      "responsable": "",
+      "inicio": "2026-03-20",
+      "final": "2026-04-21",
+      "duracion_cal": 33,
+      "dias_habiles": null,
+      "dias_restantes": -4,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "2",
+      "avance_estimado": 55,
+      "alerta": "vencido",
+      "resumen": "EDT 2.3.3 | En Proceso"
+    },
+    {
+      "id": "case-046",
+      "edt": "2.3.3.1",
+      "actividad": "Propuesta de conformación equipo clave para efectividad (un especialista de seguimiento y monitoreo) se considera coordinaciones internas con el BM",
+      "responsable": "DGPPCS",
+      "inicio": "2026-03-20",
+      "final": "2026-04-10",
+      "duracion_cal": 22,
+      "dias_habiles": null,
+      "dias_restantes": -15,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 4,
+      "grupo": "2",
+      "avance_estimado": 55,
+      "alerta": "vencido",
+      "resumen": "EDT 2.3.3.1 | DGPPCS | En Proceso"
+    },
+    {
+      "id": "case-047",
+      "edt": "2.3.3.2",
+      "actividad": "Solicitud de no objeción del BM",
+      "responsable": "DGPPCS",
+      "inicio": "2026-04-11",
+      "final": "2026-04-17",
+      "duracion_cal": 7,
+      "dias_habiles": null,
+      "dias_restantes": -8,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 4,
+      "grupo": "2",
+      "avance_estimado": 55,
+      "alerta": "vencido",
+      "resumen": "EDT 2.3.3.2 | DGPPCS | En Proceso"
+    },
+    {
+      "id": "case-048",
+      "edt": "2.3.3.3",
+      "actividad": "No objeción del BM  en forma y contenido satisfactorio",
+      "responsable": "BM",
+      "inicio": "2026-04-17",
+      "final": "2026-04-21",
+      "duracion_cal": 5,
+      "dias_habiles": null,
+      "dias_restantes": -4,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 4,
+      "grupo": "2",
+      "avance_estimado": 55,
+      "alerta": "vencido",
+      "resumen": "EDT 2.3.3.3 | BM | En Proceso"
+    },
+    {
+      "id": "case-049",
+      "edt": "3",
+      "actividad": "Otras Condiciones Solicitadas por el BM",
+      "responsable": "",
+      "inicio": "2026-03-20",
+      "final": "2026-06-17",
+      "duracion_cal": 90,
+      "dias_habiles": null,
+      "dias_restantes": 53,
+      "estado": "Sin estado",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 1,
+      "grupo": "3",
+      "avance_estimado": 15,
+      "alerta": "ok",
+      "resumen": "EDT 3 | Sin estado"
+    },
+    {
+      "id": "case-050",
+      "edt": "3.1",
+      "actividad": "Evaluación de la Intervención en las Lagunas de la PTAR Espinar (CUI 2283110)",
+      "responsable": "",
+      "inicio": "2026-04-13",
+      "final": "2026-04-22",
+      "duracion_cal": 10,
+      "dias_habiles": null,
+      "dias_restantes": -3,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "Teresa Arana",
+      "contacto": "Jeniffer Hortensia Gonzales Armas ( Encargada del Convenio 25 y PTAR Puno)\nCel: 992245687\nCorreo: jgonzalesa@vivienda.gob.pe",
+      "nivel": 2,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "vencido",
+      "resumen": "EDT 3.1 | Teresa Arana | En Proceso"
+    },
+    {
+      "id": "case-051",
+      "edt": "3.1.1",
+      "actividad": "Reunión con la EPS para evaluar los avances",
+      "responsable": "",
+      "inicio": "2026-04-13",
+      "final": "2026-04-13",
+      "duracion_cal": 1,
+      "dias_habiles": null,
+      "dias_restantes": -12,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "vencido",
+      "resumen": "EDT 3.1.1 | En Proceso"
+    },
+    {
+      "id": "case-052",
+      "edt": "3.1.2",
+      "actividad": "Reunión con la DGAA para evaluar el Estudio Ambiental",
+      "responsable": "",
+      "inicio": "2026-04-14",
+      "final": "2026-04-15",
+      "duracion_cal": 2,
+      "dias_habiles": null,
+      "dias_restantes": -10,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "vencido",
+      "resumen": "EDT 3.1.2 | En Proceso"
+    },
+    {
+      "id": "case-053",
+      "edt": "3.1.3",
+      "actividad": "Reunión con la Municipalidad Provincial para evaluar el saneamiento Físico Legal de los Predios.",
+      "responsable": "",
+      "inicio": "2026-04-15",
+      "final": "2026-04-16",
+      "duracion_cal": 2,
+      "dias_habiles": null,
+      "dias_restantes": -9,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "vencido",
+      "resumen": "EDT 3.1.3 | En Proceso"
+    },
+    {
+      "id": "case-054",
+      "edt": "3.1.4",
+      "actividad": "Definición si se continua o no el Contrato",
+      "responsable": "",
+      "inicio": "2026-04-16",
+      "final": "2026-04-22",
+      "duracion_cal": 7,
+      "dias_habiles": null,
+      "dias_restantes": -3,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "vencido",
+      "resumen": "EDT 3.1.4 | En Proceso"
+    },
+    {
+      "id": "case-055",
+      "edt": "3.2",
+      "actividad": "Aprobación de los Perfiles de Puesto con RD de la DGPPCS",
+      "responsable": "",
+      "inicio": "",
+      "final": "",
+      "duracion_cal": 1,
+      "dias_habiles": null,
+      "dias_restantes": null,
+      "estado": "Pendiente de Iniciar",
+      "seguimiento_dgppcs": "Sandra Torres",
+      "contacto": "",
+      "nivel": 2,
+      "grupo": "3",
+      "avance_estimado": 0,
+      "alerta": "sin_fecha",
+      "resumen": "EDT 3.2 | Sandra Torres | Pendiente de Iniciar"
+    },
+    {
+      "id": "case-056",
+      "edt": "3.2.1",
+      "actividad": "Aprobación de la RD de los perfiles de puestos del PEC por la DGPPCS",
+      "responsable": "",
+      "inicio": "",
+      "final": "",
+      "duracion_cal": 1,
+      "dias_habiles": null,
+      "dias_restantes": null,
+      "estado": "Pendiente de Iniciar",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "3",
+      "avance_estimado": 0,
+      "alerta": "sin_fecha",
+      "resumen": "EDT 3.2.1 | Pendiente de Iniciar"
+    },
+    {
+      "id": "case-057",
+      "edt": "3.4",
+      "actividad": "Seguimiento a la Donación Componente 1: Estudios y Planes",
+      "responsable": "",
+      "inicio": "",
+      "final": "",
+      "duracion_cal": 1,
+      "dias_habiles": null,
+      "dias_restantes": null,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "Betsabé Araindia",
+      "contacto": "",
+      "nivel": 2,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "sin_fecha",
+      "resumen": "EDT 3.4 | Betsabé Araindia | En Proceso"
+    },
+    {
+      "id": "case-058",
+      "edt": "3.4.1",
+      "actividad": "Contratación de Servicio de Consultoría Estudio de Evaluación Ambiental y Social Complementario del Proyecto Convenio 25, Incluyendo PTAR El Espinar",
+      "responsable": "PNSU",
+      "inicio": "2026-03-20",
+      "final": "2026-04-30",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": 5,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "Betsabé Araindia",
+      "contacto": "PNSU:\nJessica Milagros De la Cruz Valdez (Jefa de Unidad de Proyectos del PNSU)\nCel: 969025469\n Correo: jdelacruz@vivienda.gob.pe",
+      "nivel": 3,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "critico",
+      "resumen": "EDT 3.4.1 | PNSU | Betsabé Araindia | En Proceso"
+    },
+    {
+      "id": "case-059",
+      "edt": "3.4.2",
+      "actividad": "Contratación del Servicio de Consultoría:\nEstudio Integral Sobre Estrategias de Contratación, Análisis de Costo - Beneficio y sostenibilidad para el diseño, construcción y operación de PTARs en las cuencas del lago Titicaca y Lurín.",
+      "responsable": "PNSU",
+      "inicio": "2026-03-20",
+      "final": "2026-04-30",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": 5,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "Betsabé Araindia",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "critico",
+      "resumen": "EDT 3.4.2 | PNSU | Betsabé Araindia | En Proceso"
+    },
+    {
+      "id": "case-060",
+      "edt": "3.4.3",
+      "actividad": "Contratación de Servicio de Consultoría:\nDesarrollo de la estrategia comunicacional y gestión social",
+      "responsable": "PNSU",
+      "inicio": "2026-03-20",
+      "final": "2026-04-30",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": 5,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "critico",
+      "resumen": "EDT 3.4.3 | PNSU | En Proceso"
+    },
+    {
+      "id": "case-061",
+      "edt": "3.4.4",
+      "actividad": "Contratación de Servicio de Consultoría:\nSeparación del Exp. Técnico Del Proyecto 2387679 \" Convenio 25\" - Lote N° 1- bajo Metodología BIM",
+      "responsable": "PNSU",
+      "inicio": "2026-03-20",
+      "final": "2026-04-30",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": 5,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "Alain Sanchez",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "critico",
+      "resumen": "EDT 3.4.4 | PNSU | Alain Sanchez | En Proceso"
+    },
+    {
+      "id": "case-062",
+      "edt": "3.4.5",
+      "actividad": "Contratación de Consultorías Individuales:\nServicios profesionales de ingeniería para elaboración, supervisión y asistencia técnica para la separación del Exp. Téc. Del proyecto 2387679 \"Convenio 25\" - Lote N° 1- bajo Metodología BIM",
+      "responsable": "PNSU",
+      "inicio": "2026-03-20",
+      "final": "2026-04-30",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": 5,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "Alain Sanchez",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "critico",
+      "resumen": "EDT 3.4.5 | PNSU | Alain Sanchez | En Proceso"
+    },
+    {
+      "id": "case-063",
+      "edt": "3.5",
+      "actividad": "Seguimiento a la Donación Fortalecimiento de Capacidades",
+      "responsable": "",
+      "inicio": "",
+      "final": "2026-07-30",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": 96,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "Sandra Torres",
+      "contacto": "",
+      "nivel": 2,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "ok",
+      "resumen": "EDT 3.5 | Sandra Torres | En Proceso"
+    },
+    {
+      "id": "case-064",
+      "edt": "3.5.1",
+      "actividad": "Contratación de Servicio de Consultoría:\nCertificación al personal en la gestión y ejecución de contratos FIDIC (Pasantía)/ Capacitación.",
+      "responsable": "PNSU",
+      "inicio": "2026-04-04",
+      "final": "2026-05-30",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": 35,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "Sandra Torres / Teresa Arana",
+      "contacto": "Jeniffer Hortensia Gonzales Armas ( Encargada del Convenio 25 y PTAR Puno)\nCel: 992245687\nCorreo: jgonzalesa@vivienda.gob.pe",
+      "nivel": 3,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "ok",
+      "resumen": "EDT 3.5.1 | PNSU | Sandra Torres / Teresa Arana | En Proceso"
+    },
+    {
+      "id": "case-065",
+      "edt": "3.5.2",
+      "actividad": "Contratación de servicio de Consultoría\nFortalecimiento en Gestión Social y Comunicacional.",
+      "responsable": "PNSU",
+      "inicio": "2026-04-04",
+      "final": "2026-05-30",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": 35,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "ok",
+      "resumen": "EDT 3.5.2 | PNSU | En Proceso"
+    },
+    {
+      "id": "case-066",
+      "edt": "3.5.3",
+      "actividad": "Contratación de servicio de Consultoría:\nAdopción de modelos de EC en los servicios de agua y saneamiento, incluida la integración de soluciones basadas en la naturaleza.",
+      "responsable": "PNSU",
+      "inicio": "2026-04-04",
+      "final": "2026-05-30",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": 35,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "ok",
+      "resumen": "EDT 3.5.3 | PNSU | En Proceso"
+    },
+    {
+      "id": "case-067",
+      "edt": "3.6",
+      "actividad": "Gestión de la Donación",
+      "responsable": "",
+      "inicio": "",
+      "final": "",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": null,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "Freddy Ruiz",
+      "contacto": "",
+      "nivel": 2,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "sin_fecha",
+      "resumen": "EDT 3.6 | Freddy Ruiz | En Proceso"
+    },
+    {
+      "id": "case-068",
+      "edt": "3.6.1",
+      "actividad": "Cubrir las necesidades operativas ecenciales, incluida la adquisición de equipos básicos  los gastos administrativos y logísticos.",
+      "responsable": "PNSU",
+      "inicio": "2026-04-04",
+      "final": "2026-06-17",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": 53,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "Freddy Ruiz / Marjorie Mellet",
+      "contacto": "Jeniffer Hortensia Gonzales Armas ( Encargada del Convenio 25 y PTAR Puno)\nCel: 992245687\nCorreo: jgonzalesa@vivienda.gob.pe",
+      "nivel": 3,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "ok",
+      "resumen": "EDT 3.6.1 | PNSU | Freddy Ruiz / Marjorie Mellet | En Proceso"
+    },
+    {
+      "id": "case-069",
+      "edt": "3.6.2",
+      "actividad": "Servicio Profesional para asistencia - profesional ambiental II",
+      "responsable": "PNSU",
+      "inicio": "2026-04-04",
+      "final": "2026-06-17",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": 53,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "ok",
+      "resumen": "EDT 3.6.2 | PNSU | En Proceso"
+    },
+    {
+      "id": "case-070",
+      "edt": "3.6.3",
+      "actividad": "Servicio Profesional social II para la Elaboración, gestión, monitoreo y Asistencia en la implementación de la Consultoría",
+      "responsable": "PNSU",
+      "inicio": "2026-04-04",
+      "final": "2026-06-17",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": 53,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "ok",
+      "resumen": "EDT 3.6.3 | PNSU | En Proceso"
+    },
+    {
+      "id": "case-071",
+      "edt": "3.6.4",
+      "actividad": "Servicio profesional de especialista en adquisiciones",
+      "responsable": "PNSU",
+      "inicio": "2026-04-04",
+      "final": "2026-06-17",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": 53,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "ok",
+      "resumen": "EDT 3.6.4 | PNSU | En Proceso"
+    },
+    {
+      "id": "case-072",
+      "edt": "3.6.5",
+      "actividad": "Servicio profesional de especialista financiero",
+      "responsable": "PNSU",
+      "inicio": "2026-04-04",
+      "final": "2026-06-17",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": 53,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "ok",
+      "resumen": "EDT 3.6.5 | PNSU | En Proceso"
+    },
+    {
+      "id": "case-073",
+      "edt": "3.6.6",
+      "actividad": "Servicio Profesional de especialista en adquisiciones - PASLC",
+      "responsable": "PNSU",
+      "inicio": "2026-04-04",
+      "final": "2026-06-17",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": 53,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "ok",
+      "resumen": "EDT 3.6.6 | PNSU | En Proceso"
+    },
+    {
+      "id": "case-074",
+      "edt": "3.6.7",
+      "actividad": "Servicio Profesional de especialista financiero - PASLC",
+      "responsable": "PNSU",
+      "inicio": "2026-04-04",
+      "final": "2026-06-17",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": 53,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "ok",
+      "resumen": "EDT 3.6.7 | PNSU | En Proceso"
+    },
+    {
+      "id": "case-075",
+      "edt": "3.6.8",
+      "actividad": "Logística para desarrollo del servicio ( Monitoreo de la Implementación de las actividades: viáticos y pasajes)",
+      "responsable": "PNSU",
+      "inicio": "2026-04-04",
+      "final": "2026-06-17",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": 53,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "ok",
+      "resumen": "EDT 3.6.8 | PNSU | En Proceso"
+    },
+    {
+      "id": "case-076",
+      "edt": "3.6.9",
+      "actividad": "Auditoría externa para garantizar la transparencia y la rendición de cuentas",
+      "responsable": "PNSU",
+      "inicio": "2026-04-04",
+      "final": "2026-06-17",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": 53,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 3,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "ok",
+      "resumen": "EDT 3.6.9 | PNSU | En Proceso"
+    },
+    {
+      "id": "case-077",
+      "edt": "3.7",
+      "actividad": "Evaluación de los TdR del Head Hunter",
+      "responsable": "PNSU DGPPCS",
+      "inicio": "2026-04-04",
+      "final": "2026-06-17",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": 53,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "Marjorie Mellet",
+      "contacto": "Joan Paolo Horna Benavente (Coordinador de la Subunidad de Estudios)\nCel: 942880583\nCorreo: jhornab@vivienda.gob.pe",
+      "nivel": 2,
+      "grupo": "3",
+      "avance_estimado": 55,
+      "alerta": "ok",
+      "resumen": "EDT 3.7 | PNSU DGPPCS | Marjorie Mellet | En Proceso"
+    },
+    {
+      "id": "case-078",
+      "edt": "4",
+      "actividad": "Elaboración del Sistema de Seguimiento",
+      "responsable": "",
+      "inicio": "2026-04-06",
+      "final": "2026-04-10",
+      "duracion_cal": 5,
+      "dias_habiles": null,
+      "dias_restantes": -15,
+      "estado": "En Proceso",
+      "seguimiento_dgppcs": "Alain Sanchez",
+      "contacto": "",
+      "nivel": 1,
+      "grupo": "4",
+      "avance_estimado": 55,
+      "alerta": "vencido",
+      "resumen": "EDT 4 | Alain Sanchez | En Proceso"
+    },
+    {
+      "id": "case-079",
+      "edt": "",
+      "actividad": "INICIO DE EFECTIVIDAD DEL PRÉSTAMO",
+      "responsable": "",
+      "inicio": "2026-06-17",
+      "final": "2026-06-17",
+      "duracion_cal": 1,
+      "dias_habiles": null,
+      "dias_restantes": 53,
+      "estado": "Sin estado",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 0,
+      "grupo": "Sin grupo",
+      "avance_estimado": 15,
+      "alerta": "ok",
+      "resumen": "Sin estado"
+    },
+    {
+      "id": "case-080",
+      "edt": "*",
+      "actividad": "Sandra Torres es considerada en Lugar de Rolando Carpio (Hasta que vuelva de vacaciones)",
+      "responsable": "",
+      "inicio": "",
+      "final": "",
+      "duracion_cal": null,
+      "dias_habiles": null,
+      "dias_restantes": null,
+      "estado": "Sin estado",
+      "seguimiento_dgppcs": "",
+      "contacto": "",
+      "nivel": 1,
+      "grupo": "*",
+      "avance_estimado": 15,
+      "alerta": "sin_fecha",
+      "resumen": "EDT * | Sin estado"
+    }
+  ]
+};
+
+}
+</script>
+<script>
+window.PEC_SERVER_BOOTSTRAP = <?!= visorBootstrapJson ?>;
+</script>
+<script>
+const STORAGE_KEY = 'pec_tracking_notes_v1';
+const EDIT_STORAGE_KEY = 'pec_tracking_edits_v1';
+const PEOPLE_STORAGE_KEY = 'pec_tracking_people_v1';
+const ENTITY_STORAGE_KEY = 'pec_tracking_entities_v1';
+const ALIAS_STORAGE_KEY = 'pec_tracking_aliases_v1';
+const HERO_STORAGE_KEY = 'pec_tracking_hero_v1';
+const CUSTOM_RECORD_STORAGE_KEY = 'pec_tracking_custom_records_v1';
+const PAYLOAD_STORAGE_KEY = 'pec_tracking_payload_v1';
+const SOURCE_MODE_STORAGE_KEY = 'pec_tracking_source_mode_v1';
+const AUDIT_STORAGE_KEY = 'pec_tracking_audit_v1';
+const BACKUP_INDEX_STORAGE_KEY = 'pec_tracking_backup_index_v1';
+const STRUCTURE_SHEET_NAME = 'GANTT_ESTRUCTURA';
+const STRUCTURE_CONFIG_SHEET = 'CONFIG_VISOR';
+const STRUCTURE_PEOPLE_SHEET = 'CATALOGO_PERSONAS';
+const STRUCTURE_ENTITY_SHEET = 'CATALOGO_ENTIDADES';
+const HEADER_ROW = 7;
+const SHEET_NAME = 'CRONOGRAMA';
+const SELECTED_COLUMNS = [1, 2, 3, 4, 5, 6, 7, 8, 248, 249, 250];
+const BASE_PEOPLE = [
+  'Alain Sanchez',
+  'Betsabé Araindia',
+  'Sandra Torres',
+  'Rolando Carpio',
+  'Carlos Portocarrero',
+  'Freddy Ruiz',
+  'Oriana Perez',
+  'Marjorie Mellet'
+];
+const BASE_ENTITIES = [
+  'PNSU',
+  'PASLC',
+  'BM',
+  'VMCS',
+  'OGAJ',
+  'SG',
+  'OGPP'
+];
+const DEFAULT_TITLE_BY_EDT = {
+  '3.2': 'Creación del Equipo Técnico de Gestión del Programa - Programa de Economía Circular (ETGP-PEC)',
+  '3.2.1': 'Aprobación de la RM de Creación del CCP-PEC',
+  '4': 'Inicio de Efectividad del Préstamo'
+};
+const DEFAULT_HERO = {
+  title: 'Visor de Seguimiento PEC',
+  subtitle: 'Programa de Economía Circular para Puno y Lima.',
+  meta1: 'DGPPCS',
+  meta2: 'Puno y Lima',
+  meta3: 'Seguimiento operativo',
+  extras: []
+};
+const appState = {
+  raw: [],
+  matched: [],
+  filtered: [],
+  notes: loadNotes(),
+  edits: loadEdits(),
+  customPeople: loadCustomPeople(),
+  customEntities: loadCustomEntities(),
+  aliases: loadAliases(),
+  hero: loadHeroConfig(),
+  customRecords: loadCustomRecords(),
+  audit: loadAuditLog(),
+  selectedId: '',
+  reportText: '',
+  reportHtml: '',
+  payload: loadSavedPayload(),
+  sourceMode: loadSourceMode(),
+  expanded: {},
+  adminEnabled: isAdminMode(),
+  remoteRevision: 0,
+  serverInfo: null
+};
+const SERVER_BOOTSTRAP = typeof window !== 'undefined' && window.PEC_SERVER_BOOTSTRAP && window.PEC_SERVER_BOOTSTRAP.ok
+  ? window.PEC_SERVER_BOOTSTRAP
+  : null;
+let sharedSyncTimer = null;
+let sharedSyncInFlight = false;
+let pendingSharedSyncReason = '';
+let sharedPollHandle = null;
+
+function loadNotes(){
+  try{
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  }catch(error){
+    return {};
+  }
+}
+
+function saveNotes(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(appState.notes));
+}
+
+function loadEdits(){
+  try{
+    return JSON.parse(localStorage.getItem(EDIT_STORAGE_KEY) || '{}');
+  }catch(error){
+    return {};
+  }
+}
+
+function saveEdits(){
+  localStorage.setItem(EDIT_STORAGE_KEY, JSON.stringify(appState.edits));
+}
+
+function loadCustomPeople(){
+  try{
+    return JSON.parse(localStorage.getItem(PEOPLE_STORAGE_KEY) || '[]');
+  }catch(error){
+    return [];
+  }
+}
+
+function saveCustomPeople(){
+  localStorage.setItem(PEOPLE_STORAGE_KEY, JSON.stringify(appState.customPeople));
+}
+
+function loadCustomEntities(){
+  try{
+    return JSON.parse(localStorage.getItem(ENTITY_STORAGE_KEY) || '[]');
+  }catch(error){
+    return [];
+  }
+}
+
+function saveCustomEntities(){
+  localStorage.setItem(ENTITY_STORAGE_KEY, JSON.stringify(appState.customEntities));
+}
+
+function loadHeroConfig(){
+  try{
+    const saved = JSON.parse(localStorage.getItem(HERO_STORAGE_KEY) || '{}');
+    return {
+      title: saved.title != null ? String(saved.title) : DEFAULT_HERO.title,
+      subtitle: saved.subtitle != null ? String(saved.subtitle) : DEFAULT_HERO.subtitle,
+      meta1: saved.meta1 != null ? String(saved.meta1) : DEFAULT_HERO.meta1,
+      meta2: saved.meta2 != null ? String(saved.meta2) : DEFAULT_HERO.meta2,
+      meta3: saved.meta3 != null ? String(saved.meta3) : DEFAULT_HERO.meta3,
+      extras: Array.isArray(saved.extras) ? saved.extras.map(String) : []
+    };
+  }catch(error){
+    return {...DEFAULT_HERO};
+  }
+}
+
+function saveHeroConfig(){
+  localStorage.setItem(HERO_STORAGE_KEY, JSON.stringify(appState.hero || DEFAULT_HERO));
+}
+
+function loadAliases(){
+  try{
+    return JSON.parse(localStorage.getItem(ALIAS_STORAGE_KEY) || '{}');
+  }catch(error){
+    return {};
+  }
+}
+
+function saveAliases(){
+  localStorage.setItem(ALIAS_STORAGE_KEY, JSON.stringify(appState.aliases));
+}
+
+function loadCustomRecords(){
+  try{
+    const rows = JSON.parse(localStorage.getItem(CUSTOM_RECORD_STORAGE_KEY) || '[]');
+    return Array.isArray(rows) ? rows : [];
+  }catch(error){
+    return [];
+  }
+}
+
+function saveCustomRecords(){
+  localStorage.setItem(CUSTOM_RECORD_STORAGE_KEY, JSON.stringify(appState.customRecords || []));
+}
+
+function isAdminMode(){
+  try{
+    const params = new URLSearchParams(window.location.search);
+    return params.get('admin') === 'darwin' || localStorage.getItem('pec_admin_enabled_v1') === '1';
+  }catch(error){
+    return false;
+  }
+}
+
+function loadAuditLog(){
+  try{
+    const rows = JSON.parse(localStorage.getItem(AUDIT_STORAGE_KEY) || '[]');
+    return Array.isArray(rows) ? rows : [];
+  }catch(error){
+    return [];
+  }
+}
+
+function saveAuditLog(){
+  localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify((appState.audit || []).slice(-500)));
+}
+
+function appendAudit(action, detail){
+  if(!appState.adminEnabled) return;
+  appState.audit = appState.audit || [];
+  appState.audit.unshift({
+    at: new Date().toISOString(),
+    actor: 'Darwin Pardavé',
+    action,
+    detail
+  });
+  saveAuditLog();
+}
+
+function loadSavedPayload(){
+  try{
+    const raw = JSON.parse(localStorage.getItem(PAYLOAD_STORAGE_KEY) || 'null');
+    if(raw && Array.isArray(raw.records)) return raw;
+  }catch(error){}
+  return window.PEC_TRACKING_DATA || {meta:{},summary:{},records:[]};
+}
+
+function saveCurrentPayload(){
+  localStorage.setItem(PAYLOAD_STORAGE_KEY, JSON.stringify(appState.payload || {meta:{},summary:{},records:[]}));
+  localStorage.setItem(SOURCE_MODE_STORAGE_KEY, appState.sourceMode || 'embedded');
+}
+
+function loadSourceMode(){
+  return localStorage.getItem(SOURCE_MODE_STORAGE_KEY) || 'embedded';
+}
+
+function clearSavedPayload(){
+  localStorage.removeItem(PAYLOAD_STORAGE_KEY);
+  localStorage.removeItem(SOURCE_MODE_STORAGE_KEY);
+}
+
+function slugify(text){
+  return String(text || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'-')
+    .replace(/^-+|-+$/g,'') || 'sin-estado';
+}
+
+function text(v){ return String(v == null ? '' : v).trim(); }
+
+function cleanPersonName(name){
+  return text(name).replace(/\.+$/,'').replace(/\s+/g,' ');
+}
+
+function cleanEntityName(name){
+  return text(name)
+    .replace(/\.+$/,'')
+    .replace(/\s*\/\s*/g,'/')
+    .replace(/\s*-\s*/g,'-')
+    .replace(/\s+/g,' ');
+}
+
+function personKey(name){
+  return cleanPersonName(name)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'');
+}
+
+function canonicalPersonName(name){
+  const cleaned = cleanPersonName(name);
+  if(!cleaned) return '';
+  if(personKey(cleaned) === personKey('Fredy Ruiz')) return 'Freddy Ruiz';
+  const key = personKey(cleaned);
+  const preferred = BASE_PEOPLE.find(person => personKey(person) === key);
+  return preferred || cleaned;
+}
+
+function entityKey(name){
+  return cleanEntityName(name)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'');
+}
+
+function canonicalEntityName(name){
+  const cleaned = cleanEntityName(name);
+  if(!cleaned) return '';
+  const key = entityKey(cleaned);
+  if(key === entityKey('pascl')) return 'PASLC';
+  if(key === entityKey('dgaa')) return 'DGAA';
+  if(key === entityKey('dgprcs')) return 'DGPRCS';
+  const preferred = BASE_ENTITIES.find(entity => entityKey(entity) === key);
+  return preferred || cleaned;
+}
+
+function splitPeople(value){
+  return text(value)
+    .split(/[\/,;]+/g)
+    .map(canonicalPersonName)
+    .filter(Boolean);
+}
+
+function splitEntities(value){
+  const normalized = text(value)
+    .replace(/([A-ZÁÉÍÓÚÑ]{2,})-([A-ZÁÉÍÓÚÑ]{2,})/g, '$1/$2');
+  return normalized
+    .split(/[\/,;]+/g)
+    .map(canonicalEntityName)
+    .filter(Boolean);
+}
+
+function uniquePeople(values){
+  const out = new Map();
+  values.flatMap(splitPeople).forEach(name => {
+    const key = personKey(name);
+    if(!key) return;
+    if(!out.has(key)) out.set(key, canonicalPersonName(name));
+  });
+  return Array.from(out.values()).sort((a,b)=>a.localeCompare(b,'es'));
+}
+
+function getAssignablePeople(){
+  return uniquePeople(
+    []
+      .concat(BASE_PEOPLE)
+      .concat(appState.customPeople || [])
+      .concat(appState.raw.map(r => r.seguimiento_dgppcs || ''))
+  );
+}
+
+function uniqueEntities(values){
+  const out = new Map();
+  values.flatMap(splitEntities).forEach(name => {
+    const key = entityKey(name);
+    if(!key) return;
+    if(!out.has(key)) out.set(key, canonicalEntityName(name));
+  });
+  return Array.from(out.values()).sort((a,b)=>a.localeCompare(b,'es'));
+}
+
+function getAssignableEntities(){
+  return uniqueEntities(
+    []
+      .concat(BASE_ENTITIES)
+      .concat(appState.customEntities || [])
+  );
+}
+
+function normalizeHeroState(hero){
+  const saved = hero && typeof hero === 'object' ? hero : {};
+  return {
+    title: saved.title != null ? String(saved.title) : DEFAULT_HERO.title,
+    subtitle: saved.subtitle != null ? String(saved.subtitle) : DEFAULT_HERO.subtitle,
+    meta1: saved.meta1 != null ? String(saved.meta1) : DEFAULT_HERO.meta1,
+    meta2: saved.meta2 != null ? String(saved.meta2) : DEFAULT_HERO.meta2,
+    meta3: saved.meta3 != null ? String(saved.meta3) : DEFAULT_HERO.meta3,
+    extras: Array.isArray(saved.extras) ? saved.extras.map(value => String(value || '').trim()).filter(Boolean) : []
+  };
+}
+
+function isSharedBackendMode(){
+  return Boolean(SERVER_BOOTSTRAP) && typeof google !== 'undefined' && google.script && google.script.run;
+}
+
+function getClientActorName(){
+  try{
+    const params = new URLSearchParams(window.location.search);
+    if(params.get('admin') === 'darwin') return 'Darwin Pardavé';
+  }catch(error){}
+  return '';
+}
+
+function normalizeSharedStateBundle(bundle){
+  const data = bundle && typeof bundle === 'object' ? bundle : {};
+  return {
+    format: 'pec-shared-state-v1',
+    revision: Number(data.revision || 0),
+    savedAt: text(data.savedAt),
+    savedBy: text(data.savedBy),
+    sourceMode: text(data.sourceMode) || 'embedded',
+    hero: normalizeHeroState(data.hero),
+    customPeople: uniquePeople([].concat(BASE_PEOPLE).concat(Array.isArray(data.customPeople) ? data.customPeople : [])),
+    customEntities: uniqueEntities([].concat(BASE_ENTITIES).concat(Array.isArray(data.customEntities) ? data.customEntities : [])),
+    aliases: data.aliases && typeof data.aliases === 'object' && !Array.isArray(data.aliases) ? data.aliases : {},
+    notes: data.notes && typeof data.notes === 'object' && !Array.isArray(data.notes) ? data.notes : {},
+    edits: data.edits && typeof data.edits === 'object' && !Array.isArray(data.edits) ? data.edits : {},
+    customRecords: Array.isArray(data.customRecords) ? data.customRecords : [],
+    payload: data.payload && data.payload.records && Array.isArray(data.payload.records) ? data.payload : null
+  };
+}
+
+function buildSharedStateBundle(reason){
+  return {
+    format: 'pec-shared-state-v1',
+    revision: Number(appState.remoteRevision || 0),
+    savedAt: new Date().toISOString(),
+    savedBy: getClientActorName(),
+    reason: text(reason),
+    sourceMode: appState.sourceMode || 'embedded',
+    hero: normalizeHeroState(appState.hero),
+    customPeople: uniquePeople([].concat(BASE_PEOPLE).concat(appState.customPeople || [])),
+    customEntities: uniqueEntities([].concat(BASE_ENTITIES).concat(appState.customEntities || [])),
+    aliases: appState.aliases || {},
+    notes: appState.notes || {},
+    edits: appState.edits || {},
+    customRecords: appState.customRecords || [],
+    payload: appState.payload || {meta:{}, summary:{}, records:[]}
+  };
+}
+
+function persistLocalArtifacts(){
+  saveEdits();
+  saveNotes();
+  saveAliases();
+  saveHeroConfig();
+  saveCustomPeople();
+  saveCustomEntities();
+  saveCustomRecords();
+  saveCurrentPayload();
+}
+
+function applySharedStateBundle(bundle, options){
+  const state = normalizeSharedStateBundle(bundle);
+  appState.remoteRevision = state.revision || 0;
+  appState.serverInfo = {
+    savedAt: state.savedAt,
+    savedBy: state.savedBy
+  };
+  appState.hero = state.hero;
+  appState.customPeople = state.customPeople;
+  appState.customEntities = state.customEntities;
+  appState.aliases = state.aliases;
+  appState.notes = state.notes;
+  appState.edits = state.edits;
+  appState.customRecords = state.customRecords;
+  appState.sourceMode = state.sourceMode || 'embedded';
+  if(state.payload && Array.isArray(state.payload.records)) appState.payload = state.payload;
+  persistLocalArtifacts();
+  hydrateData(appState.payload);
+  if(!(options && options.skipRenderHero)) renderHero();
+}
+
+function scheduleSharedSync(reason){
+  if(!isSharedBackendMode()) return;
+  pendingSharedSyncReason = text(reason) || pendingSharedSyncReason || 'actualizacion';
+  if(sharedSyncTimer) clearTimeout(sharedSyncTimer);
+  sharedSyncTimer = setTimeout(flushSharedSync, 350);
+}
+
+function flushSharedSync(){
+  if(!isSharedBackendMode() || sharedSyncInFlight) return;
+  const reason = pendingSharedSyncReason || 'actualizacion';
+  pendingSharedSyncReason = '';
+  sharedSyncInFlight = true;
+  const drawerOpen = document.getElementById('drawer')?.classList.contains('open');
+  const selectedId = appState.selectedId;
+  google.script.run
+    .withSuccessHandler(result => {
+      sharedSyncInFlight = false;
+      if(result && result.ok && result.state){
+        applySharedStateBundle(result.state, {skipRenderHero:true});
+        renderHero();
+        initFilters();
+        applyFilters();
+        buildExecutiveReport();
+        if(drawerOpen && selectedId) openDrawer(selectedId);
+      }
+      if(pendingSharedSyncReason) flushSharedSync();
+    })
+    .withFailureHandler(error => {
+      sharedSyncInFlight = false;
+      console.error('No se pudo sincronizar el estado compartido.', error);
+      if(pendingSharedSyncReason) flushSharedSync();
+    })
+    .saveSharedTrackingState(buildSharedStateBundle(reason), getClientActorName(), reason);
+}
+
+function refreshSharedState(force){
+  if(!isSharedBackendMode()) return;
+  const drawerOpen = document.getElementById('drawer')?.classList.contains('open');
+  const selectedId = appState.selectedId;
+  google.script.run
+    .withSuccessHandler(result => {
+      if(!result || !result.ok || !result.state) return;
+      const incomingRevision = Number(result.state.revision || 0);
+      if(!force && incomingRevision <= Number(appState.remoteRevision || 0)) return;
+      applySharedStateBundle(result.state, {skipRenderHero:true});
+      renderHero();
+      initFilters();
+      applyFilters();
+      buildExecutiveReport();
+      if(drawerOpen && selectedId) openDrawer(selectedId);
+    })
+    .withFailureHandler(error => {
+      console.error('No se pudo refrescar el estado compartido.', error);
+    })
+    .getSharedTrackingState();
+}
+
+function startSharedStatePolling(){
+  if(!isSharedBackendMode() || sharedPollHandle) return;
+  sharedPollHandle = setInterval(() => refreshSharedState(false), 30000);
+}
+
+function getGroupRecords(records){
+  return sortBySourceOrder(records || appState.raw).filter(record => Number(record.nivel || deriveLevel(record.edt) || 1) === 1 && text(record.edt));
+}
+
+function getGroupOptionList(records){
+  return getGroupRecords(records).map(record => ({
+    value: text(record.edt),
+    label: text(record.edt) + ' - ' + (text(appState.aliases[record.id]) || text(record.actividad) || text(record.edt))
+  }));
+}
+
+function fmtDate(value){
+  if(!value) return '-';
+  const d = new Date(value + 'T00:00:00');
+  if(Number.isNaN(d.getTime())) return value;
+  return d.toLocaleDateString('es-PE',{day:'2-digit',month:'short',year:'numeric'});
+}
+
+function fmtDateLong(value){
+  if(!value) return '-';
+  const d = new Date(value + 'T00:00:00');
+  if(Number.isNaN(d.getTime())) return value;
+  return d.toLocaleDateString('es-PE',{day:'2-digit',month:'long',year:'numeric'});
+}
+
+function alertLabel(value){
+  return {
+    ok:'En control',
+    critico:'Vence <= 7 dias',
+    vencido:'Vencido',
+    atencion:'Vence <= 15 dias',
+    sin_fecha:'Sin fecha final'
+  }[value] || value;
+}
+
+function todayIso(){
+  return (window.PEC_TRACKING_DATA && window.PEC_TRACKING_DATA.meta && window.PEC_TRACKING_DATA.meta.referenceDate) || '2026-04-25';
+}
+
+function parseIso(value){
+  return value ? new Date(value + 'T00:00:00') : null;
+}
+
+function diffDays(end, start){
+  return Math.round((end - start) / 86400000);
+}
+
+function getMergedRecord(record){
+  const note = appState.notes[record.id] || {};
+  const edit = appState.edits[record.id] || {};
+  const merged = {
+    ...record,
+    ...edit,
+    local_note:text(note.note),
+    local_action:text(note.action)
+  };
+  if(!text(merged.edt) && /inicio de efectividad del pr[eé]stamo/i.test(text(merged.actividad))){
+    merged.edt = '4';
+    merged.actividad = 'Inicio de Efectividad del Préstamo';
+  }
+  merged.edt = normalizeProgramEdt(merged.edt, merged.actividad);
+  if(/^5(\.|$)/.test(text(merged.parent_edt))){
+    merged.parent_edt = text(merged.parent_edt).replace(/^5(?=\.|$)/, '4');
+  }
+  merged.inicio = toIsoDate(merged.inicio);
+  merged.final = toIsoDate(merged.final);
+  merged.edt = text(merged.edt);
+  merged.parent_edt = text(merged.parent_edt);
+  if(isTopLevelEdt(merged.edt)){
+    merged.parent_edt = '';
+  }else if(merged.edt && !merged.parent_edt){
+    merged.parent_edt = parentEdt(merged.edt);
+  }
+  merged.duracion_cal = toNumber(merged.duracion_cal);
+  merged.dias_habiles = toNumber(merged.dias_habiles);
+  merged.estado = text(merged.estado) || 'Sin estado';
+  merged.nivel = normalizedLevelValue(merged.edt, toNumber(merged.nivel) || toNumber(record.nivel));
+  if(isTopLevelEdt(merged.edt)) merged.parent_edt = '';
+  merged.grupo = text(merged.grupo) || deriveGroup(merged.edt) || text(record.grupo) || 'Sin grupo';
+  merged.avance_estimado = deriveProgress(merged.estado);
+  merged.dias_restantes = deriveRemaining(merged.final, merged.estado);
+  merged.alerta = deriveAlert(merged.inicio, merged.final, merged.estado);
+  merged.source_order = Number(record.source_order || String(record.id || '').replace(/\D+/g,'')) || 0;
+  merged.resumen = text(merged.resumen) || [merged.edt ? `EDT ${merged.edt}` : '', merged.seguimiento_dgppcs || merged.responsable, merged.estado].filter(Boolean).join(' | ');
+  return merged;
+}
+
+function isExcludedRecord(record){
+  return isSystemTrackingBlock(record);
+}
+
+function isCommentOnlyRecord(record){
+  const edt = text(record.edt);
+  const actividad = text(record.actividad);
+  if(!edt) return true;
+  if(edt === '*') return true;
+  if(/sandra torres es considerada en lugar de rolando carpio/i.test(actividad)) return true;
+  return false;
+}
+
+function normalizeRecords(records){
+  const ordered = sortBySourceOrder(records.map(record => ({...record})));
+  const out = [];
+  ordered.forEach(record => {
+    if(isExcludedRecord(record)) return;
+    if(isCommentOnlyRecord(record)) return;
+    out.push(record);
+  });
+  return out;
+}
+
+function hydrateData(payloadOverride){
+  const payload = payloadOverride || appState.payload || window.PEC_TRACKING_DATA || {meta:{},summary:{},records:[]};
+  appState.payload = payload;
+  const sourceRecords = (payload.records || []).concat(appState.customRecords || []);
+  appState.raw = normalizeRecords(sourceRecords.map(getMergedRecord));
+  updateMeta(payload.meta);
+  resetExpandedState();
+}
+
+function updateMeta(meta){
+  const generatedEl = document.getElementById('metaGeneratedAt');
+  const referenceEl = document.getElementById('metaReferenceDate');
+  if(generatedEl) generatedEl.textContent = meta.generatedAt || '-';
+  if(referenceEl) referenceEl.textContent = meta.referenceDate || '-';
+}
+
+function renderHero(){
+  const hero = appState.hero || DEFAULT_HERO;
+  document.getElementById('heroTitle').textContent = hero.title != null ? hero.title : DEFAULT_HERO.title;
+  document.getElementById('heroSubtitle').textContent = hero.subtitle != null ? hero.subtitle : DEFAULT_HERO.subtitle;
+  const metaItems = [hero.meta1, hero.meta2, hero.meta3].concat(Array.isArray(hero.extras) ? hero.extras : []).map(value => String(value || '').trim()).filter(Boolean);
+  document.getElementById('heroMetaList').innerHTML = metaItems.map(item => '<div><b>' + escapeHtml(item) + '</b></div>').join('');
+}
+
+function resetExpandedState(){
+  appState.expanded = {};
+  appState.raw.filter(r => Number(r.nivel) === 1).forEach(r => {
+    appState.expanded[r.id] = true;
+  });
+}
+
+function uniqueSorted(values){
+  return Array.from(new Set(values.filter(Boolean))).sort((a,b)=>String(a).localeCompare(String(b),'es'));
+}
+
+function buildSelect(selectId, values, placeholder){
+  const el = document.getElementById(selectId);
+  const current = el.value;
+  el.innerHTML = '<option value="">' + placeholder + '</option>' +
+    values.map(v => '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + '</option>').join('');
+  if(values.includes(current)) el.value = current;
+}
+
+function initStatusFilter(){
+  const container = document.getElementById('statusFilterOptions');
+  const summary = document.getElementById('statusFilterSummary');
+  const current = getSelectedStatusValues();
+  const values = uniqueSorted(appState.raw.map(r => r.estado));
+  container.innerHTML = values.map(value =>
+    '<label class="assign-item"><input type="checkbox" class="status-filter-option" value="' + escapeHtml(value) + '"' + (current.includes(value) ? ' checked' : '') + '><span>' + escapeHtml(value) + '</span></label>'
+  ).join('');
+  updateStatusFilterSummary();
+}
+
+function getSelectedStatusValues(){
+  return Array.from(document.querySelectorAll('.status-filter-option:checked')).map(input => text(input.value)).filter(Boolean);
+}
+
+function updateStatusFilterSummary(){
+  const summary = document.getElementById('statusFilterSummary');
+  if(!summary) return;
+  const selected = getSelectedStatusValues();
+  summary.textContent = selected.length ? ('Estados: ' + selected.length) : 'Todos los estados';
+}
+
+function initAlertFilter(){
+  const container = document.getElementById('alertFilterOptions');
+  const current = getSelectedAlertValues();
+  const values = uniqueSorted(appState.raw.map(r => r.alerta));
+  container.innerHTML = values.map(value =>
+    '<label class="assign-item"><input type="checkbox" class="alert-filter-option" value="' + escapeHtml(value) + '"' + (current.includes(value) ? ' checked' : '') + '><span>' + escapeHtml(alertLabel(value)) + '</span></label>'
+  ).join('');
+  updateAlertFilterSummary();
+}
+
+function getSelectedAlertValues(){
+  return Array.from(document.querySelectorAll('.alert-filter-option:checked')).map(input => text(input.value)).filter(Boolean);
+}
+
+function updateAlertFilterSummary(){
+  const summary = document.getElementById('alertFilterSummary');
+  if(!summary) return;
+  const selected = getSelectedAlertValues();
+  summary.textContent = selected.length ? ('Alertas: ' + selected.length) : 'Todas las alertas';
+}
+
+function initSearchSuggestions(){
+  const datalist = document.getElementById('searchSuggestions');
+  const items = uniqueSorted(
+    getGroupRecords(appState.raw).flatMap(r => {
+      const values = [];
+      if(text(r.edt) || text(r.actividad)) values.push(displayTitle(r));
+      return values;
+    }).filter(value => text(value).length > 3)
+  ).slice(0, 180);
+  datalist.innerHTML = items.map(item => '<option value="' + escapeHtml(item) + '"></option>').join('');
+}
+
+function escapeHtml(value){
+  return String(value)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+function applyFilters(){
+  const q = text(document.getElementById('searchInput').value).toLowerCase();
+  const statuses = getSelectedStatusValues();
+  const alerts = getSelectedAlertValues();
+  const group = text(document.getElementById('groupFilter').value);
+  const responsible = text(document.getElementById('responsibleFilter').value);
+  const owner = text(document.getElementById('ownerFilter').value);
+
+  const matched = appState.raw.filter(record => {
+    const haystack = [
+      record.edt, record.actividad, displayTitle(record), record.responsable, record.seguimiento_dgppcs,
+      record.contacto, record.local_note, record.local_action
+    ].join(' ').toLowerCase();
+    if(q && !haystack.includes(q)) return false;
+    if(statuses.length && !statuses.includes(record.estado)) return false;
+    if(alerts.length && !alerts.includes(record.alerta)) return false;
+    if(group && record.grupo !== group) return false;
+    if(responsible && !splitEntities(record.responsable).some(entity => entityKey(entity) === entityKey(responsible))) return false;
+    if(owner && !splitPeople(record.seguimiento_dgppcs).some(person => personKey(person) === personKey(owner))) return false;
+    return true;
+  });
+
+  appState.matched = matched;
+  appState.filtered = withAncestors(matched, appState.raw);
+
+  renderAll();
+}
+
+function parentEdt(edt){
+  const raw = text(edt);
+  if(!raw || !raw.includes('.')) return '';
+  return raw.split('.').slice(0, -1).join('.');
+}
+
+function withAncestors(matched, all){
+  const {ordered, childrenMap} = buildHierarchyMaps(all);
+  const parentById = new Map();
+  childrenMap.forEach((items, parentId) => {
+    items.forEach(item => parentById.set(item.id, parentId === '__root__' ? '' : parentId));
+  });
+  const allById = new Map(ordered.map(record => [record.id, record]));
+  const out = new Map();
+  matched.forEach(record => {
+    let currentId = record.id;
+    while(currentId){
+      if(out.has(currentId)) break;
+      const current = allById.get(currentId);
+      if(!current) break;
+      out.set(currentId, current);
+      currentId = parentById.get(currentId);
+    }
+  });
+  return ordered.filter(record => out.has(record.id));
+}
+
+function normalizeHeader(value, idx){
+  const cleaned = text(value).replace(/\s+/g, ' ');
+  return cleaned || ('col_' + idx);
+}
+
+function toIsoDate(value){
+  if(!value && value !== 0) return '';
+  if(value instanceof Date && !Number.isNaN(value.getTime())){
+    return value.toISOString().slice(0,10);
+  }
+  if(typeof value === 'number'){
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if(parsed){
+      const dt = new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d));
+      return dt.toISOString().slice(0,10);
+    }
+  }
+  const raw = text(value);
+  if(!raw) return '';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const m = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if(m){
+    return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  }
+  const direct = new Date(raw);
+  if(!Number.isNaN(direct.getTime())){
+    return new Date(direct.getTime() - direct.getTimezoneOffset() * 60000).toISOString().slice(0,10);
+  }
+  return '';
+}
+
+function toNumber(value){
+  if(value == null || value === '') return null;
+  if(typeof value === 'number') return value;
+  const raw = text(value).replace(/,/g,'');
+  if(!raw || raw === '#REF!') return null;
+  const num = Number(raw);
+  return Number.isFinite(num) ? num : null;
+}
+
+function deriveProgress(status){
+  const lower = text(status).toLowerCase();
+  if(lower.includes('completado')) return 100;
+  if(lower.includes('proceso')) return 55;
+  if(lower.includes('pendiente')) return 0;
+  return 15;
+}
+
+function deriveAlert(inicio, final, estado){
+  if(text(estado).toLowerCase().includes('completado')) return 'ok';
+  if(!final) return 'sin_fecha';
+  const end = parseIso(final);
+  const today = parseIso(todayIso());
+  if(!end || !today) return 'sin_fecha';
+  const delta = diffDays(end, today);
+  if(delta < 0) return 'vencido';
+  if(delta <= 7) return 'critico';
+  if(delta <= 15) return 'atencion';
+  return 'ok';
+}
+
+function deriveRemaining(final, estado){
+  if(!final || text(estado).toLowerCase().includes('completado')) return null;
+  const end = parseIso(final);
+  const today = parseIso(todayIso());
+  if(!end || !today) return null;
+  return diffDays(end, today);
+}
+
+function deriveLevel(edt){
+  return text(edt) ? text(edt).split('.').length : 0;
+}
+
+function isTopLevelEdt(edt){
+  const raw = text(edt);
+  return Boolean(raw) && !raw.includes('.');
+}
+
+function normalizedLevelValue(edt, fallback){
+  if(isTopLevelEdt(edt)) return 1;
+  return Math.max(1, Number(fallback || deriveLevel(edt) || 1));
+}
+
+function deriveGroup(edt){
+  const raw = text(edt);
+  return raw ? raw.split('.')[0] : 'Sin grupo';
+}
+
+function normalizeProgramEdt(edt, actividad){
+  const rawEdt = text(edt);
+  const rawActividad = text(actividad);
+  if(!rawEdt && /inicio de efectividad del pr[eé]stamo/i.test(rawActividad)){
+    return '4';
+  }
+  if(/^5(\.|$)/.test(rawEdt)){
+    return rawEdt.replace(/^5(?=\.|$)/, '4');
+  }
+  return rawEdt;
+}
+
+function isSystemTrackingBlock(record){
+  const actividad = text(record.actividad);
+  const edt = text(record.edt);
+  return /elaboraci[oó]n del sistema de seguimiento/i.test(actividad) || /^4(\.|$)/.test(edt) && /sistema de seguimiento/i.test(actividad);
+}
+
+function buildRecordFromExcel(raw, idx){
+  let edt = text(raw.EDT);
+  let actividad = text(raw.Actividad);
+  if(!edt && /inicio de efectividad del pr[eé]stamo/i.test(actividad)){
+    edt = '4';
+    actividad = 'Inicio de Efectividad del Préstamo';
+  }
+  edt = normalizeProgramEdt(edt, actividad);
+  const responsable = text(raw.Responsable);
+  const inicio = toIsoDate(raw.Inicio);
+  const final = toIsoDate(raw.Final);
+  const estado = text(raw.Estado) || 'Sin estado';
+  const seguimiento = text(raw['Responsable de Seguimiento DGPPCS']);
+  const contacto = text(raw.Contacto);
+  return {
+    id: `case-${String(idx).padStart(3,'0')}`,
+    source_order: idx,
+    edt,
+    actividad,
+    responsable,
+    inicio,
+    final,
+    duracion_cal: toNumber(raw['Duración (Días Calendario)']),
+    dias_habiles: toNumber(raw['Días Hábiless']),
+    dias_restantes: deriveRemaining(final, estado),
+    estado,
+    seguimiento_dgppcs: seguimiento,
+    contacto,
+    nivel: deriveLevel(edt),
+    grupo: deriveGroup(edt),
+    avance_estimado: deriveProgress(estado),
+    alerta: deriveAlert(inicio, final, estado),
+    resumen: [edt ? `EDT ${edt}` : '', seguimiento || responsable, estado].filter(Boolean).join(' | ')
+  };
+}
+
+function parseWorkbookRecords(workbook){
+  const sheet = workbook.Sheets[SHEET_NAME] || workbook.Sheets[workbook.SheetNames[0]];
+  if(!sheet) throw new Error('No se encontró ninguna hoja en el archivo.');
+  const records = [];
+  const range = XLSX.utils.decode_range(sheet['!ref']);
+  const headers = {};
+  SELECTED_COLUMNS.forEach(colIdx => {
+    headers[colIdx] = normalizeHeader(sheet[XLSX.utils.encode_cell({r:HEADER_ROW-1,c:colIdx-1})]?.v, colIdx);
+  });
+  for(let rowIdx = HEADER_ROW + 1; rowIdx <= range.e.r + 1; rowIdx++){
+    const raw = {};
+    let hasData = false;
+    SELECTED_COLUMNS.forEach(colIdx => {
+      const addr = XLSX.utils.encode_cell({r:rowIdx-1,c:colIdx-1});
+      const cell = sheet[addr];
+      const value = cell ? cell.v : '';
+      raw[headers[colIdx]] = value;
+      if(value !== '' && value != null) hasData = true;
+    });
+    if(!hasData) continue;
+    if(!text(raw.EDT) && !text(raw.Actividad)) continue;
+    const record = buildRecordFromExcel(raw, records.length + 1);
+    if(isExcludedRecord(record)) continue;
+    records.push(record);
+  }
+  return records;
+}
+
+function buildPayloadFromRecords(records, sourceFile){
+  const summary = {
+    total: records.length,
+    completed: records.filter(r => r.estado === 'Completado').length,
+    inProgress: records.filter(r => r.estado === 'En Proceso').length,
+    pending: records.filter(r => r.estado === 'Pendiente de Iniciar').length,
+    withoutStatus: records.filter(r => r.estado === 'Sin estado').length,
+    critical: records.filter(r => r.alerta === 'critico').length,
+    overdue: records.filter(r => r.alerta === 'vencido').length,
+    attention: records.filter(r => r.alerta === 'atencion').length
+  };
+  return {
+    meta: {
+      sourceFile,
+      sheetName: SHEET_NAME,
+      generatedAt: new Date().toISOString().slice(0,19),
+      referenceDate: todayIso(),
+      recordCount: records.length
+    },
+    summary,
+    records
+  };
+}
+
+function serializeStructureRows(){
+  return sortBySourceOrder(appState.raw).map(record => ({
+    id: text(record.id),
+    source_order: Number(record.source_order || 0),
+    edt: text(record.edt),
+    parent_edt: text(record.parent_edt),
+    nivel: Number(record.nivel || deriveLevel(record.edt) || 1),
+    grupo: text(record.grupo),
+    actividad: text(record.actividad),
+    titulo_visible: text(appState.aliases[record.id] || ''),
+    responsable: text(record.responsable),
+    seguimiento_dgppcs: text(record.seguimiento_dgppcs),
+    contacto: text(record.contacto),
+    inicio: text(record.inicio),
+    final: text(record.final),
+    duracion_cal: record.duracion_cal == null ? '' : record.duracion_cal,
+    dias_habiles: record.dias_habiles == null ? '' : record.dias_habiles,
+    estado: text(record.estado),
+    resumen: text(record.resumen),
+    comentario_seguimiento: text(record.local_note),
+    proximo_paso: text(record.local_action)
+  }));
+}
+
+function exportStructureJson(){
+  return {
+    format: 'pec-gantt-structure-v1',
+    exportedAt: new Date().toISOString(),
+    sourceMode: appState.sourceMode || 'embedded',
+    hero: appState.hero || DEFAULT_HERO,
+    customPeople: appState.customPeople || [],
+    customEntities: appState.customEntities || [],
+    rows: serializeStructureRows()
+  };
+}
+
+function downloadStructureJson(){
+  const bundle = exportStructureJson();
+  downloadBlob('gantt_estructura_pec.json', 'application/json;charset=utf-8', JSON.stringify(bundle, null, 2));
+}
+
+function exportStructureXlsx(){
+  if(typeof XLSX === 'undefined'){
+    alert('La librería Excel no cargó. Recarga la página e intenta otra vez.');
+    return;
+  }
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(serializeStructureRows()), STRUCTURE_SHEET_NAME);
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([
+    {clave:'format', valor:'pec-gantt-structure-v1'},
+    {clave:'sourceMode', valor:appState.sourceMode || 'embedded'},
+    {clave:'title', valor:text((appState.hero || DEFAULT_HERO).title)},
+    {clave:'subtitle', valor:text((appState.hero || DEFAULT_HERO).subtitle)},
+    {clave:'meta1', valor:text((appState.hero || DEFAULT_HERO).meta1)},
+    {clave:'meta2', valor:text((appState.hero || DEFAULT_HERO).meta2)},
+    {clave:'meta3', valor:text((appState.hero || DEFAULT_HERO).meta3)},
+    {clave:'extras', valor:((appState.hero || DEFAULT_HERO).extras || []).join(' | ')}
+  ]), STRUCTURE_CONFIG_SHEET);
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet((appState.customPeople || []).map(value => ({persona:value}))), STRUCTURE_PEOPLE_SHEET);
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet((appState.customEntities || []).map(value => ({entidad:value}))), STRUCTURE_ENTITY_SHEET);
+  XLSX.writeFile(workbook, 'gantt_estructura_pec.xlsx');
+}
+
+function normalizeStructureRow(raw, idx){
+  const estado = text(raw.estado) || 'Sin estado';
+  const inicio = toIsoDate(raw.inicio);
+  const final = toIsoDate(raw.final);
+  return {
+    id: text(raw.id) || `imported-${String(idx).padStart(3,'0')}`,
+    source_order: Number(raw.source_order || idx),
+    edt: text(raw.edt),
+    parent_edt: text(raw.parent_edt),
+    actividad: text(raw.actividad),
+    responsable: text(raw.responsable),
+    inicio,
+    final,
+    duracion_cal: toNumber(raw.duracion_cal),
+    dias_habiles: toNumber(raw.dias_habiles),
+    dias_restantes: deriveRemaining(final, estado),
+    estado,
+    seguimiento_dgppcs: text(raw.seguimiento_dgppcs),
+    contacto: text(raw.contacto),
+    nivel: Math.max(1, toNumber(raw.nivel) || deriveLevel(raw.edt) || 1),
+    grupo: text(raw.grupo) || deriveGroup(raw.edt),
+    avance_estimado: deriveProgress(estado),
+    alerta: deriveAlert(inicio, final, estado),
+    resumen: text(raw.resumen) || [text(raw.edt) ? `EDT ${text(raw.edt)}` : '', text(raw.seguimiento_dgppcs) || text(raw.responsable), estado].filter(Boolean).join(' | '),
+    titulo_visible: text(raw.titulo_visible),
+    comentario_seguimiento: text(raw.comentario_seguimiento),
+    proximo_paso: text(raw.proximo_paso)
+  };
+}
+
+function resetLocalTrackingState(){
+  appState.edits = {};
+  appState.notes = {};
+  appState.aliases = {};
+  appState.customRecords = [];
+  saveEdits();
+  saveNotes();
+  saveAliases();
+  saveCustomRecords();
+}
+
+function applyImportedStructure(rows, options){
+  const normalized = normalizeRecords(rows.map(normalizeStructureRow));
+  resetLocalTrackingState();
+  const aliasMap = {};
+  const notesMap = {};
+  normalized.forEach(record => {
+    if(text(record.titulo_visible)) aliasMap[record.id] = text(record.titulo_visible);
+    if(text(record.comentario_seguimiento) || text(record.proximo_paso)){
+      notesMap[record.id] = {
+        note: text(record.comentario_seguimiento),
+        action: text(record.proximo_paso)
+      };
+    }
+  });
+  appState.aliases = aliasMap;
+  appState.notes = notesMap;
+  if(options && options.hero) appState.hero = options.hero;
+  if(options && Array.isArray(options.customPeople)) appState.customPeople = uniquePeople([].concat(BASE_PEOPLE).concat(options.customPeople));
+  if(options && Array.isArray(options.customEntities)) appState.customEntities = uniqueEntities([].concat(BASE_ENTITIES).concat(options.customEntities));
+  saveAliases();
+  saveNotes();
+  saveHeroConfig();
+  saveCustomPeople();
+  saveCustomEntities();
+  appState.payload = buildPayloadFromRecords(normalized.map(record => ({
+    id: record.id,
+    source_order: record.source_order,
+    edt: record.edt,
+    parent_edt: record.parent_edt,
+    actividad: record.actividad,
+    responsable: record.responsable,
+    inicio: record.inicio,
+    final: record.final,
+    duracion_cal: record.duracion_cal,
+    dias_habiles: record.dias_habiles,
+    estado: record.estado,
+    seguimiento_dgppcs: record.seguimiento_dgppcs,
+    contacto: record.contacto,
+    nivel: record.nivel,
+    grupo: record.grupo,
+    resumen: record.resumen
+  })), (options && options.sourceFile) || 'estructura_importada');
+  appState.sourceMode = 'structure';
+  saveCurrentPayload();
+  hydrateData(appState.payload);
+  initFilters();
+  applyFilters();
+  scheduleSharedSync('cargar_estructura');
+}
+
+function ensureDailyBackup(){
+  if(!appState.adminEnabled) return;
+  const today = new Date().toISOString().slice(0,10);
+  const backupKey = 'pec_tracking_backup_' + today;
+  if(localStorage.getItem(backupKey)) return;
+  const bundle = exportStructureJson();
+  localStorage.setItem(backupKey, JSON.stringify(bundle));
+  let index = [];
+  try{
+    index = JSON.parse(localStorage.getItem(BACKUP_INDEX_STORAGE_KEY) || '[]');
+    if(!Array.isArray(index)) index = [];
+  }catch(error){
+    index = [];
+  }
+  if(!index.includes(today)) index.unshift(today);
+  localStorage.setItem(BACKUP_INDEX_STORAGE_KEY, JSON.stringify(index.slice(0,60)));
+  appendAudit('backup_diario', 'Respaldo local generado para ' + today);
+}
+
+function renderAdminAudit(){
+  const host = document.getElementById('adminAuditList');
+  if(!host) return;
+  if(!appState.adminEnabled){
+    host.innerHTML = '<div class="empty">Modo administrador no habilitado.</div>';
+    return;
+  }
+  const list = (appState.audit || []).slice(0,40);
+  host.innerHTML = list.length
+    ? list.map(item => '<div class="summary-item"><div><strong>' + escapeHtml(item.action) + '</strong><span>' + escapeHtml([item.actor, item.at, item.detail].filter(Boolean).join(' | ')) + '</span></div></div>').join('')
+    : '<div class="empty">Sin cambios auditados todavía.</div>';
+}
+
+function openAdminModal(){
+  if(!appState.adminEnabled) return;
+  renderAdminAudit();
+  document.getElementById('adminModal').classList.add('open');
+}
+
+function closeAdminModal(){
+  const modal = document.getElementById('adminModal');
+  if(modal) modal.classList.remove('open');
+}
+
+function exportAuditLog(){
+  downloadBlob('auditoria_visor_pec.json', 'application/json;charset=utf-8', JSON.stringify(appState.audit || [], null, 2));
+}
+
+function exportLatestBackup(){
+  const today = new Date().toISOString().slice(0,10);
+  const backupKey = 'pec_tracking_backup_' + today;
+  const backup = localStorage.getItem(backupKey) || JSON.stringify(exportStructureJson(), null, 2);
+  downloadBlob('backup_visor_pec_' + today + '.json', 'application/json;charset=utf-8', backup);
+}
+
+async function loadStructureFromInput(){
+  const input = document.getElementById('structureInput');
+  const file = input.files && input.files[0];
+  if(!file){
+    alert('Selecciona primero un archivo de estructura.');
+    return;
+  }
+  const lower = file.name.toLowerCase();
+  if(lower.endsWith('.json')){
+    const parsed = JSON.parse(await file.text());
+    const rows = Array.isArray(parsed.rows) ? parsed.rows : [];
+    applyImportedStructure(rows, {
+      sourceFile: file.name,
+      hero: parsed.hero || appState.hero,
+      customPeople: parsed.customPeople || [],
+      customEntities: parsed.customEntities || []
+    });
+    return;
+  }
+  if(typeof XLSX === 'undefined'){
+    alert('La librería Excel no cargó. Recarga la página e intenta otra vez.');
+    return;
+  }
+  const workbook = XLSX.read(await file.arrayBuffer(), {type:'array'});
+  const structureSheet = workbook.Sheets[STRUCTURE_SHEET_NAME] || workbook.Sheets[workbook.SheetNames[0]];
+  if(!structureSheet) throw new Error('No se encontró la hoja de estructura.');
+  const rows = XLSX.utils.sheet_to_json(structureSheet, {defval:''});
+  const configSheet = workbook.Sheets[STRUCTURE_CONFIG_SHEET];
+  const hero = {...DEFAULT_HERO};
+  if(configSheet){
+    const configRows = XLSX.utils.sheet_to_json(configSheet, {defval:''});
+    configRows.forEach(row => {
+      const key = text(row.clave || row.Clave);
+      const value = text(row.valor || row.Valor);
+      if(['title','subtitle','meta1','meta2','meta3'].includes(key)) hero[key] = value || hero[key];
+      if(key === 'extras') hero.extras = value ? value.split('|').map(item => item.trim()).filter(Boolean) : [];
+    });
+  }
+  const peopleSheet = workbook.Sheets[STRUCTURE_PEOPLE_SHEET];
+  const entitySheet = workbook.Sheets[STRUCTURE_ENTITY_SHEET];
+  const people = peopleSheet ? XLSX.utils.sheet_to_json(peopleSheet, {defval:''}).map(row => text(row.persona || row.Persona)).filter(Boolean) : [];
+  const entities = entitySheet ? XLSX.utils.sheet_to_json(entitySheet, {defval:''}).map(row => text(row.entidad || row.Entidad)).filter(Boolean) : [];
+  applyImportedStructure(rows, {
+    sourceFile: file.name,
+    hero,
+    customPeople: people,
+    customEntities: entities
+  });
+}
+
+async function loadExcelFromInput(){
+  const input = document.getElementById('xlsxInput');
+  const file = input.files && input.files[0];
+  if(!file){
+    alert('Selecciona primero un archivo Excel.');
+    return;
+  }
+  if(typeof XLSX === 'undefined'){
+    alert('La librería de lectura Excel no cargó. Recarga la página e intenta otra vez.');
+    return;
+  }
+  const buffer = await file.arrayBuffer();
+  const workbook = XLSX.read(buffer, {type:'array'});
+  const baseRecords = normalizeRecords(parseWorkbookRecords(workbook));
+  const payload = buildPayloadFromRecords(baseRecords, file.name);
+  appState.payload = payload;
+  appState.sourceMode = 'xlsx';
+  saveCurrentPayload();
+  appendAudit('cargar_excel', file.name);
+  ensureDailyBackup();
+  hydrateData(payload);
+  initFilters();
+  applyFilters();
+  scheduleSharedSync('cargar_excel');
+}
+
+function useEmbeddedData(){
+  appState.payload = window.PEC_TRACKING_DATA || {meta:{},summary:{},records:[]};
+  appState.sourceMode = 'embedded';
+  clearSavedPayload();
+  appendAudit('usar_embebido', 'Se restauró la fuente embebida');
+  hydrateData(appState.payload);
+  initFilters();
+  applyFilters();
+  scheduleSharedSync('usar_embebido');
+}
+
+function renderAll(){
+  renderKpis();
+  renderQuickSummary();
+  renderAlerts();
+  renderStatusBars();
+  renderResponsibleBars();
+  renderOwnerBars();
+  renderGantt();
+  renderTable();
+}
+
+function sortBySourceOrder(records){
+  return records
+    .slice()
+    .sort((a,b) => (Number(a.source_order) || 0) - (Number(b.source_order) || 0));
+}
+
+function buildHierarchyMaps(records){
+  const ordered = sortBySourceOrder(records);
+  const childrenMap = new Map();
+  const edtMap = new Map();
+  ordered.forEach(record => {
+    const edt = text(record.edt);
+    if(edt && !edtMap.has(edt)) edtMap.set(edt, record.id);
+  });
+  const stack = [];
+  ordered.forEach(record => {
+    const level = normalizedLevelValue(record.edt, record.nivel);
+    while(stack.length && stack[stack.length - 1].level >= level) stack.pop();
+    let parent = '__root__';
+    const explicitParentEdt = text(record.parent_edt);
+    const inferredParentEdt = parentEdt(record.edt);
+    if(level === 1 || !text(record.edt).includes('.')){
+      parent = '__root__';
+    }else if(explicitParentEdt && edtMap.has(explicitParentEdt) && edtMap.get(explicitParentEdt) !== record.id){
+      parent = edtMap.get(explicitParentEdt);
+    }else if(inferredParentEdt && edtMap.has(inferredParentEdt) && edtMap.get(inferredParentEdt) !== record.id){
+      parent = edtMap.get(inferredParentEdt);
+    }else if(stack.length){
+      parent = stack[stack.length - 1].id;
+    }
+    if(!childrenMap.has(parent)) childrenMap.set(parent, []);
+    childrenMap.get(parent).push(record);
+    stack.push({id: record.id, level});
+  });
+  return {ordered, childrenMap, edtMap};
+}
+
+function displayTitle(record){
+  const alias = text((appState.aliases && appState.aliases[record.id]) || '');
+  const label = alias || DEFAULT_TITLE_BY_EDT[text(record.edt)] || text(record.actividad);
+  return (record.edt ? record.edt + ' - ' : '') + label;
+}
+
+function intrinsicLine(record){
+  const notes = Array.isArray(record.intrinsic_notes) ? record.intrinsic_notes.filter(Boolean) : [];
+  return notes.join(' | ');
+}
+
+function getInheritedRange(record, childrenMap){
+  const ownStart = parseIso(record.inicio);
+  const ownEnd = parseIso(record.final);
+  const children = childrenMap.get(record.id) || [];
+  let min = ownStart;
+  let max = ownEnd;
+  children.forEach(child => {
+    const range = getInheritedRange(child, childrenMap);
+    if(range.start && (!min || range.start < min)) min = range.start;
+    if(range.end && (!max || range.end > max)) max = range.end;
+  });
+  return {start:min, end:max};
+}
+
+function nextChildEdt(parentRecord, childrenMap){
+  const parentEdt = text(parentRecord.edt);
+  if(!parentEdt) return '';
+  const directChildren = childrenMap.get(parentRecord.id) || [];
+  const numbers = directChildren
+    .map(child => {
+      const edt = text(child.edt);
+      if(!edt.startsWith(parentEdt + '.')) return null;
+      const tail = edt.slice(parentEdt.length + 1);
+      const first = tail.split('.')[0];
+      return /^\d+$/.test(first) ? Number(first) : null;
+    })
+    .filter(value => value != null);
+  const next = (numbers.length ? Math.max(...numbers) : 0) + 1;
+  return parentEdt + '.' + next;
+}
+
+function nextTopLevelEdt(records){
+  const tops = getGroupRecords(records);
+  const numbers = tops
+    .map(record => /^\d+$/.test(text(record.edt)) ? Number(text(record.edt)) : null)
+    .filter(value => value != null);
+  return String((numbers.length ? Math.max(...numbers) : 0) + 1);
+}
+
+function collectSubtreeRecords(rootId, childrenMap){
+  const out = [];
+  function walk(id){
+    const children = childrenMap.get(id) || [];
+    children.forEach(child => {
+      out.push(child);
+      walk(child.id);
+    });
+  }
+  walk(rootId);
+  return out;
+}
+
+function getCurrentParentRecord(record, ordered, childrenMap){
+  const explicitParentEdt = text(record.parent_edt);
+  if(explicitParentEdt){
+    return ordered.find(item => text(item.edt) === explicitParentEdt) || null;
+  }
+  for(const [parentId, children] of childrenMap.entries()){
+    if(parentId === '__root__') continue;
+    if(children.some(child => child.id === record.id)){
+      return ordered.find(item => item.id === parentId) || null;
+    }
+  }
+  return null;
+}
+
+function getMoveTargetOptions(record){
+  const {ordered, childrenMap} = buildHierarchyMaps(appState.raw);
+  const blocked = new Set([record.id].concat(collectSubtreeRecords(record.id, childrenMap).map(item => item.id)));
+  const currentParent = getCurrentParentRecord(record, ordered, childrenMap);
+  const options = [{
+    value: '__KEEP__',
+    label: 'Mantener ubicación actual',
+    selected: !currentParent
+  }];
+  getGroupRecords(ordered).forEach(groupRecord => {
+    options.push({
+      value: '__GROUP__:' + groupRecord.id,
+      label: 'Mover al grupo ' + text(groupRecord.edt) + ' - ' + (text(appState.aliases[groupRecord.id]) || text(groupRecord.actividad) || text(groupRecord.edt)),
+      selected: false
+    });
+  });
+  ordered.forEach(item => {
+    if(blocked.has(item.id)) return;
+    const level = Math.max(1, Number(item.nivel || deriveLevel(item.edt) || 1));
+    const prefix = '· '.repeat(Math.max(0, level - 1));
+    options.push({
+      value: item.id,
+      label: prefix + displayTitle(item),
+      selected: currentParent ? currentParent.id === item.id : false
+    });
+  });
+  return options;
+}
+
+function moveTargetBox(record){
+  const options = getMoveTargetOptions(record);
+  return '<div class="detail-box"><b>Destino visual</b><select id="editMoveTarget">' +
+    options.map(option =>
+      '<option value="' + escapeHtml(option.value) + '"' + (option.selected ? ' selected' : '') + '>' + escapeHtml(option.label) + '</option>'
+    ).join('') +
+  '</select></div>';
+}
+
+function selectBox(label, id, value, options){
+  return '<div class="detail-box"><b>' + escapeHtml(label) + '</b><select id="' + escapeHtml(id) + '">' +
+    options.map(option =>
+      '<option value="' + escapeHtml(option.value) + '"' + (text(option.value) === text(value) ? ' selected' : '') + '>' + escapeHtml(option.label) + '</option>'
+    ).join('') +
+  '</select></div>';
+}
+
+function reorderMovedSubtree(rootRecord, destination){
+  const {ordered, childrenMap} = buildHierarchyMaps(appState.raw);
+  const subtreeIds = [rootRecord.id].concat(collectSubtreeRecords(rootRecord.id, childrenMap).map(item => item.id));
+  const subtreeSet = new Set(subtreeIds);
+  const moving = ordered.filter(record => subtreeSet.has(record.id));
+  let remaining = ordered.filter(record => !subtreeSet.has(record.id));
+  let insertIndex = remaining.length;
+  let parentRecord = null;
+  let parentEdt = '';
+  let rootNewEdt = text(rootRecord.edt);
+
+  if(destination && destination.kind === 'group'){
+    parentRecord = remaining.find(record => record.id === destination.groupId) || null;
+    if(parentRecord){
+      const remainingMaps = buildHierarchyMaps(remaining);
+      const subtree = [parentRecord].concat(collectSubtreeRecords(parentRecord.id, remainingMaps.childrenMap));
+      const lastId = subtree.length ? subtree[subtree.length - 1].id : parentRecord.id;
+      insertIndex = remaining.findIndex(record => record.id === lastId) + 1;
+      parentEdt = text(parentRecord.edt);
+      rootNewEdt = nextChildEdt(parentRecord, remainingMaps.childrenMap) || nextTopLevelEdt(remaining);
+    }else{
+      rootNewEdt = nextTopLevelEdt(remaining);
+    }
+  }else if(destination && destination.kind === 'parent'){
+    parentRecord = remaining.find(record => record.id === destination.parentId) || null;
+    if(parentRecord){
+      const remainingMaps = buildHierarchyMaps(remaining);
+      const subtree = [parentRecord].concat(collectSubtreeRecords(parentRecord.id, remainingMaps.childrenMap));
+      const lastId = subtree.length ? subtree[subtree.length - 1].id : parentRecord.id;
+      insertIndex = remaining.findIndex(record => record.id === lastId) + 1;
+      parentEdt = text(parentRecord.edt);
+      rootNewEdt = nextChildEdt(parentRecord, remainingMaps.childrenMap) || rootNewEdt;
+    }
+  }
+
+  const reordered = remaining.slice(0, insertIndex).concat(moving, remaining.slice(insertIndex));
+  reordered.forEach((record, index) => {
+    const nextEdit = {...(appState.edits[record.id] || {})};
+    nextEdit.source_order = index + 1;
+    appState.edits[record.id] = nextEdit;
+  });
+
+  return {parentRecord, parentEdt, rootNewEdt};
+}
+
+function inferEditedRootEdt(record){
+  const manualEdt = text(document.getElementById('editEdt')?.value);
+  const manualGroup = text(document.getElementById('editGrupo')?.value);
+  const parentEdtValue = text(document.getElementById('editParentEdt')?.value);
+  if(manualEdt) return manualEdt;
+  const currentEdt = text(record.edt);
+  if(parentEdtValue){
+    const tail = currentEdt.includes('.') ? currentEdt.split('.').slice(-1)[0] : currentEdt;
+    return parentEdtValue + '.' + tail;
+  }
+  if(manualGroup && currentEdt){
+    const parts = currentEdt.split('.');
+    parts[0] = manualGroup;
+    return parts.join('.');
+  }
+  return currentEdt;
+}
+
+function applyHierarchyEdits(rootRecord, rootNewEdt){
+  const {childrenMap} = buildHierarchyMaps(appState.raw);
+  const descendants = collectSubtreeRecords(rootRecord.id, childrenMap);
+  const directChildren = childrenMap.get(rootRecord.id) || [];
+
+  function renumberChildren(parentRecord, parentNewEdt){
+    const children = childrenMap.get(parentRecord.id) || [];
+    children.forEach((child, index) => {
+      const childEdt = parentNewEdt + '.' + (index + 1);
+      const nextEdit = {...(appState.edits[child.id] || {})};
+      nextEdit.edt = childEdt;
+      nextEdit.parent_edt = parentNewEdt;
+      nextEdit.nivel = String(deriveLevel(childEdt));
+      nextEdit.grupo = deriveGroup(rootNewEdt);
+      appState.edits[child.id] = nextEdit;
+      renumberChildren(child, childEdt);
+    });
+  }
+
+  if(descendants.length || directChildren.length){
+    renumberChildren(rootRecord, rootNewEdt);
+  }
+}
+
+function makePendingState(value){
+  return text(value) === 'Completado' ? 'Completado' : 'Pendiente';
+}
+
+function getVisibleHierarchy(records){
+  const {ordered, childrenMap} = buildHierarchyMaps(records);
+  const visible = [];
+  function walk(parentKey){
+    const items = childrenMap.get(parentKey) || [];
+    items.forEach(record => {
+      visible.push(record);
+      if(appState.expanded[record.id]) walk(record.id);
+    });
+  }
+  walk('__root__');
+  return {ordered, childrenMap, visible};
+}
+
+function renderKpis(){
+  const records = appState.matched;
+  const total = records.length;
+  const completed = records.filter(r => r.estado === 'Completado').length;
+  const inProgress = records.filter(r => r.estado === 'En Proceso').length;
+  const pending = records.filter(r => r.estado === 'Pendiente de Iniciar').length;
+  const overdue = records.filter(r => r.alerta === 'vencido').length;
+  const critical = records.filter(r => r.alerta === 'critico').length;
+  const notesCount = records.filter(r => r.local_note || r.local_action).length;
+  const html = [
+    metricCard('Casos visibles', total, 'Universo actual tras filtros'),
+    metricCard('Completados', completed, pctText(completed, total)),
+    metricCard('En proceso', inProgress, pctText(inProgress, total)),
+    metricCard('Pendientes', pending, pctText(pending, total)),
+    metricCard('Vencidos', overdue, overdue ? 'Requieren accion inmediata' : 'Sin vencidos', true),
+    metricCard('Con notas', notesCount, 'Seguimiento local registrado')
+  ].join('');
+  document.getElementById('kpiGrid').innerHTML = html;
+}
+
+function metricCard(label, value, note, isAlert){
+  return '<article class="card' + (isAlert ? ' alert' : '') + '">' +
+    '<span>' + escapeHtml(label) + '</span>' +
+    '<b>' + escapeHtml(value) + '</b>' +
+    '<small>' + escapeHtml(note) + '</small>' +
+  '</article>';
+}
+
+function pctText(part, total){
+  if(!total) return '0% del total';
+  return Math.round((part / total) * 100) + '% del total';
+}
+
+function renderQuickSummary(){
+  const records = appState.matched;
+  const nextDue = records
+    .filter(r => ['critico','atencion'].includes(r.alerta))
+    .sort((a,b) => text(a.final).localeCompare(text(b.final)))
+    .slice(0,3);
+  const overdue = records.filter(r => r.alerta === 'vencido').slice(0,3);
+  const summary = [
+    {title:'Vencimientos inmediatos', items: nextDue.length ? nextDue.map(r => [displayTitle(r), fmtDate(r.final)].filter(Boolean).join(' | ')) : ['Sin actividades por vencer en <= 15 dias']},
+    {title:'Atrasos abiertos', items: overdue.length ? overdue.map(r => [displayTitle(r), fmtDate(r.final)].filter(Boolean).join(' | ')) : ['Sin atrasos abiertos']},
+    {title:'Cobertura local', body: records.filter(r => r.local_note || r.local_action).length + ' casos con informacion adicional guardada en este equipo'}
+  ];
+  document.getElementById('quickReportSummary').innerHTML = summary.map(item =>
+    '<div class="summary-item"><div><strong>' + escapeHtml(item.title) + '</strong>' +
+      (item.items
+        ? '<ul class="summary-bullets">' + item.items.map(line => '<li>' + escapeHtml(line) + '</li>').join('') + '</ul>'
+        : '<span>' + escapeHtml(item.body) + '</span>') +
+    '</div></div>'
+  ).join('');
+}
+
+function renderAlerts(){
+  const list = appState.matched
+    .filter(r => ['vencido','critico','atencion','sin_fecha'].includes(r.alerta))
+    .sort((a,b) => alertRank(a.alerta) - alertRank(b.alerta) || text(a.final).localeCompare(text(b.final)))
+    .slice(0,12);
+  const el = document.getElementById('alertList');
+  if(!list.length){
+    el.innerHTML = '<div class="empty">No hay alertas para la vista actual.</div>';
+    return;
+  }
+  el.innerHTML = list.map(r =>
+    '<div class="alert-item" data-open="' + escapeHtml(r.id) + '">' +
+      '<div><strong>' + escapeHtml(displayTitle(r)) + '</strong>' +
+      '<span>' + escapeHtml([r.seguimiento_dgppcs || r.responsable || 'Sin responsable', fmtDate(r.final)].join(' | ')) + '</span></div>' +
+      '<span class="alert-pill al-' + slugify(r.alerta) + '">' + escapeHtml(alertLabel(r.alerta)) + '</span>' +
+    '</div>'
+  ).join('');
+}
+
+function alertRank(alert){
+  return {vencido:0, critico:1, atencion:2, sin_fecha:3, ok:4}[alert] ?? 9;
+}
+
+function renderStatusBars(){
+  const groups = groupCount(appState.matched, 'estado');
+  const max = Math.max(1, ...groups.map(x => x.count));
+  document.getElementById('statusBars').innerHTML = groups.map(item =>
+    barRow(item.label, item.count, max, statusBarClass(item.label))
+  ).join('');
+}
+
+function statusBarClass(label){
+  if(label === 'Completado') return 'green';
+  if(label === 'En Proceso') return '';
+  if(label === 'Pendiente de Iniciar') return 'amber';
+  return 'red';
+}
+
+function renderOwnerBars(){
+  const expandedOwners = [];
+  const allowed = new Set(getAssignablePeople().map(personKey));
+  appState.matched.forEach(r => {
+    const people = splitPeople(r.seguimiento_dgppcs).filter(person => allowed.has(personKey(person)));
+    if(!people.length){
+      expandedOwners.push({owner:'Sin asignar'});
+      return;
+    }
+    people.forEach(owner => expandedOwners.push({owner}));
+  });
+  const groups = groupCount(expandedOwners, 'owner').slice(0,8);
+  const max = Math.max(1, ...groups.map(x => x.count));
+  document.getElementById('ownerBars').innerHTML = groups.map(item =>
+    barRow(item.label, item.count, max, '')
+  ).join('');
+}
+
+function renderResponsibleBars(){
+  const expandedOwners = [];
+  const allowed = new Set(getAssignableEntities().map(entityKey));
+  appState.matched.forEach(r => {
+    const entities = splitEntities(r.responsable).filter(entity => allowed.has(entityKey(entity)));
+    if(!entities.length){
+      expandedOwners.push({owner:'Sin asignar'});
+      return;
+    }
+    entities.forEach(owner => expandedOwners.push({owner}));
+  });
+  const groups = groupCount(expandedOwners, 'owner').slice(0,8);
+  const max = Math.max(1, ...groups.map(x => x.count));
+  document.getElementById('responsibleBars').innerHTML = groups.map(item =>
+    barRow(item.label, item.count, max, '')
+  ).join('');
+}
+
+function barRow(label, count, max, cls, preserveLabel){
+  const numeric = typeof count === 'string' ? parseFloat(count) : count;
+  const pct = Math.max(4, Math.round(((numeric || 0) / max) * 100));
+  const display = preserveLabel ? count : String(count);
+  return '<div class="bar-row"><div>' + escapeHtml(label) + '</div><div class="track"><div class="fill ' + cls + '" style="width:' + pct + '%"></div></div><div>' + escapeHtml(display) + '</div></div>';
+}
+
+function groupCount(records, key){
+  const map = new Map();
+  records.forEach(r => {
+    const label = text(r[key]) || 'Sin dato';
+    map.set(label, (map.get(label) || 0) + 1);
+  });
+  return Array.from(map.entries())
+    .map(([label,count]) => ({label,count}))
+    .sort((a,b) => b.count - a.count || a.label.localeCompare(b.label,'es'));
+}
+
+function renderGantt(){
+  const source = appState.filtered.filter(r => !isExcludedRecord(r) && !isCommentOnlyRecord(r));
+  const monthsEl = document.getElementById('timelineMonths');
+  const listEl = document.getElementById('ganttList');
+  if(!source.length){
+    monthsEl.innerHTML = '';
+    listEl.innerHTML = '<div class="empty">No hay actividades con fechas para construir el Gantt.</div>';
+    return;
+  }
+  const {childrenMap, visible} = getVisibleHierarchy(source);
+  const records = visible
+    .map(record => ({record, range:getInheritedRange(record, childrenMap)}))
+    .filter(item => item.range.start && item.range.end);
+  if(!records.length){
+    monthsEl.innerHTML = '';
+    listEl.innerHTML = '<div class="empty">No hay actividades visibles con fechas para construir el Gantt.</div>';
+    return;
+  }
+  const today = parseIso(todayIso());
+  const minDate = records.map(item => item.range.start).sort((a,b)=>a-b)[0];
+  const maxDate = records.map(item => item.range.end).sort((a,b)=>b-a)[0];
+  const months = buildMonths(minDate, maxDate);
+  monthsEl.style.setProperty('--months', months.length);
+  monthsEl.innerHTML = months.map(m => '<div>' + escapeHtml(m.label) + '</div>').join('');
+  const totalDays = Math.max(1, diffDays(maxDate, minDate) + 1);
+  const todayOffset = clamp(diffDays(today, minDate) / totalDays * 100, 0, 100);
+  listEl.innerHTML = records.map(item => {
+    const r = item.record;
+    const kids = childrenMap.get(r.id) || [];
+    const hasChildren = kids.length > 0;
+    const level = normalizedLevelValue(r.edt, r.nivel);
+    const indent = (level - 1) * 18;
+    const start = item.range.start;
+    const end = item.range.end;
+    const startIso = start.toISOString().slice(0,10);
+    const endIso = end.toISOString().slice(0,10);
+    const left = clamp(diffDays(start, minDate) / totalDays * 100, 0, 100);
+    const width = clamp((diffDays(end, start) + 1) / totalDays * 100, 1.5, 100);
+    const ganttState = makePendingState(r.estado);
+    const stateCls = ganttState === 'Completado' ? 'done' : r.alerta === 'vencido' ? 'overdue' : r.alerta === 'critico' ? 'overdue' : 'pending';
+    return '<div class="timeline-row" data-open="' + escapeHtml(r.id) + '">' +
+      '<div class="timeline-title"><div class="edt-cell" style="padding-left:' + indent + 'px">' +
+      '<button class="tree-toggle' + (hasChildren ? '' : ' empty') + '"' + (hasChildren ? ' data-toggle="' + escapeHtml(r.id) + '"' : ' type="button" disabled') + '>' + (hasChildren ? (appState.expanded[r.id] ? '−' : '+') : '•') + '</button>' +
+      '<div><strong>' + escapeHtml(displayTitle(r)) + '</strong><span>' +
+      escapeHtml((r.seguimiento_dgppcs || r.responsable || 'Sin responsable') + ' | ' + fmtDate(startIso) + ' a ' + fmtDate(endIso) + (hasChildren ? ' | ' + kids.length + ' subactividad(es)' : '')) +
+      '</span></div></div></div>' +
+      '<div class="gantt-track"><div class="gantt-today" style="left:' + todayOffset + '%"></div><div class="gantt-bar ' + stateCls + '" style="left:' + left + '%;width:' + width + '%"></div></div>' +
+      '<div class="gantt-label"><span class="status-pill st-' + slugify(ganttState === 'Completado' ? 'Completado' : 'Pendiente de Iniciar') + '">' + escapeHtml(ganttState) + '</span></div>' +
+      '<div class="gantt-progress"><div class="progress-track"><i style="width:' + clamp(r.avance_estimado,0,100) + '%"></i></div><span>' + escapeHtml(String(r.avance_estimado)) + '%</span></div>' +
+    '</div>';
+  }).join('');
+}
+
+function buildMonths(minDate, maxDate){
+  const out = [];
+  const cursor = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+  const limit = new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+  while(cursor <= limit){
+    out.push({
+      label: cursor.toLocaleDateString('es-PE',{month:'short',year:'2-digit'})
+    });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return out;
+}
+
+function clamp(value, min, max){
+  return Math.min(max, Math.max(min, value));
+}
+
+function renderTable(){
+  const tbody = document.getElementById('tableBody');
+  const empty = document.getElementById('tableEmpty');
+  if(!appState.filtered.length){
+    tbody.innerHTML = '';
+    empty.hidden = false;
+    return;
+  }
+  empty.hidden = true;
+  const panel = document.getElementById('tablePanel');
+  if(panel && panel.hidden) return;
+  const {childrenMap, visible} = getVisibleHierarchy(appState.filtered);
+  tbody.innerHTML = visible.map(r => {
+      const kids = childrenMap.get(r.id) || [];
+      const hasChildren = kids.length > 0;
+      const level = normalizedLevelValue(r.edt, r.nivel);
+      const indent = (level - 1) * 18;
+      return '<tr class="row-level-' + level + '" data-open="' + escapeHtml(r.id) + '">' +
+        '<td>' +
+          '<div class="edt-cell" style="padding-left:' + indent + 'px">' +
+            '<button class="tree-toggle' + (hasChildren ? '' : ' empty') + '"' + (hasChildren ? ' data-toggle="' + escapeHtml(r.id) + '"' : ' type="button" disabled') + '>' + (hasChildren ? (appState.expanded[r.id] ? '−' : '+') : '•') + '</button>' +
+            '<span class="edt-chip">' + escapeHtml(r.edt || '-') + '</span>' +
+          '</div>' +
+        '</td>' +
+        '<td><div class="activity-wrap"><strong>' + escapeHtml(displayTitle(r)) + '</strong>' + 
+          '<div class="activity-meta">' +
+            (r.local_note ? '<span class="small">Con informacion local</span>' : '') +
+            (hasChildren ? '<span class="child-count">' + kids.length + ' subactividad(es)</span>' : '') +
+          '</div></div></td>' +
+        '<td>' + escapeHtml(r.responsable || '-') + '</td>' +
+        '<td>' + escapeHtml(r.seguimiento_dgppcs || '-') + '</td>' +
+        '<td>' + escapeHtml(fmtDate(r.inicio) + ' - ' + fmtDate(r.final)) + '</td>' +
+        '<td><span class="status-pill st-' + slugify(r.estado) + '">' + escapeHtml(r.estado) + '</span></td>' +
+        '<td><span class="alert-pill al-' + slugify(r.alerta) + '">' + escapeHtml(alertLabel(r.alerta)) + '</span></td>' +
+        '<td><div class="progress"><div class="progress-track"><i style="width:' + clamp(r.avance_estimado,0,100) + '%"></i></div><span>' + escapeHtml(String(r.avance_estimado)) + '%</span></div></td>' +
+      '</tr>';
+    }).join('');
+}
+
+function openDrawer(recordId){
+  const record = appState.raw.find(r => r.id === recordId);
+  if(!record) return;
+  const {childrenMap} = buildHierarchyMaps(appState.raw);
+  const groupOptions = getGroupOptionList(appState.raw);
+  appState.selectedId = record.id;
+  document.getElementById('drawerTitle').textContent = displayTitle(record);
+  document.getElementById('drawerSubtitle').innerHTML =
+    '<div><b>Estado:</b> ' + escapeHtml(record.estado) + '</div>' +
+    '<div><b>Alerta:</b> ' + escapeHtml(alertLabel(record.alerta)) + '</div>' +
+    '<div><b>Fechas:</b> ' + escapeHtml(fmtDate(record.inicio) + ' - ' + fmtDate(record.final)) + '</div>';
+  document.getElementById('detailGrid').innerHTML = [
+    assignmentBox('Responsable','responsable', record.responsable, {
+      mode:'entity',
+      summaryEmpty:'Seleccionar entidad responsable',
+      extraPlaceholder:'Agregar otra entidad o área adicional',
+      newPlaceholder:'Agregar nueva entidad al catálogo local'
+    }),
+    assignmentBox('Seguimiento DGPPCS','seguimiento', record.seguimiento_dgppcs, {
+      mode:'person',
+      summaryEmpty:'Seleccionar seguimiento DGPPCS',
+      extraPlaceholder:'Agregar otra persona o grupo adicional',
+      newPlaceholder:'Agregar nueva persona al catálogo local'
+    }),
+    editableBox('Contacto','editContacto','textarea',record.contacto,'Agrega correos, telefonos o nombres'),
+    editableBox('Estado','editEstado','select',record.estado,'', ['Completado','En Proceso','Pendiente de Iniciar','Sin estado']),
+    editableBox('Fecha inicio','editInicio','date',record.inicio,''),
+    editableBox('Fecha final','editFinal','date',record.final,''),
+    editableBox('Duracion calendario','editDuracion','number',record.duracion_cal != null ? String(record.duracion_cal) : '','Dias calendario'),
+    editableBox('Dias habiles','editHabiles','number',record.dias_habiles != null ? String(record.dias_habiles) : '','Dias habiles'),
+    editableBox('EDT visible','editEdt','text',record.edt || '','Ej.: 2.3.1'),
+    moveTargetBox(record),
+      editableBox('Nivel visual','editNivel','number',String(normalizedLevelValue(record.edt, record.nivel)),'1, 2, 3...'),
+    selectBox('Grupo EDT / categoria','editGrupo',record.grupo || deriveGroup(record.edt), groupOptions),
+    editableBox('Titulo visible','editAlias','text',text(appState.aliases[record.id] || ''),'Renombrar este EDT en el visor'),
+    editableBox('Resumen','editResumen','textarea',record.resumen,'Sintesis ejecutiva del caso'),
+    readonlyBox('Dias restantes', record.dias_restantes != null ? String(record.dias_restantes) : '-'),
+    readonlyBox('Ubicacion actual', [record.parent_edt || 'Raiz', record.grupo || '-'].join(' | ')),
+    readonlyBox('Alerta calculada', alertLabel(record.alerta))
+  ].join('');
+  document.getElementById('localNote').value = record.local_note || '';
+  document.getElementById('localAction').value = record.local_action || '';
+  document.getElementById('newChildTitle').value = '';
+  document.getElementById('newChildState').value = 'Pendiente de Iniciar';
+  document.getElementById('newChildStart').value = record.inicio || '';
+  document.getElementById('newChildEnd').value = record.final || '';
+  document.getElementById('addChildBtn').dataset.parentId = record.id;
+  document.getElementById('addChildBtn').dataset.nextEdt = nextChildEdt(record, childrenMap);
+  document.getElementById('drawer').classList.add('open');
+}
+
+function editableBox(label, id, kind, value, placeholder, options){
+  let control = '';
+  if(kind === 'textarea'){
+    control = '<textarea id="' + id + '" placeholder="' + escapeHtml(placeholder || '') + '">' + escapeHtml(value || '') + '</textarea>';
+  }else if(kind === 'select'){
+    control = '<select id="' + id + '">' + (options || []).map(option =>
+      '<option value="' + escapeHtml(option) + '"' + (option === value ? ' selected' : '') + '>' + escapeHtml(option) + '</option>'
+    ).join('') + '</select>';
+  }else{
+    control = '<input id="' + id + '" type="' + kind + '" value="' + escapeHtml(value || '') + '" placeholder="' + escapeHtml(placeholder || '') + '">';
+  }
+  return '<div class="detail-box"><b>' + escapeHtml(label) + '</b>' + control + '</div>';
+}
+
+function readonlyBox(label, value){
+  return '<div class="detail-box"><b>' + escapeHtml(label) + '</b><div>' + escapeHtml(value) + '</div></div>';
+}
+
+function assignmentBox(label, prefix, value, config){
+  const mode = config && config.mode === 'entity' ? 'entity' : 'person';
+  const splitter = mode === 'entity' ? splitEntities : splitPeople;
+  const options = mode === 'entity' ? getAssignableEntities() : getAssignablePeople();
+  const selected = new Set(splitter(value));
+  const extra = splitter(value).filter(name => !options.includes(name)).join(' / ');
+  const selectedCount = selected.size + (extra ? splitter(extra).length : 0);
+  return '<div class="detail-box"><b>' + escapeHtml(label) + '</b>' +
+    '<details class="assign-picker">' +
+      '<summary>' + escapeHtml(selectedCount ? `Seleccionadas: ${selectedCount}` : ((config && config.summaryEmpty) || 'Seleccionar asignacion')) + '</summary>' +
+      '<div class="assign-grid">' +
+        options.map(name =>
+          '<label class="assign-item"><input type="checkbox" class="assign-person assign-person-' + escapeHtml(prefix) + '" value="' + escapeHtml(name) + '"' + (selected.has(name) ? ' checked' : '') + '><span>' + escapeHtml(name) + '</span></label>'
+        ).join('') +
+      '</div>' +
+      '<div class="assign-extra"><input id="editExtra-' + escapeHtml(prefix) + '" type="text" value="' + escapeHtml(extra) + '" placeholder="' + escapeHtml((config && config.extraPlaceholder) || 'Agregar otra persona o grupo adicional') + '"></div>' +
+      '<div class="assign-extra"><input id="editNewPerson-' + escapeHtml(prefix) + '" type="text" value="" placeholder="' + escapeHtml((config && config.newPlaceholder) || 'Agregar nueva persona al catálogo local') + '"></div>' +
+    '</details>' +
+  '</div>';
+}
+
+function getSelectedValues(prefix, mode){
+  const canonicalize = mode === 'entity' ? canonicalEntityName : canonicalPersonName;
+  const splitter = mode === 'entity' ? splitEntities : splitPeople;
+  const selected = Array.from(document.querySelectorAll('.assign-person-' + prefix + ':checked')).map(input => canonicalize(input.value));
+  const extra = splitter(document.getElementById('editExtra-' + prefix)?.value || '');
+  return Array.from(new Set(selected.concat(extra))).filter(Boolean);
+}
+
+function closeDrawer(){
+  document.getElementById('drawer').classList.remove('open');
+}
+
+function openHeroModal(){
+  const hero = appState.hero || DEFAULT_HERO;
+  document.getElementById('heroEditTitle').value = hero.title != null ? hero.title : DEFAULT_HERO.title;
+  document.getElementById('heroEditSubtitle').value = hero.subtitle != null ? hero.subtitle : DEFAULT_HERO.subtitle;
+  document.getElementById('heroEditMeta1').value = hero.meta1 != null ? hero.meta1 : DEFAULT_HERO.meta1;
+  document.getElementById('heroEditMeta2').value = hero.meta2 != null ? hero.meta2 : DEFAULT_HERO.meta2;
+  document.getElementById('heroEditMeta3').value = hero.meta3 != null ? hero.meta3 : DEFAULT_HERO.meta3;
+  document.getElementById('heroEditMetaExtra').value = Array.isArray(hero.extras) ? hero.extras.join(' | ') : '';
+  document.getElementById('heroModal').classList.add('open');
+}
+
+function closeHeroModal(){
+  document.getElementById('heroModal').classList.remove('open');
+}
+
+function saveHeroModal(){
+  const extras = text(document.getElementById('heroEditMetaExtra').value)
+    .split('|')
+    .map(value => value.trim())
+    .filter(Boolean);
+  appState.hero = {
+    title: document.getElementById('heroEditTitle').value,
+    subtitle: document.getElementById('heroEditSubtitle').value,
+    meta1: document.getElementById('heroEditMeta1').value,
+    meta2: document.getElementById('heroEditMeta2').value,
+    meta3: document.getElementById('heroEditMeta3').value,
+    extras
+  };
+  saveHeroConfig();
+  appendAudit('editar_portada', appState.hero.title);
+  ensureDailyBackup();
+  renderHero();
+  closeHeroModal();
+  buildExecutiveReport();
+  scheduleSharedSync('editar_portada');
+}
+
+function resetHeroModal(){
+  appState.hero = {...DEFAULT_HERO};
+  saveHeroConfig();
+  renderHero();
+  openHeroModal();
+  buildExecutiveReport();
+  scheduleSharedSync('restablecer_portada');
+}
+
+function addLocalChildRecord(){
+  if(!appState.selectedId) return;
+  const parent = appState.raw.find(r => r.id === appState.selectedId);
+  if(!parent) return;
+  const title = text(document.getElementById('newChildTitle').value);
+  if(!title){
+    alert('Ingresa la descripcion de la subactividad.');
+    return;
+  }
+  const {ordered, childrenMap} = buildHierarchyMaps(appState.raw);
+  const parentIndex = ordered.findIndex(item => item.id === parent.id);
+  let insertAfter = Number(parent.source_order || 0);
+  if(parentIndex >= 0){
+      const parentLevel = normalizedLevelValue(parent.edt, parent.nivel);
+      for(let i = parentIndex + 1; i < ordered.length; i++){
+        const row = ordered[i];
+        const level = normalizedLevelValue(row.edt, row.nivel);
+        if(level <= parentLevel) break;
+        insertAfter = Math.max(insertAfter, Number(row.source_order || insertAfter));
+      }
+  }
+  const edt = nextChildEdt(parent, childrenMap) || '';
+  const start = text(document.getElementById('newChildStart').value);
+  const end = text(document.getElementById('newChildEnd').value);
+  const state = text(document.getElementById('newChildState').value) || 'Pendiente de Iniciar';
+  const child = {
+    id: 'local-' + Date.now(),
+    source_order: insertAfter + 0.001,
+    edt,
+    parent_edt: parent.edt || '',
+    actividad: title,
+    responsable: '',
+    inicio: start,
+    final: end,
+    duracion_cal: '',
+    dias_habiles: '',
+    dias_restantes: deriveRemaining(end, state),
+    estado: state,
+    seguimiento_dgppcs: '',
+    contacto: '',
+      nivel: normalizedLevelValue(parent.edt, parent.nivel) + 1,
+    grupo: parent.grupo || deriveGroup(edt),
+    avance_estimado: deriveProgress(state),
+    alerta: deriveAlert(start, end, state),
+    resumen: [edt ? `EDT ${edt}` : '', state].filter(Boolean).join(' | ')
+  };
+  appState.customRecords = sortBySourceOrder([].concat(appState.customRecords || []).concat(child));
+  saveCustomRecords();
+  appendAudit('agregar_subactividad', child.edt + ' | ' + child.actividad);
+  ensureDailyBackup();
+  hydrateData(appState.payload);
+  if(parent.id) appState.expanded[parent.id] = true;
+  initFilters();
+  applyFilters();
+  openDrawer(child.id);
+  scheduleSharedSync('agregar_subactividad');
+}
+
+function saveCurrentCase(){
+  if(!appState.selectedId) return;
+  const currentRecord = appState.raw.find(r => r.id === appState.selectedId);
+  if(!currentRecord) return;
+  const newPeople = splitPeople(document.getElementById('editNewPerson-seguimiento')?.value || '');
+  const newEntities = splitEntities(document.getElementById('editNewPerson-responsable')?.value || '');
+  if(newPeople.length){
+    appState.customPeople = uniquePeople([].concat(appState.customPeople || []).concat(newPeople));
+    saveCustomPeople();
+    appendAudit('catalogo_seguimiento', 'Se agregaron: ' + newPeople.join(', '));
+  }
+  if(newEntities.length){
+    appState.customEntities = uniqueEntities([].concat(appState.customEntities || []).concat(newEntities));
+    saveCustomEntities();
+    appendAudit('catalogo_responsable', 'Se agregaron: ' + newEntities.join(', '));
+  }
+  const currentGroup = text(currentRecord.grupo) || deriveGroup(currentRecord.edt);
+  const selectedGroup = text(document.getElementById('editGrupo')?.value) || currentGroup;
+  const manualEdt = text(document.getElementById('editEdt')?.value);
+  const moveTargetValue = text(document.getElementById('editMoveTarget')?.value);
+  let nextEdt = manualEdt || text(currentRecord.edt);
+  let nextParentEdt = text(currentRecord.parent_edt);
+  let nextGroup = selectedGroup || deriveGroup(nextEdt);
+  let hierarchyChanged = false;
+
+  if(moveTargetValue && moveTargetValue !== '__KEEP__'){
+    hierarchyChanged = true;
+    if(moveTargetValue.startsWith('__GROUP__:')){
+      const move = reorderMovedSubtree(currentRecord, {kind:'group', groupId:moveTargetValue.replace('__GROUP__:','')});
+      nextParentEdt = move.parentEdt || '';
+      nextEdt = move.rootNewEdt || nextEdt;
+      nextGroup = deriveGroup(nextEdt);
+    }else{
+      const move = reorderMovedSubtree(currentRecord, {kind:'parent', parentId:moveTargetValue});
+      nextParentEdt = move.parentEdt || '';
+      nextEdt = move.rootNewEdt || nextEdt;
+      nextGroup = deriveGroup(nextEdt);
+    }
+  }else if(selectedGroup && selectedGroup !== currentGroup){
+    const groupRecord = appState.raw.find(record => text(record.edt) === selectedGroup);
+    if(groupRecord && groupRecord.id !== currentRecord.id){
+      hierarchyChanged = true;
+      const move = reorderMovedSubtree(currentRecord, {kind:'group', groupId:groupRecord.id});
+      nextParentEdt = move.parentEdt || '';
+      nextEdt = move.rootNewEdt || nextEdt;
+      nextGroup = deriveGroup(nextEdt);
+    }else if(manualEdt){
+      nextGroup = selectedGroup;
+    }
+  }else if(manualEdt){
+    nextGroup = deriveGroup(manualEdt);
+  }
+  if(isTopLevelEdt(nextEdt)) nextParentEdt = '';
+
+    appState.edits[appState.selectedId] = {
+      edt: nextEdt,
+      parent_edt: nextParentEdt,
+      nivel: String(normalizedLevelValue(nextEdt, text(document.getElementById('editNivel').value))),
+      grupo: nextGroup,
+    responsable: getSelectedValues('responsable', 'entity').join('; '),
+    seguimiento_dgppcs: getSelectedValues('seguimiento', 'person').join(' / '),
+    contacto: text(document.getElementById('editContacto').value),
+    estado: text(document.getElementById('editEstado').value),
+    inicio: text(document.getElementById('editInicio').value),
+    final: text(document.getElementById('editFinal').value),
+    duracion_cal: text(document.getElementById('editDuracion').value),
+    dias_habiles: text(document.getElementById('editHabiles').value),
+    resumen: text(document.getElementById('editResumen').value)
+  };
+  if(hierarchyChanged || text(currentRecord.edt) !== nextEdt || text(currentRecord.grupo) !== nextGroup || text(currentRecord.parent_edt) !== nextParentEdt){
+    applyHierarchyEdits(currentRecord, nextEdt);
+  }
+  const edit = appState.edits[appState.selectedId];
+  if(!edit.edt && !edit.parent_edt && !edit.nivel && !edit.grupo && !edit.responsable && !edit.seguimiento_dgppcs && !edit.contacto && !edit.estado && !edit.inicio && !edit.final && !edit.duracion_cal && !edit.dias_habiles && !edit.resumen && !edit.source_order){
+    delete appState.edits[appState.selectedId];
+  }
+  appState.notes[appState.selectedId] = {
+    note: text(document.getElementById('localNote').value),
+    action: text(document.getElementById('localAction').value)
+  };
+  if(!appState.notes[appState.selectedId].note && !appState.notes[appState.selectedId].action){
+    delete appState.notes[appState.selectedId];
+  }
+  const aliasValue = text(document.getElementById('editAlias')?.value);
+  if(aliasValue){
+    appState.aliases[appState.selectedId] = aliasValue;
+  }else{
+    delete appState.aliases[appState.selectedId];
+  }
+  saveEdits();
+  saveNotes();
+  saveAliases();
+  saveCurrentPayload();
+  appendAudit('guardar_ficha', nextEdt + ' | ' + (text(document.getElementById('editAlias')?.value) || text(currentRecord.actividad)));
+  ensureDailyBackup();
+  hydrateData(appState.payload);
+  initFilters();
+  applyFilters();
+  closeDrawer();
+  buildExecutiveReport();
+  scheduleSharedSync('guardar_ficha');
+}
+
+function clearCurrentCase(){
+  if(!appState.selectedId) return;
+  appendAudit('limpiar_ficha', appState.selectedId);
+  delete appState.edits[appState.selectedId];
+  delete appState.notes[appState.selectedId];
+  delete appState.aliases[appState.selectedId];
+  saveEdits();
+  saveNotes();
+  saveAliases();
+  saveCurrentPayload();
+  ensureDailyBackup();
+  hydrateData(appState.payload);
+  initFilters();
+  applyFilters();
+  openDrawer(appState.selectedId);
+  buildExecutiveReport();
+  scheduleSharedSync('limpiar_ficha');
+}
+
+function buildExecutiveReport(){
+  const records = appState.matched.slice();
+  const total = records.length;
+  const hero = appState.hero || DEFAULT_HERO;
+  const completed = records.filter(r => r.estado === 'Completado').length;
+  const inProgress = records.filter(r => r.estado === 'En Proceso').length;
+  const pending = records.filter(r => r.estado === 'Pendiente de Iniciar').length;
+  const overdue = records.filter(r => r.alerta === 'vencido').sort((a,b)=>text(a.final).localeCompare(text(b.final)));
+  const critical = records.filter(r => r.alerta === 'critico').sort((a,b)=>text(a.final).localeCompare(text(b.final)));
+  const ownerRows = [];
+  records.forEach(r => {
+    const people = splitPeople(r.seguimiento_dgppcs);
+    if(!people.length){
+      ownerRows.push({owner:'Sin asignar'});
+      return;
+    }
+    people.forEach(owner => ownerRows.push({owner}));
+  });
+  const byOwner = groupCount(ownerRows, 'owner');
+  const responsibleRows = [];
+  records.forEach(r => {
+    const entities = splitEntities(r.responsable);
+    if(!entities.length){
+      responsibleRows.push({owner:'Sin asignar'});
+      return;
+    }
+    entities.forEach(owner => responsibleRows.push({owner}));
+  });
+  const byResponsible = groupCount(responsibleRows, 'owner');
+  const nextMilestones = records
+    .filter(r => r.final && r.estado !== 'Completado')
+    .sort((a,b)=>text(a.final).localeCompare(text(b.final)))
+    .slice(0,8);
+
+  const lines = [];
+  lines.push((hero.title || 'Visor de Seguimiento PEC').toUpperCase());
+  if(text(hero.subtitle)) lines.push(hero.subtitle);
+  lines.push('');
+  lines.push('Fecha de corte: ' + fmtDateLong(todayIso()));
+  lines.push('Registros analizados: ' + total);
+  lines.push('');
+  lines.push('1. Resumen directivo');
+  lines.push('- Completados: ' + completed);
+  lines.push('- En proceso: ' + inProgress);
+  lines.push('- Pendientes de iniciar: ' + pending);
+  lines.push('- Vencidos: ' + overdue.length);
+  lines.push('- Criticos (vence <= 7 dias): ' + critical.length);
+  lines.push('');
+  lines.push('2. Lectura ejecutiva');
+  if(!total){
+    lines.push('- No hay registros en la vista actual.');
+  }else{
+    lines.push('- El portafolio visible concentra ' + inProgress + ' frentes activos y ' + overdue.length + ' atrasos que requieren destrabe.');
+    lines.push('- El riesgo principal se ubica en hitos con fecha proxima o vencida, especialmente cuando no hay responsable operativo claro.');
+    lines.push('- El seguimiento local registrado cubre ' + records.filter(r => r.local_note || r.local_action).length + ' casos, lo que ayuda a sostener trazabilidad operativa y continuidad de gestión.');
+  }
+  lines.push('');
+  lines.push('3. Casos vencidos');
+  if(!overdue.length){
+    lines.push('- No hay casos vencidos en la vista actual.');
+  }else{
+    overdue.slice(0,10).forEach(r => {
+      lines.push('- ' + [displayTitle(r), fmtDate(r.final), r.seguimiento_dgppcs || r.responsable || 'Sin responsable'].filter(Boolean).join(' | '));
+    });
+  }
+  lines.push('');
+  lines.push('4. Proximos hitos');
+  if(!nextMilestones.length){
+    lines.push('- No hay hitos proximos con fecha registrada.');
+  }else{
+    nextMilestones.forEach(r => {
+      lines.push('- ' + [fmtDate(r.final), displayTitle(r), r.estado].filter(Boolean).join(' | '));
+    });
+  }
+  lines.push('');
+  lines.push('5. Carga operativa por responsable');
+  if(!byResponsible.length){
+    lines.push('- Sin informacion.');
+  }else{
+    byResponsible.forEach(item => lines.push('- ' + item.label + ': ' + item.count + ' casos'));
+  }
+  lines.push('');
+  lines.push('6. Carga de seguimiento DGPPCS');
+  if(!byOwner.length){
+    lines.push('- Sin informacion.');
+  }else{
+    byOwner.forEach(item => lines.push('- ' + item.label + ': ' + item.count + ' casos'));
+  }
+  lines.push('');
+  lines.push('7. Recomendaciones inmediatas');
+  lines.push('- Revisar primero los casos vencidos y criticos con reunion corta de destrabe.');
+  lines.push('- Completar responsable operativo y contacto en los casos sin asignacion clara.');
+  lines.push('- Registrar acuerdos y proximo paso en la ficha de cada caso para que el visor sirva como bitacora operativa.');
+
+  const html = `
+    <h1>${escapeHtml(hero.title || 'Visor de Seguimiento PEC')}</h1>
+    ${text(hero.subtitle) ? '<p><strong>Marco:</strong> ' + escapeHtml(hero.subtitle) + '</p>' : ''}
+    <p><strong>Fecha de corte:</strong> ${escapeHtml(fmtDateLong(todayIso()))}</p>
+    <p><strong>Registros analizados:</strong> ${total}</p>
+    <h2>1. Resumen directivo</h2>
+    <ul>
+      <li>Completados: ${completed}</li>
+      <li>En proceso: ${inProgress}</li>
+      <li>Pendientes de iniciar: ${pending}</li>
+      <li>Vencidos: ${overdue.length}</li>
+      <li>Criticos (vence &lt;= 7 dias): ${critical.length}</li>
+    </ul>
+    <h2>2. Casos vencidos</h2>
+    ${overdue.length ? '<ul>' + overdue.slice(0,10).map(r => '<li>' + escapeHtml([displayTitle(r), fmtDate(r.final), r.seguimiento_dgppcs || r.responsable || 'Sin responsable'].filter(Boolean).join(' | ')) + '</li>').join('') + '</ul>' : '<p>No hay casos vencidos en la vista actual.</p>'}
+    <h2>3. Proximos hitos</h2>
+    ${nextMilestones.length ? '<ul>' + nextMilestones.map(r => '<li>' + escapeHtml([fmtDate(r.final), displayTitle(r), r.estado].filter(Boolean).join(' | ')) + '</li>').join('') + '</ul>' : '<p>No hay hitos proximos con fecha registrada.</p>'}
+    <h2>4. Carga operativa por responsable</h2>
+    ${byResponsible.length ? '<ul>' + byResponsible.map(item => '<li>' + escapeHtml(item.label + ': ' + item.count + ' casos') + '</li>').join('') + '</ul>' : '<p>Sin informacion.</p>'}
+    <h2>5. Carga de seguimiento DGPPCS</h2>
+    ${byOwner.length ? '<ul>' + byOwner.map(item => '<li>' + escapeHtml(item.label + ': ' + item.count + ' casos') + '</li>').join('') + '</ul>' : '<p>Sin informacion.</p>'}
+    <h2>6. Recomendaciones inmediatas</h2>
+    <ul>
+      <li>Revisar primero los casos vencidos y criticos con reunion corta de destrabe.</li>
+      <li>Completar responsable operativo y contacto en los casos sin asignacion clara.</li>
+      <li>Registrar acuerdos y proximo paso en la ficha de cada caso para sostener trazabilidad.</li>
+    </ul>
+  `;
+
+  appState.reportText = lines.join('\n');
+  appState.reportHtml = html;
+  document.getElementById('reportPreview').innerHTML = html;
+  document.getElementById('reportCount').textContent = String(total);
+}
+
+function renderAnalytics(){
+  const records = appState.matched.slice();
+  const byGroup = new Map();
+  records.forEach(record => {
+    const key = record.grupo || 'Sin grupo';
+    if(!byGroup.has(key)) byGroup.set(key, {group:key, total:0, progress:0, risk:0});
+    const entry = byGroup.get(key);
+    entry.total += 1;
+    entry.progress += Number(record.avance_estimado || 0);
+    if(['vencido','critico','atencion'].includes(record.alerta)) entry.risk += 1;
+  });
+  const progressRows = Array.from(byGroup.values())
+    .map(item => ({label:'Hito ' + item.group, value:item.total ? Math.round(item.progress / item.total) : 0}))
+    .sort((a,b) => b.value - a.value || a.label.localeCompare(b.label,'es'));
+  const riskRows = Array.from(byGroup.values())
+    .map(item => ({label:'Hito ' + item.group, value:item.risk}))
+    .sort((a,b) => b.value - a.value || a.label.localeCompare(b.label,'es'));
+
+  const maxProgress = Math.max(1, ...progressRows.map(r => r.value));
+  const maxRisk = Math.max(1, ...riskRows.map(r => r.value));
+  document.getElementById('analyticsProgress').innerHTML = progressRows.length
+    ? progressRows.map(item => barRow(item.label, item.value + '%', maxProgress, 'green', true)).join('')
+    : '<div class="empty">Sin datos para esta vista.</div>';
+  document.getElementById('analyticsRisk').innerHTML = riskRows.length
+    ? riskRows.map(item => barRow(item.label, item.value, maxRisk, item.value ? 'red' : 'green')).join('')
+    : '<div class="empty">Sin datos para esta vista.</div>';
+}
+
+function downloadBlob(filename, type, content){
+  const blob = new Blob([content], {type});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function exportTxt(){
+  buildExecutiveReport();
+  downloadBlob('reporte_seguimiento_pec.txt', 'text/plain;charset=utf-8', appState.reportText);
+}
+
+function exportJson(){
+  downloadBlob('seguimiento_pec_filtrado.json', 'application/json;charset=utf-8', JSON.stringify(appState.filtered, null, 2));
+}
+
+function printReport(){
+  buildExecutiveReport();
+  const w = window.open('', '_blank');
+  if(!w) return;
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Reporte PEC</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:28px;line-height:1.55;color:#102132}h1,h2{color:#103958}ul{padding-left:20px}</style></head><body>' + appState.reportHtml + '</body></html>');
+  w.document.close();
+  w.focus();
+  w.print();
+}
+
+function bindEvents(){
+  ['searchInput','groupFilter','responsibleFilter','ownerFilter'].forEach(id => {
+    document.getElementById(id).addEventListener('input', applyFilters);
+    document.getElementById(id).addEventListener('change', applyFilters);
+  });
+  document.getElementById('statusFilterOptions').addEventListener('change', () => {
+    updateStatusFilterSummary();
+    applyFilters();
+  });
+  document.getElementById('alertFilterOptions').addEventListener('change', () => {
+    updateAlertFilterSummary();
+    applyFilters();
+  });
+  document.getElementById('resetFiltersBtn').addEventListener('click', () => {
+    ['searchInput','groupFilter','responsibleFilter','ownerFilter'].forEach(id => {
+      document.getElementById(id).value = '';
+    });
+    document.querySelectorAll('.status-filter-option').forEach(input => { input.checked = false; });
+    document.querySelectorAll('.alert-filter-option').forEach(input => { input.checked = false; });
+    updateStatusFilterSummary();
+    updateAlertFilterSummary();
+    applyFilters();
+  });
+  document.getElementById('closeDrawerBtn').addEventListener('click', closeDrawer);
+  document.getElementById('editHeroBtn').addEventListener('click', openHeroModal);
+  const adminBtn = document.getElementById('openAdminBtn');
+  if(appState.adminEnabled && adminBtn) adminBtn.style.display = '';
+  if(adminBtn) adminBtn.addEventListener('click', openAdminModal);
+  document.getElementById('closeHeroBtn').addEventListener('click', closeHeroModal);
+  document.getElementById('saveHeroBtn').addEventListener('click', saveHeroModal);
+  document.getElementById('resetHeroBtn').addEventListener('click', resetHeroModal);
+  document.getElementById('closeAdminBtn').addEventListener('click', closeAdminModal);
+  document.getElementById('exportAuditBtn').addEventListener('click', exportAuditLog);
+  document.getElementById('exportBackupBtn').addEventListener('click', exportLatestBackup);
+  document.getElementById('addChildBtn').addEventListener('click', addLocalChildRecord);
+  document.getElementById('saveCaseNoteBtn').addEventListener('click', saveCurrentCase);
+  document.getElementById('clearCaseNoteBtn').addEventListener('click', clearCurrentCase);
+  document.getElementById('buildReportBtn').addEventListener('click', () => {
+    buildExecutiveReport();
+    document.getElementById('reportModal').classList.add('open');
+  });
+  const openReport = () => {
+    buildExecutiveReport();
+    document.getElementById('reportModal').classList.add('open');
+  };
+  const openAnalytics = () => {
+    renderAnalytics();
+    document.getElementById('analyticsModal').classList.add('open');
+  };
+  document.getElementById('openReportBtn').addEventListener('click', openReport);
+  document.getElementById('openReportPanelBtn').addEventListener('click', openReport);
+  document.getElementById('openAnalyticsBtn').addEventListener('click', openAnalytics);
+  document.getElementById('openAnalyticsBtnToolbar').addEventListener('click', openAnalytics);
+  document.getElementById('openAnalyticsPanelBtn').addEventListener('click', openAnalytics);
+  document.getElementById('closeReportBtn').addEventListener('click', () => {
+    document.getElementById('reportModal').classList.remove('open');
+  });
+  document.getElementById('closeAnalyticsBtn').addEventListener('click', () => {
+    document.getElementById('analyticsModal').classList.remove('open');
+  });
+  document.getElementById('exportTxtBtn').addEventListener('click', exportTxt);
+  document.getElementById('exportJsonBtn').addEventListener('click', exportJson);
+  document.getElementById('printReportBtn').addEventListener('click', printReport);
+  document.getElementById('exportStructureJsonBtn').addEventListener('click', downloadStructureJson);
+  document.getElementById('exportStructureXlsxBtn').addEventListener('click', exportStructureXlsx);
+  document.getElementById('loadXlsxBtn').addEventListener('click', () => {
+    loadExcelFromInput().catch(error => {
+      console.error(error);
+      alert('No se pudo leer el Excel. Verifica que tenga la hoja CRONOGRAMA y estructura compatible.');
+    });
+  });
+  document.getElementById('loadStructureBtn').addEventListener('click', () => {
+    loadStructureFromInput().catch(error => {
+      console.error(error);
+      alert('No se pudo leer la estructura editable. Verifica el formato JSON o la hoja GANTT_ESTRUCTURA.');
+    });
+  });
+  document.getElementById('useEmbeddedBtn').addEventListener('click', useEmbeddedData);
+  document.body.addEventListener('click', event => {
+    const toggle = event.target.closest('[data-toggle]');
+    if(toggle){
+      event.stopPropagation();
+      const key = toggle.getAttribute('data-toggle');
+      appState.expanded[key] = !appState.expanded[key];
+      renderAll();
+      return;
+    }
+    const row = event.target.closest('[data-open]');
+    if(row) openDrawer(row.getAttribute('data-open'));
+    if(event.target.id === 'drawer') closeDrawer();
+    if(event.target.id === 'heroModal') closeHeroModal();
+    if(event.target.id === 'reportModal') document.getElementById('reportModal').classList.remove('open');
+    if(event.target.id === 'analyticsModal') document.getElementById('analyticsModal').classList.remove('open');
+    if(event.target.id === 'adminModal') closeAdminModal();
+  });
+}
+
+function initFilters(){
+  initStatusFilter();
+  initAlertFilter();
+  buildSelect('groupFilter', uniqueSorted(appState.raw.map(r => r.grupo)), 'Todos los grupos');
+  buildSelect('responsibleFilter', getAssignableEntities(), 'Toda entidad responsable');
+  buildSelect('ownerFilter', getAssignablePeople(), 'Todo seguimiento');
+  initSearchSuggestions();
+}
+
+function init(){
+  if(SERVER_BOOTSTRAP && SERVER_BOOTSTRAP.state){
+    applySharedStateBundle(SERVER_BOOTSTRAP.state, {skipRenderHero:true});
+    appState.serverInfo = {
+      savedAt: text(SERVER_BOOTSTRAP.savedAt || (SERVER_BOOTSTRAP.state && SERVER_BOOTSTRAP.state.savedAt)),
+      savedBy: text(SERVER_BOOTSTRAP.actor || (SERVER_BOOTSTRAP.state && SERVER_BOOTSTRAP.state.savedBy))
+    };
+  }else{
+    hydrateData();
+  }
+  renderHero();
+  ensureDailyBackup();
+  initFilters();
+  bindEvents();
+  applyFilters();
+  buildExecutiveReport();
+  startSharedStatePolling();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

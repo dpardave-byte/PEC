@@ -71,11 +71,20 @@ const CONFIG = {
 
 function doGet(e) {
   const params = e && e.parameter ? e.parameter : {};
+  if (params.view === 'visor') {
+    return renderSharedVisor_();
+  }
   if (params.action === 'ai') {
     return outputPayload_(runAiAnalysis_(params), params);
   }
   if (params.action === 'ai_status') {
     return outputPayload_(getAiConfigStatus(), params);
+  }
+  if (params.action === 'visor_state') {
+    return outputPayload_(getSharedTrackingState(), params);
+  }
+  if (params.action === 'visor_audit') {
+    return outputPayload_(getSharedTrackingAudit(params.limit), params);
   }
   const payload = { updatedAt: new Date().toISOString(), records: getRecords_() };
   if (params.format === 'csv') {
@@ -140,7 +149,9 @@ function runAiAnalysis_(params) {
         message: 'Falta configurar PEC_AI_TOKEN en Script Properties para proteger el endpoint publico.'
       };
     }
-    if (params.token !== expectedToken) {
+    const incomingToken = String(params.token || '').trim();
+    const configuredToken = String(expectedToken || '').trim();
+    if (incomingToken !== configuredToken) {
       return {
         ok: false,
         code: 'PEC_AI_TOKEN_INVALID',
@@ -154,7 +165,7 @@ function runAiAnalysis_(params) {
       model,
       store: false,
       reasoning: { effort: 'low' },
-      max_output_tokens: 2500,
+      max_output_tokens: 7000,
       tools: [{ type: 'web_search' }],
       include: ['web_search_call.action.sources'],
       instructions: [
@@ -779,4 +790,256 @@ function recordsToCsv(records) {
 function csvEscape_(value) {
   const text = String(value == null ? '' : value);
   return /[",\n\r]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
+}
+
+function renderSharedVisor_() {
+  const template = HtmlService.createTemplateFromFile('Visor');
+  template.visorBootstrapJson = JSON.stringify(getSharedTrackingState());
+  return template
+    .evaluate()
+    .setTitle('Visor de Seguimiento PEC')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function getSharedTrackingState() {
+  const state = loadSharedTrackingState_();
+  return {
+    ok: true,
+    mode: 'apps_script',
+    actor: getSharedTrackingActor_(),
+    admin: isSharedTrackingAdmin_(),
+    savedAt: state.savedAt || '',
+    revision: Number(state.revision || 0),
+    state: state
+  };
+}
+
+function saveSharedTrackingState(bundle, actorName, action) {
+  const previous = loadSharedTrackingState_();
+  const next = normalizeSharedTrackingStateBundle_(bundle, previous);
+  next.revision = Number(previous.revision || 0) + 1;
+  next.savedAt = new Date().toISOString();
+  next.savedBy = String(actorName || getSharedTrackingActor_() || 'usuario_web').trim();
+  writeSharedTrackingState_(next);
+  appendSharedTrackingAudit_({
+    at: next.savedAt,
+    actor: next.savedBy,
+    action: String(action || 'guardar_estado_compartido'),
+    revision: next.revision,
+    sourceMode: next.sourceMode || '',
+    records: next.payload && Array.isArray(next.payload.records) ? next.payload.records.length : 0
+  });
+  writeSharedTrackingBackup_(next);
+  return {
+    ok: true,
+    actor: getSharedTrackingActor_(),
+    admin: isSharedTrackingAdmin_(),
+    revision: next.revision,
+    savedAt: next.savedAt,
+    state: next
+  };
+}
+
+function getSharedTrackingAudit(limit) {
+  return {
+    ok: true,
+    items: loadSharedTrackingAudit_().slice(0, Math.max(1, Number(limit || 100)))
+  };
+}
+
+function normalizeSharedTrackingStateBundle_(bundle, fallback) {
+  const data = bundle && typeof bundle === 'object' ? bundle : {};
+  const base = fallback && typeof fallback === 'object' ? fallback : {};
+  return {
+    format: 'pec-shared-state-v1',
+    revision: Number(base.revision || 0),
+    savedAt: String(base.savedAt || ''),
+    savedBy: String(base.savedBy || ''),
+    sourceMode: String(data.sourceMode || base.sourceMode || 'embedded'),
+    hero: normalizeHeroState_(data.hero || base.hero || {}),
+    customPeople: normalizeStringArray_(data.customPeople || base.customPeople || []),
+    customEntities: normalizeStringArray_(data.customEntities || base.customEntities || []),
+    aliases: normalizeObjectMap_(data.aliases || base.aliases || {}),
+    notes: normalizeObjectMap_(data.notes || base.notes || {}),
+    edits: normalizeObjectMap_(data.edits || base.edits || {}),
+    customRecords: Array.isArray(data.customRecords) ? data.customRecords : (Array.isArray(base.customRecords) ? base.customRecords : []),
+    payload: normalizeSharedPayload_(data.payload || base.payload || null)
+  };
+}
+
+function normalizeHeroState_(hero) {
+  const saved = hero && typeof hero === 'object' ? hero : {};
+  return {
+    title: String(saved.title || 'Visor de Seguimiento PEC'),
+    subtitle: String(saved.subtitle || 'Programa de Economia Circular para Puno y Lima.'),
+    meta1: String(saved.meta1 || 'DGPPCS'),
+    meta2: String(saved.meta2 || 'Puno y Lima'),
+    meta3: String(saved.meta3 || 'Seguimiento operativo'),
+    extras: normalizeStringArray_(saved.extras || [])
+  };
+}
+
+function normalizeSharedPayload_(payload) {
+  if (!payload || typeof payload !== 'object') return null;
+  return {
+    meta: payload.meta && typeof payload.meta === 'object' ? payload.meta : {},
+    summary: payload.summary && typeof payload.summary === 'object' ? payload.summary : {},
+    records: Array.isArray(payload.records) ? payload.records : []
+  };
+}
+
+function normalizeStringArray_(values) {
+  const out = [];
+  (Array.isArray(values) ? values : []).forEach(function(value) {
+    const text = String(value == null ? '' : value).trim();
+    if (text && out.indexOf(text) < 0) out.push(text);
+  });
+  return out;
+}
+
+function normalizeObjectMap_(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function buildDefaultSharedTrackingState_() {
+  return {
+    format: 'pec-shared-state-v1',
+    revision: 0,
+    savedAt: '',
+    savedBy: '',
+    sourceMode: 'embedded',
+    hero: normalizeHeroState_({}),
+    customPeople: [],
+    customEntities: [],
+    aliases: {},
+    notes: {},
+    edits: {},
+    customRecords: [],
+    payload: null
+  };
+}
+
+function loadSharedTrackingState_() {
+  const file = getOrCreateBackendFile_(
+    'PEC_VISOR_SHARED_STATE_FILE_ID',
+    'shared_tracking_state.json',
+    JSON.stringify(buildDefaultSharedTrackingState_(), null, 2)
+  );
+  return normalizeSharedTrackingStateBundle_(readJsonFile_(file, buildDefaultSharedTrackingState_()), buildDefaultSharedTrackingState_());
+}
+
+function writeSharedTrackingState_(state) {
+  const file = getOrCreateBackendFile_(
+    'PEC_VISOR_SHARED_STATE_FILE_ID',
+    'shared_tracking_state.json',
+    JSON.stringify(buildDefaultSharedTrackingState_(), null, 2)
+  );
+  file.setContent(JSON.stringify(state, null, 2));
+}
+
+function loadSharedTrackingAudit_() {
+  const file = getOrCreateBackendFile_(
+    'PEC_VISOR_AUDIT_FILE_ID',
+    'shared_tracking_audit.json',
+    '[]'
+  );
+  const audit = readJsonFile_(file, []);
+  return Array.isArray(audit) ? audit : [];
+}
+
+function appendSharedTrackingAudit_(entry) {
+  const file = getOrCreateBackendFile_(
+    'PEC_VISOR_AUDIT_FILE_ID',
+    'shared_tracking_audit.json',
+    '[]'
+  );
+  const audit = loadSharedTrackingAudit_();
+  audit.unshift(entry);
+  file.setContent(JSON.stringify(audit.slice(0, 1000), null, 2));
+}
+
+function writeSharedTrackingBackup_(state) {
+  const folder = getOrCreateBackendBackupFolder_();
+  const fileName = 'shared_tracking_backup_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd') + '.json';
+  const files = folder.getFilesByName(fileName);
+  const content = JSON.stringify(state, null, 2);
+  if (files.hasNext()) {
+    files.next().setContent(content);
+    return;
+  }
+  folder.createFile(fileName, content, MimeType.PLAIN_TEXT);
+}
+
+function getOrCreateBackendRootFolder_() {
+  const props = PropertiesService.getScriptProperties();
+  const cachedId = props.getProperty('PEC_VISOR_BACKEND_FOLDER_ID');
+  if (cachedId) {
+    try {
+      return DriveApp.getFolderById(cachedId);
+    } catch (error) {}
+  }
+  const root = getOrCreateRoot_();
+  const folders = root.getFoldersByName('_VisorSeguimientoPEC');
+  const folder = folders.hasNext() ? folders.next() : root.createFolder('_VisorSeguimientoPEC');
+  props.setProperty('PEC_VISOR_BACKEND_FOLDER_ID', folder.getId());
+  return folder;
+}
+
+function getOrCreateBackendBackupFolder_() {
+  const props = PropertiesService.getScriptProperties();
+  const cachedId = props.getProperty('PEC_VISOR_BACKUP_FOLDER_ID');
+  if (cachedId) {
+    try {
+      return DriveApp.getFolderById(cachedId);
+    } catch (error) {}
+  }
+  const root = getOrCreateBackendRootFolder_();
+  const folders = root.getFoldersByName('backups');
+  const folder = folders.hasNext() ? folders.next() : root.createFolder('backups');
+  props.setProperty('PEC_VISOR_BACKUP_FOLDER_ID', folder.getId());
+  return folder;
+}
+
+function getOrCreateBackendFile_(propertyKey, fileName, defaultContent) {
+  const props = PropertiesService.getScriptProperties();
+  const cachedId = props.getProperty(propertyKey);
+  if (cachedId) {
+    try {
+      return DriveApp.getFileById(cachedId);
+    } catch (error) {}
+  }
+  const folder = getOrCreateBackendRootFolder_();
+  const files = folder.getFilesByName(fileName);
+  const file = files.hasNext()
+    ? files.next()
+    : folder.createFile(fileName, defaultContent || '', MimeType.PLAIN_TEXT);
+  props.setProperty(propertyKey, file.getId());
+  return file;
+}
+
+function readJsonFile_(file, fallback) {
+  try {
+    const raw = file.getBlob().getDataAsString('UTF-8');
+    return raw ? JSON.parse(raw) : fallback;
+  } catch (error) {
+    return fallback;
+  }
+}
+
+function getSharedTrackingActor_() {
+  try {
+    return Session.getActiveUser().getEmail() || '';
+  } catch (error) {
+    return '';
+  }
+}
+
+function isSharedTrackingAdmin_() {
+  const actor = String(getSharedTrackingActor_() || '').toLowerCase();
+  if (!actor) return false;
+  const configured = String(PropertiesService.getScriptProperties().getProperty('PEC_VISOR_ADMIN_EMAILS') || '')
+    .split(/[;,]/)
+    .map(function(item) { return item.trim().toLowerCase(); })
+    .filter(Boolean);
+  return configured.indexOf(actor) >= 0;
 }

@@ -13,6 +13,8 @@ Este proyecto crea el entorno pesado para trabajar con Google Drive como reposit
   - `?format=json`
   - `?format=csv`
   - `?action=ai&format=json` para analisis IA protegido con token
+  - `?view=visor` para el visor compartido de seguimiento
+  - `?action=visor_state&format=json` para diagnostico del estado compartido
 
 ## Instalacion manual
 
@@ -38,6 +40,17 @@ Este proyecto crea el entorno pesado para trabajar con Google Drive como reposit
 9. Usa los botones para crear estructura y escanear Drive.
 10. Copia la URL con `?format=json` o `?format=csv` y pegala en el panel GitHub Pages.
 11. En la pestana `Inteligencia PEC`, usa `Configurar token IA` y pega el token privado PEC.
+12. Para usar el visor compartido, abre la misma URL del Web App con `?view=visor`.
+13. Si quieres habilitar auditoria de administrador por correo, agrega en `Script Properties`:
+
+   ```text
+   PEC_VISOR_ADMIN_EMAILS=darwin@dominio.com;otro@dominio.com
+   ```
+
+   El backend compartido guardara:
+   - estado central del visor
+   - bitacora compartida de cambios
+   - backup diario JSON en Drive
 
 ## Flujo de trabajo recomendado
 
@@ -47,6 +60,7 @@ Este proyecto crea el entorno pesado para trabajar con Google Drive como reposit
 4. Abre el panel `https://dpardave-byte.github.io/PEC/`.
 5. Pega el endpoint JSON/CSV de Apps Script en el campo de fuente.
 6. Para analisis con IA, primero confirma que el despliegue de Apps Script sea una version nueva y que `OPENAI_API_KEY` y `PEC_AI_TOKEN` esten configurados.
+7. Para el visor compartido, usa siempre la URL del Web App con `?view=visor` y no el archivo local `file:///`.
 
 ## Nota
 

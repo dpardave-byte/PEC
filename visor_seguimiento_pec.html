@@ -153,6 +153,11 @@ tbody tr:hover td{background:#f8fbfe}
 .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .detail-box{border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--soft)}
 .detail-box b{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.detail-box input,.detail-box select,.detail-box textarea{
+  width:100%;min-height:40px;border:1px solid var(--line);border-radius:10px;background:#fff;
+  color:var(--ink);padding:10px 12px;font:14px Arial,Helvetica,sans-serif
+}
+.detail-box textarea{min-height:96px;resize:vertical}
 .local-note-box{display:grid;gap:10px;margin-top:16px}
 .modal{padding:20px;overflow:auto}
 .modal-card{max-width:960px;margin:0 auto;padding:18px}
@@ -342,6 +347,7 @@ tbody tr:hover td{background:#f8fbfe}
 <script src="./pec_tracking_data.js"></script>
 <script>
 const STORAGE_KEY = 'pec_tracking_notes_v1';
+const EDIT_STORAGE_KEY = 'pec_tracking_edits_v1';
 const HEADER_ROW = 7;
 const SHEET_NAME = 'CRONOGRAMA';
 const SELECTED_COLUMNS = [1, 2, 3, 4, 5, 6, 7, 8, 248, 249, 250];
@@ -350,6 +356,7 @@ const appState = {
   matched: [],
   filtered: [],
   notes: loadNotes(),
+  edits: loadEdits(),
   selectedId: '',
   reportText: '',
   reportHtml: '',
@@ -367,6 +374,18 @@ function loadNotes(){
 
 function saveNotes(){
   localStorage.setItem(STORAGE_KEY, JSON.stringify(appState.notes));
+}
+
+function loadEdits(){
+  try{
+    return JSON.parse(localStorage.getItem(EDIT_STORAGE_KEY) || '{}');
+  }catch(error){
+    return {};
+  }
+}
+
+function saveEdits(){
+  localStorage.setItem(EDIT_STORAGE_KEY, JSON.stringify(appState.edits));
 }
 
 function slugify(text){
@@ -418,7 +437,23 @@ function diffDays(end, start){
 
 function getMergedRecord(record){
   const note = appState.notes[record.id] || {};
-  return {...record, local_note:text(note.note), local_action:text(note.action)};
+  const edit = appState.edits[record.id] || {};
+  const merged = {
+    ...record,
+    ...edit,
+    local_note:text(note.note),
+    local_action:text(note.action)
+  };
+  merged.inicio = toIsoDate(merged.inicio);
+  merged.final = toIsoDate(merged.final);
+  merged.duracion_cal = toNumber(merged.duracion_cal);
+  merged.dias_habiles = toNumber(merged.dias_habiles);
+  merged.estado = text(merged.estado) || 'Sin estado';
+  merged.avance_estimado = deriveProgress(merged.estado);
+  merged.dias_restantes = deriveRemaining(merged.final, merged.estado);
+  merged.alerta = deriveAlert(merged.inicio, merged.final, merged.estado);
+  merged.resumen = text(merged.resumen) || [merged.edt ? `EDT ${merged.edt}` : '', merged.seguimiento_dgppcs || merged.responsable, merged.estado].filter(Boolean).join(' | ');
+  return merged;
 }
 
 function hydrateData(){
@@ -961,22 +996,41 @@ function openDrawer(recordId){
     '<div><b>Estado:</b> ' + escapeHtml(record.estado) + '</div>' +
     '<div><b>Alerta:</b> ' + escapeHtml(alertLabel(record.alerta)) + '</div>' +
     '<div><b>Fechas:</b> ' + escapeHtml(fmtDate(record.inicio) + ' - ' + fmtDate(record.final)) + '</div>';
-  const details = [
-    ['Responsable', record.responsable || '-'],
-    ['Seguimiento DGPPCS', record.seguimiento_dgppcs || '-'],
-    ['Contacto', record.contacto || '-'],
-    ['Duracion calendario', record.duracion_cal != null ? String(record.duracion_cal) + ' dias' : '-'],
-    ['Dias habiles', record.dias_habiles != null ? String(record.dias_habiles) : '-'],
-    ['Dias restantes', record.dias_restantes != null ? String(record.dias_restantes) : '-'],
-    ['Grupo EDT', record.grupo || '-'],
-    ['Resumen', record.resumen || '-']
-  ];
-  document.getElementById('detailGrid').innerHTML = details.map(([label,value]) =>
-    '<div class="detail-box"><b>' + escapeHtml(label) + '</b><div>' + escapeHtml(value) + '</div></div>'
-  ).join('');
+  document.getElementById('detailGrid').innerHTML = [
+    editableBox('Responsable','editResponsable','text',record.responsable,'Define responsable operativo'),
+    editableBox('Seguimiento DGPPCS','editSeguimiento','text',record.seguimiento_dgppcs,'Define seguimiento DGPPCS'),
+    editableBox('Contacto','editContacto','textarea',record.contacto,'Agrega correos, telefonos o nombres'),
+    editableBox('Estado','editEstado','select',record.estado,'', ['Completado','En Proceso','Pendiente de Iniciar','Sin estado']),
+    editableBox('Fecha inicio','editInicio','date',record.inicio,''),
+    editableBox('Fecha final','editFinal','date',record.final,''),
+    editableBox('Duracion calendario','editDuracion','number',record.duracion_cal != null ? String(record.duracion_cal) : '','Dias calendario'),
+    editableBox('Dias habiles','editHabiles','number',record.dias_habiles != null ? String(record.dias_habiles) : '','Dias habiles'),
+    editableBox('Resumen','editResumen','textarea',record.resumen,'Sintesis ejecutiva del caso'),
+    readonlyBox('Dias restantes', record.dias_restantes != null ? String(record.dias_restantes) : '-'),
+    readonlyBox('Grupo EDT', record.grupo || '-'),
+    readonlyBox('Alerta calculada', alertLabel(record.alerta))
+  ].join('');
   document.getElementById('localNote').value = record.local_note || '';
   document.getElementById('localAction').value = record.local_action || '';
   document.getElementById('drawer').classList.add('open');
+}
+
+function editableBox(label, id, kind, value, placeholder, options){
+  let control = '';
+  if(kind === 'textarea'){
+    control = '<textarea id="' + id + '" placeholder="' + escapeHtml(placeholder || '') + '">' + escapeHtml(value || '') + '</textarea>';
+  }else if(kind === 'select'){
+    control = '<select id="' + id + '">' + (options || []).map(option =>
+      '<option value="' + escapeHtml(option) + '"' + (option === value ? ' selected' : '') + '>' + escapeHtml(option) + '</option>'
+    ).join('') + '</select>';
+  }else{
+    control = '<input id="' + id + '" type="' + kind + '" value="' + escapeHtml(value || '') + '" placeholder="' + escapeHtml(placeholder || '') + '">';
+  }
+  return '<div class="detail-box"><b>' + escapeHtml(label) + '</b>' + control + '</div>';
+}
+
+function readonlyBox(label, value){
+  return '<div class="detail-box"><b>' + escapeHtml(label) + '</b><div>' + escapeHtml(value) + '</div></div>';
 }
 
 function closeDrawer(){
@@ -985,6 +1039,21 @@ function closeDrawer(){
 
 function saveCurrentCase(){
   if(!appState.selectedId) return;
+  appState.edits[appState.selectedId] = {
+    responsable: text(document.getElementById('editResponsable').value),
+    seguimiento_dgppcs: text(document.getElementById('editSeguimiento').value),
+    contacto: text(document.getElementById('editContacto').value),
+    estado: text(document.getElementById('editEstado').value),
+    inicio: text(document.getElementById('editInicio').value),
+    final: text(document.getElementById('editFinal').value),
+    duracion_cal: text(document.getElementById('editDuracion').value),
+    dias_habiles: text(document.getElementById('editHabiles').value),
+    resumen: text(document.getElementById('editResumen').value)
+  };
+  const edit = appState.edits[appState.selectedId];
+  if(!edit.responsable && !edit.seguimiento_dgppcs && !edit.contacto && !edit.estado && !edit.inicio && !edit.final && !edit.duracion_cal && !edit.dias_habiles && !edit.resumen){
+    delete appState.edits[appState.selectedId];
+  }
   appState.notes[appState.selectedId] = {
     note: text(document.getElementById('localNote').value),
     action: text(document.getElementById('localAction').value)
@@ -992,6 +1061,7 @@ function saveCurrentCase(){
   if(!appState.notes[appState.selectedId].note && !appState.notes[appState.selectedId].action){
     delete appState.notes[appState.selectedId];
   }
+  saveEdits();
   saveNotes();
   hydrateData();
   applyFilters();
@@ -1000,7 +1070,9 @@ function saveCurrentCase(){
 
 function clearCurrentCase(){
   if(!appState.selectedId) return;
+  delete appState.edits[appState.selectedId];
   delete appState.notes[appState.selectedId];
+  saveEdits();
   saveNotes();
   hydrateData();
   applyFilters();

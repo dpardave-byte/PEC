@@ -2312,11 +2312,17 @@ function slugify(text){
 function text(v){ return String(v == null ? '' : v).trim(); }
 
 function cleanPersonName(name){
-  return text(name).replace(/\.+$/,'').replace(/\s+/g,' ');
+  return text(name)
+    .replace(/[\u200B-\u200D\uFEFF]/g,'')
+    .replace(/\u00A0/g,' ')
+    .replace(/\.+$/,'')
+    .replace(/\s+/g,' ');
 }
 
 function cleanEntityName(name){
   return text(name)
+    .replace(/[\u200B-\u200D\uFEFF]/g,'')
+    .replace(/\u00A0/g,' ')
     .replace(/\.+$/,'')
     .replace(/\s*\/\s*/g,'/')
     .replace(/\s*-\s*/g,'-')
@@ -2826,6 +2832,14 @@ function withAncestors(matched, all){
   });
   const allById = new Map(ordered.map(record => [record.id, record]));
   const out = new Map();
+  const includeDescendants = recordId => {
+    const children = childrenMap.get(recordId) || [];
+    children.forEach(child => {
+      if(out.has(child.id)) return;
+      out.set(child.id, child);
+      includeDescendants(child.id);
+    });
+  };
   matched.forEach(record => {
     let currentId = record.id;
     while(currentId){
@@ -2835,6 +2849,7 @@ function withAncestors(matched, all){
       out.set(currentId, current);
       currentId = parentById.get(currentId);
     }
+    includeDescendants(record.id);
   });
   return ordered.filter(record => out.has(record.id));
 }

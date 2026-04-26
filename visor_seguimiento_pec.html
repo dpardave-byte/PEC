@@ -26,16 +26,17 @@ body{min-height:100vh}
 .app{max-width:1500px;margin:0 auto;padding:18px}
 .topbar{display:grid;grid-template-columns:1.2fr .8fr;gap:16px;margin-bottom:16px}
 .hero,.report-box,.panel,.drawer-card,.modal-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
-.hero{padding:0;overflow:hidden;display:grid;grid-template-columns:1.2fr .8fr;min-height:220px}
-.hero-copy{padding:24px;background:linear-gradient(135deg,rgba(16,57,88,.94),rgba(14,90,106,.88));color:#fff;display:flex;flex-direction:column;justify-content:center}
-.hero-copy h1{margin:0;font-size:30px;line-height:1.05;color:#fff}
-.hero-copy p{margin:10px 0 0;color:rgba(255,255,255,.88);max-width:760px}
-.hero-copy .hero-meta{color:rgba(255,255,255,.82)}
+.hero{padding:0;overflow:hidden;display:grid;grid-template-columns:1.15fr .85fr;min-height:320px}
+.hero-copy{padding:34px 28px;background:linear-gradient(135deg,rgba(16,57,88,.96),rgba(14,90,106,.90));color:#fff;display:flex;flex-direction:column;justify-content:center}
+.hero-copy h1{margin:0;font-size:48px;line-height:1.02;color:#fff;letter-spacing:-.02em}
+.hero-copy p{margin:14px 0 0;color:rgba(255,255,255,.92);max-width:760px;font-size:24px;line-height:1.25}
+.hero-copy .hero-meta{color:rgba(255,255,255,.9);font-size:16px;gap:20px}
 .hero-visual{position:relative;background:#dbe9f4}
 .hero-visual img{width:100%;height:100%;object-fit:cover;display:block}
 .hero-visual:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(16,57,88,.18),rgba(16,57,88,.02))}
 .hero-meta{display:flex;gap:18px;flex-wrap:wrap;margin-top:14px;font-size:13px;color:var(--muted)}
 .hero-meta b{color:var(--ink)}
+.hero-copy .hero-meta b{color:#fff}
 .report-box figure{margin:0;border-radius:12px;overflow:hidden;border:1px solid var(--line)}
 .report-box figure img{width:100%;height:180px;object-fit:cover;display:block}
 .report-box figcaption{padding:10px 12px;font-size:12px;color:var(--muted);background:#fbfdff}
@@ -97,15 +98,16 @@ button.soft{background:#e8f5f1;color:#0e615a}
 .fill.amber{background:linear-gradient(90deg,#c78818,#ffd082)}
 .timeline-shell{overflow:auto;padding-bottom:6px}
 .timeline-head,.timeline-row{
-  display:grid;grid-template-columns:340px minmax(680px,1fr) 130px 110px;gap:12px;align-items:center
+  display:grid;grid-template-columns:420px minmax(680px,1fr) 130px 110px;gap:16px;align-items:center
 }
-.timeline-head{margin-bottom:10px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+.timeline-head{margin-bottom:12px;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.6px}
 .months{display:grid;grid-template-columns:repeat(var(--months),1fr);gap:4px}
-.months div{padding:6px 0;background:#f2f6fa;border-radius:8px;text-align:center}
-.gantt-list{display:grid;gap:10px}
-.timeline-row{padding:10px 0;border-top:1px solid #edf2f6}
-.timeline-title strong{display:block}
-.timeline-title span{display:block;color:var(--muted);font-size:12px;margin-top:4px}
+.months div{padding:7px 0;background:#f2f6fa;border-radius:8px;text-align:center;font-size:13px}
+.gantt-list{display:grid;gap:12px}
+.timeline-row{padding:14px 0;border-top:1px solid #edf2f6}
+.timeline-title strong{display:block;font-size:20px;line-height:1.12}
+.timeline-title span{display:block;color:var(--muted);font-size:14px;line-height:1.25;margin-top:5px}
+.timeline-title small{display:block;color:var(--brand-2);font-size:14px;line-height:1.25;margin-top:6px;font-weight:700}
 .timeline-title .edt-cell{align-items:center}
 .gantt-track{height:26px;background:#eef3f8;border-radius:999px;position:relative;overflow:hidden}
 .gantt-bar{
@@ -175,6 +177,8 @@ tbody tr:hover td{background:#f8fbfe}
 .assign-picker summary::-webkit-details-marker{display:none}
 .assign-picker[open] summary{border-bottom-left-radius:8px;border-bottom-right-radius:8px;margin-bottom:10px}
 .local-note-box{display:grid;gap:10px;margin-top:16px}
+.summary-bullets{margin:8px 0 0;padding-left:18px;display:grid;gap:6px}
+.summary-bullets li{color:var(--muted);font-size:14px;line-height:1.3}
 .modal{padding:20px;overflow:auto}
 .modal-card{max-width:960px;margin:0 auto;padding:18px}
 .report-preview{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;line-height:1.6}
@@ -277,10 +281,10 @@ tbody tr:hover td{background:#f8fbfe}
   <section class="layout" style="margin-top:16px">
     <div class="stack">
       <div class="panel">
-        <h2>Gantt ejecutivo</h2>
+        <h2>Seguimiento maestro</h2>
         <div class="timeline-shell">
           <div class="timeline-head">
-            <div>Actividad</div>
+            <div>Actividad y detalle</div>
             <div class="months" id="timelineMonths"></div>
             <div>Estado</div>
             <div>Avance</div>
@@ -289,7 +293,7 @@ tbody tr:hover td{background:#f8fbfe}
         </div>
       </div>
 
-      <div class="panel">
+      <div class="panel" id="tablePanel" hidden>
         <h2>Portafolio de casos</h2>
         <div class="table-shell">
           <table>
@@ -1971,6 +1975,7 @@ window.PEC_TRACKING_DATA = {
 const STORAGE_KEY = 'pec_tracking_notes_v1';
 const EDIT_STORAGE_KEY = 'pec_tracking_edits_v1';
 const PEOPLE_STORAGE_KEY = 'pec_tracking_people_v1';
+const ALIAS_STORAGE_KEY = 'pec_tracking_aliases_v1';
 const HEADER_ROW = 7;
 const SHEET_NAME = 'CRONOGRAMA';
 const SELECTED_COLUMNS = [1, 2, 3, 4, 5, 6, 7, 8, 248, 249, 250];
@@ -1991,6 +1996,7 @@ const appState = {
   notes: loadNotes(),
   edits: loadEdits(),
   customPeople: loadCustomPeople(),
+  aliases: loadAliases(),
   selectedId: '',
   reportText: '',
   reportHtml: '',
@@ -2032,6 +2038,18 @@ function loadCustomPeople(){
 
 function saveCustomPeople(){
   localStorage.setItem(PEOPLE_STORAGE_KEY, JSON.stringify(appState.customPeople));
+}
+
+function loadAliases(){
+  try{
+    return JSON.parse(localStorage.getItem(ALIAS_STORAGE_KEY) || '{}');
+  }catch(error){
+    return {};
+  }
+}
+
+function saveAliases(){
+  localStorage.setItem(ALIAS_STORAGE_KEY, JSON.stringify(appState.aliases));
 }
 
 function slugify(text){
@@ -2154,9 +2172,36 @@ function isExcludedRecord(record){
   return edt === '4' && /elaboraci[oó]n del sistema de seguimiento/.test(actividad);
 }
 
+function isIntrinsicDeadlineRecord(record){
+  return text(record.edt) === '*' && /plazo para cumplimiento de condiciones de efectividad/i.test(text(record.actividad));
+}
+
+function normalizeRecords(records){
+  const ordered = sortBySourceOrder(records.map(record => ({...record})));
+  const out = [];
+  let lastTopLevel = null;
+  ordered.forEach(record => {
+    if(isExcludedRecord(record)) return;
+    if(text(record.edt) === '*'){
+      if(lastTopLevel){
+        if(!lastTopLevel.intrinsic_notes) lastTopLevel.intrinsic_notes = [];
+        const note = [text(record.actividad)];
+        if(record.inicio || record.final){
+          note.push([fmtDate(record.inicio), fmtDate(record.final)].filter(value => value && value !== '-').join(' a '));
+        }
+        lastTopLevel.intrinsic_notes.push(note.filter(Boolean).join(' | '));
+      }
+      return;
+    }
+    out.push(record);
+    if(Number(record.nivel) === 1) lastTopLevel = record;
+  });
+  return out;
+}
+
 function hydrateData(){
   const payload = window.PEC_TRACKING_DATA || {meta:{},summary:{},records:[]};
-  appState.raw = payload.records.map(getMergedRecord).filter(record => !isExcludedRecord(record));
+  appState.raw = normalizeRecords(payload.records.map(getMergedRecord));
   updateMeta(payload.meta);
   resetExpandedState();
 }
@@ -2437,7 +2482,7 @@ async function loadExcelFromInput(){
   }
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, {type:'array'});
-  const records = parseWorkbookRecords(workbook).map(getMergedRecord);
+  const records = normalizeRecords(parseWorkbookRecords(workbook).map(getMergedRecord));
   const payload = buildPayloadFromRecords(records, file.name);
   appState.sourceMode = 'xlsx';
   appState.raw = payload.records;
@@ -2484,6 +2529,17 @@ function buildHierarchyMaps(records){
     stack.push({id: record.id, level});
   });
   return {ordered, childrenMap};
+}
+
+function displayTitle(record){
+  const alias = text((appState.aliases && appState.aliases[record.id]) || '');
+  const label = alias || text(record.actividad);
+  return (record.edt ? record.edt + ' - ' : '') + label;
+}
+
+function intrinsicLine(record){
+  const notes = Array.isArray(record.intrinsic_notes) ? record.intrinsic_notes.filter(Boolean) : [];
+  return notes.join(' | ');
 }
 
 function getVisibleHierarchy(records){
@@ -2541,12 +2597,16 @@ function renderQuickSummary(){
     .slice(0,3);
   const overdue = records.filter(r => r.alerta === 'vencido').slice(0,3);
   const summary = [
-    {title:'Vencimientos inmediatos', body: nextDue.length ? nextDue.map(r => r.edt + ' ' + r.actividad).join(' | ') : 'Sin actividades por vencer en <= 15 dias'},
-    {title:'Atrasos abiertos', body: overdue.length ? overdue.map(r => r.edt + ' ' + r.actividad).join(' | ') : 'Sin atrasos abiertos'},
+    {title:'Vencimientos inmediatos', items: nextDue.length ? nextDue.map(r => [displayTitle(r), fmtDate(r.final)].filter(Boolean).join(' | ')) : ['Sin actividades por vencer en <= 15 dias']},
+    {title:'Atrasos abiertos', items: overdue.length ? overdue.map(r => [displayTitle(r), fmtDate(r.final)].filter(Boolean).join(' | ')) : ['Sin atrasos abiertos']},
     {title:'Cobertura local', body: records.filter(r => r.local_note || r.local_action).length + ' casos con informacion adicional guardada en este equipo'}
   ];
   document.getElementById('quickReportSummary').innerHTML = summary.map(item =>
-    '<div class="summary-item"><div><strong>' + escapeHtml(item.title) + '</strong><span>' + escapeHtml(item.body) + '</span></div></div>'
+    '<div class="summary-item"><div><strong>' + escapeHtml(item.title) + '</strong>' +
+      (item.items
+        ? '<ul class="summary-bullets">' + item.items.map(line => '<li>' + escapeHtml(line) + '</li>').join('') + '</ul>'
+        : '<span>' + escapeHtml(item.body) + '</span>') +
+    '</div></div>'
   ).join('');
 }
 
@@ -2562,7 +2622,7 @@ function renderAlerts(){
   }
   el.innerHTML = list.map(r =>
     '<div class="alert-item" data-open="' + escapeHtml(r.id) + '">' +
-      '<div><strong>' + escapeHtml((r.edt ? r.edt + ' - ' : '') + r.actividad) + '</strong>' +
+      '<div><strong>' + escapeHtml(displayTitle(r)) + '</strong>' +
       '<span>' + escapeHtml([r.seguimiento_dgppcs || r.responsable || 'Sin responsable', fmtDate(r.final)].join(' | ')) + '</span></div>' +
       '<span class="alert-pill al-' + slugify(r.alerta) + '">' + escapeHtml(alertLabel(r.alerta)) + '</span>' +
     '</div>'
@@ -2683,9 +2743,9 @@ function renderGantt(){
     return '<div class="timeline-row" data-open="' + escapeHtml(r.id) + '">' +
       '<div class="timeline-title"><div class="edt-cell" style="padding-left:' + indent + 'px">' +
       '<button class="tree-toggle' + (hasChildren ? '' : ' empty') + '" data-toggle="' + escapeHtml(r.id) + '" ' + (hasChildren ? '' : 'tabindex="-1" aria-hidden="true"') + '>' + (hasChildren ? (appState.expanded[r.id] ? '−' : '+') : '+') + '</button>' +
-      '<div><strong>' + escapeHtml((r.edt ? r.edt + ' - ' : '') + r.actividad) + '</strong><span>' +
+      '<div><strong>' + escapeHtml(displayTitle(r)) + '</strong><span>' +
       escapeHtml((r.seguimiento_dgppcs || r.responsable || 'Sin responsable') + ' | ' + fmtDate(r.inicio) + ' a ' + fmtDate(r.final) + (hasChildren ? ' | ' + kids.length + ' subactividad(es)' : '')) +
-      '</span></div></div></div>' +
+      '</span>' + (intrinsicLine(r) ? '<small>' + escapeHtml(intrinsicLine(r)) + '</small>' : '') + '</div></div></div>' +
       '<div class="gantt-track"><div class="gantt-today" style="left:' + todayOffset + '%"></div><div class="gantt-bar ' + stateCls + '" style="left:' + left + '%;width:' + width + '%"></div></div>' +
       '<div class="gantt-label"><span class="status-pill st-' + slugify(r.estado) + '">' + escapeHtml(r.estado) + '</span></div>' +
       '<div class="gantt-progress"><div class="progress-track"><i style="width:' + clamp(r.avance_estimado,0,100) + '%"></i></div><span>' + escapeHtml(String(r.avance_estimado)) + '%</span></div>' +
@@ -2719,6 +2779,8 @@ function renderTable(){
     return;
   }
   empty.hidden = true;
+  const panel = document.getElementById('tablePanel');
+  if(panel && panel.hidden) return;
   const {childrenMap, visible} = getVisibleHierarchy(appState.filtered);
   tbody.innerHTML = visible.map(r => {
       const kids = childrenMap.get(r.id) || [];
@@ -2732,9 +2794,10 @@ function renderTable(){
             '<span class="edt-chip">' + escapeHtml(r.edt || '-') + '</span>' +
           '</div>' +
         '</td>' +
-        '<td><div class="activity-wrap"><strong>' + escapeHtml(r.actividad) + '</strong>' + 
+        '<td><div class="activity-wrap"><strong>' + escapeHtml(displayTitle(r)) + '</strong>' + 
           '<div class="activity-meta">' +
             (r.local_note ? '<span class="small">Con informacion local</span>' : '') +
+            (intrinsicLine(r) ? '<span class="small">' + escapeHtml(intrinsicLine(r)) + '</span>' : '') +
             (hasChildren ? '<span class="child-count">' + kids.length + ' subactividad(es)</span>' : '') +
           '</div></div></td>' +
         '<td>' + escapeHtml(r.responsable || '-') + '</td>' +
@@ -2751,7 +2814,7 @@ function openDrawer(recordId){
   const record = appState.raw.find(r => r.id === recordId);
   if(!record) return;
   appState.selectedId = record.id;
-  document.getElementById('drawerTitle').textContent = (record.edt ? record.edt + ' - ' : '') + record.actividad;
+  document.getElementById('drawerTitle').textContent = displayTitle(record);
   document.getElementById('drawerSubtitle').innerHTML =
     '<div><b>Estado:</b> ' + escapeHtml(record.estado) + '</div>' +
     '<div><b>Alerta:</b> ' + escapeHtml(alertLabel(record.alerta)) + '</div>' +
@@ -2765,6 +2828,7 @@ function openDrawer(recordId){
     editableBox('Fecha final','editFinal','date',record.final,''),
     editableBox('Duracion calendario','editDuracion','number',record.duracion_cal != null ? String(record.duracion_cal) : '','Dias calendario'),
     editableBox('Dias habiles','editHabiles','number',record.dias_habiles != null ? String(record.dias_habiles) : '','Dias habiles'),
+    editableBox('Titulo visible','editAlias','text',text(appState.aliases[record.id] || ''),'Renombrar este EDT en el visor'),
     editableBox('Resumen','editResumen','textarea',record.resumen,'Sintesis ejecutiva del caso'),
     readonlyBox('Dias restantes', record.dias_restantes != null ? String(record.dias_restantes) : '-'),
     readonlyBox('Grupo EDT', record.grupo || '-'),
@@ -2851,8 +2915,15 @@ function saveCurrentCase(){
   if(!appState.notes[appState.selectedId].note && !appState.notes[appState.selectedId].action){
     delete appState.notes[appState.selectedId];
   }
+  const aliasValue = text(document.getElementById('editAlias')?.value);
+  if(aliasValue){
+    appState.aliases[appState.selectedId] = aliasValue;
+  }else{
+    delete appState.aliases[appState.selectedId];
+  }
   saveEdits();
   saveNotes();
+  saveAliases();
   hydrateData();
   applyFilters();
   closeDrawer();
@@ -2862,8 +2933,10 @@ function clearCurrentCase(){
   if(!appState.selectedId) return;
   delete appState.edits[appState.selectedId];
   delete appState.notes[appState.selectedId];
+  delete appState.aliases[appState.selectedId];
   saveEdits();
   saveNotes();
+  saveAliases();
   hydrateData();
   applyFilters();
   openDrawer(appState.selectedId);
@@ -2911,7 +2984,7 @@ function buildExecutiveReport(){
     lines.push('- No hay casos vencidos en la vista actual.');
   }else{
     overdue.slice(0,10).forEach(r => {
-      lines.push('- ' + [r.edt, r.actividad, fmtDate(r.final), r.seguimiento_dgppcs || r.responsable || 'Sin responsable'].filter(Boolean).join(' | '));
+      lines.push('- ' + [displayTitle(r), fmtDate(r.final), r.seguimiento_dgppcs || r.responsable || 'Sin responsable'].filter(Boolean).join(' | '));
     });
   }
   lines.push('');
@@ -2920,7 +2993,7 @@ function buildExecutiveReport(){
     lines.push('- No hay hitos proximos con fecha registrada.');
   }else{
     nextMilestones.forEach(r => {
-      lines.push('- ' + [fmtDate(r.final), r.edt, r.actividad, r.estado].filter(Boolean).join(' | '));
+      lines.push('- ' + [fmtDate(r.final), displayTitle(r), r.estado].filter(Boolean).join(' | '));
     });
   }
   lines.push('');
@@ -2956,9 +3029,9 @@ function buildExecutiveReport(){
       <li>Criticos (vence &lt;= 7 dias): ${critical.length}</li>
     </ul>
     <h2>2. Casos vencidos</h2>
-    ${overdue.length ? '<ul>' + overdue.slice(0,10).map(r => '<li>' + escapeHtml([r.edt, r.actividad, fmtDate(r.final), r.seguimiento_dgppcs || r.responsable || 'Sin responsable'].filter(Boolean).join(' | ')) + '</li>').join('') + '</ul>' : '<p>No hay casos vencidos en la vista actual.</p>'}
+    ${overdue.length ? '<ul>' + overdue.slice(0,10).map(r => '<li>' + escapeHtml([displayTitle(r), fmtDate(r.final), r.seguimiento_dgppcs || r.responsable || 'Sin responsable'].filter(Boolean).join(' | ')) + '</li>').join('') + '</ul>' : '<p>No hay casos vencidos en la vista actual.</p>'}
     <h2>3. Proximos hitos</h2>
-    ${nextMilestones.length ? '<ul>' + nextMilestones.map(r => '<li>' + escapeHtml([fmtDate(r.final), r.edt, r.actividad, r.estado].filter(Boolean).join(' | ')) + '</li>').join('') + '</ul>' : '<p>No hay hitos proximos con fecha registrada.</p>'}
+    ${nextMilestones.length ? '<ul>' + nextMilestones.map(r => '<li>' + escapeHtml([fmtDate(r.final), displayTitle(r), r.estado].filter(Boolean).join(' | ')) + '</li>').join('') + '</ul>' : '<p>No hay hitos proximos con fecha registrada.</p>'}
     <h2>4. Carga operativa por responsable</h2>
     ${byResponsible.length ? '<ul>' + byResponsible.map(item => '<li>' + escapeHtml(item.label + ': ' + item.count + ' casos') + '</li>').join('') + '</ul>' : '<p>Sin informacion.</p>'}
     <h2>5. Carga de seguimiento DGPPCS</h2>

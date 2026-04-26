@@ -2075,18 +2075,12 @@ const BASE_ENTITIES = [
   'EMSAPUNO',
   'MPP',
   'UAL',
-  'EPS',
-  'BM/DGPPCS/PNSU/PASLC',
-  'EMSAPUNO/MPP/PNSU',
-  'PASLC/DGPPCS',
-  'PNSU/BM',
-  'PNSU/DGPPCS',
-  'PNSU/PASLC'
+  'EPS'
 ];
 const DEFAULT_TITLE_BY_EDT = {
   '3.2': 'Creación del Equipo Técnico de Gestión del Programa - Programa de Economía Circular (ETGP-PEC)',
   '3.2.1': 'Aprobación de la RM de Creación del CCP-PEC',
-  '5': 'Inicio de Efectividad del Préstamo'
+  '4': 'Inicio de Efectividad del Préstamo'
 };
 const DEFAULT_HERO = {
   title: 'Visor de Seguimiento PEC',
@@ -2279,11 +2273,8 @@ function canonicalEntityName(name){
   if(!cleaned) return '';
   const key = entityKey(cleaned);
   if(key === entityKey('pascl')) return 'PASLC';
-  if(key === entityKey('pnsu-dgppcs') || key === entityKey('pnsu dgppcs')) return 'PNSU/DGPPCS';
-  if(key === entityKey('paslc-dgppcs') || key === entityKey('paslc dgppcs')) return 'PASLC/DGPPCS';
-  if(key === entityKey('pnsu-bm') || key === entityKey('pnsu bm')) return 'PNSU/BM';
-  if(key === entityKey('bm-dgppcs-pnsu-paslc') || key === entityKey('bm dgppcs pnsu paslc')) return 'BM/DGPPCS/PNSU/PASLC';
-  if(key === entityKey('emsapuno-mpp-pnsu') || key === entityKey('emsapuno mpp pnsu')) return 'EMSAPUNO/MPP/PNSU';
+  if(key === entityKey('dgaa')) return 'DGAA';
+  if(key === entityKey('dgprcs')) return 'DGPRCS';
   const preferred = BASE_ENTITIES.find(entity => entityKey(entity) === key);
   return preferred || cleaned;
 }
@@ -2297,7 +2288,7 @@ function splitPeople(value){
 
 function splitEntities(value){
   return text(value)
-    .split(/[;,]+/g)
+    .split(/[\/,;]+/g)
     .map(canonicalEntityName)
     .filter(Boolean);
 }
@@ -2396,8 +2387,12 @@ function getMergedRecord(record){
     local_action:text(note.action)
   };
   if(!text(merged.edt) && /inicio de efectividad del pr[eé]stamo/i.test(text(merged.actividad))){
-    merged.edt = '5';
+    merged.edt = '4';
     merged.actividad = 'Inicio de Efectividad del Préstamo';
+  }
+  merged.edt = normalizeProgramEdt(merged.edt, merged.actividad);
+  if(/^5(\.|$)/.test(text(merged.parent_edt))){
+    merged.parent_edt = text(merged.parent_edt).replace(/^5(?=\.|$)/, '4');
   }
   merged.inicio = toIsoDate(merged.inicio);
   merged.final = toIsoDate(merged.final);
@@ -2417,7 +2412,7 @@ function getMergedRecord(record){
 }
 
 function isExcludedRecord(record){
-  return false;
+  return isSystemTrackingBlock(record);
 }
 
 function isCommentOnlyRecord(record){
@@ -2487,8 +2482,14 @@ function buildSelect(selectId, values, placeholder){
 function initSearchSuggestions(){
   const datalist = document.getElementById('searchSuggestions');
   const items = uniqueSorted(
-    appState.raw.flatMap(r => [r.edt, r.actividad, r.responsable, r.seguimiento_dgppcs]).filter(Boolean)
-  ).slice(0, 300);
+    appState.raw.flatMap(r => {
+      const values = [];
+      if(text(r.edt) || text(r.actividad)) values.push(displayTitle(r));
+      splitEntities(r.responsable).forEach(entity => values.push(entity));
+      splitPeople(r.seguimiento_dgppcs).forEach(person => values.push(person));
+      return values;
+    }).filter(value => text(value).length > 3)
+  ).slice(0, 180);
   datalist.innerHTML = items.map(item => '<option value="' + escapeHtml(item) + '"></option>').join('');
 }
 
@@ -2634,13 +2635,32 @@ function deriveGroup(edt){
   return raw ? raw.split('.')[0] : 'Sin grupo';
 }
 
+function normalizeProgramEdt(edt, actividad){
+  const rawEdt = text(edt);
+  const rawActividad = text(actividad);
+  if(!rawEdt && /inicio de efectividad del pr[eé]stamo/i.test(rawActividad)){
+    return '4';
+  }
+  if(/^5(\.|$)/.test(rawEdt)){
+    return rawEdt.replace(/^5(?=\.|$)/, '4');
+  }
+  return rawEdt;
+}
+
+function isSystemTrackingBlock(record){
+  const actividad = text(record.actividad);
+  const edt = text(record.edt);
+  return /elaboraci[oó]n del sistema de seguimiento/i.test(actividad) || /^4(\.|$)/.test(edt) && /sistema de seguimiento/i.test(actividad);
+}
+
 function buildRecordFromExcel(raw, idx){
   let edt = text(raw.EDT);
   let actividad = text(raw.Actividad);
   if(!edt && /inicio de efectividad del pr[eé]stamo/i.test(actividad)){
-    edt = '5';
+    edt = '4';
     actividad = 'Inicio de Efectividad del Préstamo';
   }
+  edt = normalizeProgramEdt(edt, actividad);
   const responsable = text(raw.Responsable);
   const inicio = toIsoDate(raw.Inicio);
   const final = toIsoDate(raw.Final);

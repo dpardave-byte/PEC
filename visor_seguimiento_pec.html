@@ -187,7 +187,7 @@ tbody tr:hover td{background:#f8fbfe}
   <section class="topbar">
     <div class="hero">
       <h1>Visor de Seguimiento PEC</h1>
-      <p>Tablero standalone para seguimiento de actividades, alertas de vencimiento, Gantt ejecutivo y gestion de casos sin dependencia de Power BI ni permisos de administrador.</p>
+      <p>Tablero standalone para seguimiento de actividades, alertas de vencimiento, Gantt ejecutivo y gestion de casos para uso operativo y toma de decisiones.</p>
       <div class="hero-meta">
         <div><b>Fuente:</b> Sistema Seguimiento-PEC - 20.04.26.xlsx</div>
         <div><b>Corte:</b> <span id="metaGeneratedAt">-</span></div>
@@ -466,15 +466,36 @@ function cleanPersonName(name){
   return text(name).replace(/\.+$/,'').replace(/\s+/g,' ');
 }
 
+function personKey(name){
+  return cleanPersonName(name)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'');
+}
+
+function canonicalPersonName(name){
+  const cleaned = cleanPersonName(name);
+  if(!cleaned) return '';
+  const key = personKey(cleaned);
+  const preferred = BASE_PEOPLE.find(person => personKey(person) === key);
+  return preferred || cleaned;
+}
+
 function splitPeople(value){
   return text(value)
     .split(/[\/,;]+/g)
-    .map(cleanPersonName)
+    .map(canonicalPersonName)
     .filter(Boolean);
 }
 
 function uniquePeople(values){
-  return Array.from(new Set(values.flatMap(splitPeople))).sort((a,b)=>a.localeCompare(b,'es'));
+  const out = new Map();
+  values.flatMap(splitPeople).forEach(name => {
+    const key = personKey(name);
+    if(!key) return;
+    if(!out.has(key)) out.set(key, canonicalPersonName(name));
+  });
+  return Array.from(out.values()).sort((a,b)=>a.localeCompare(b,'es'));
 }
 
 function getAssignablePeople(){
@@ -600,7 +621,7 @@ function applyFilters(){
     if(status && record.estado !== status) return false;
     if(alert && record.alerta !== alert) return false;
     if(group && record.grupo !== group) return false;
-    if(owner && !splitPeople(record.seguimiento_dgppcs).includes(owner)) return false;
+    if(owner && !splitPeople(record.seguimiento_dgppcs).some(person => personKey(person) === personKey(owner))) return false;
     return true;
   });
 
@@ -1235,7 +1256,7 @@ function buildExecutiveReport(){
   }else{
     lines.push('- El portafolio visible concentra ' + inProgress + ' frentes activos y ' + overdue.length + ' atrasos que requieren destrabe.');
     lines.push('- El riesgo principal se ubica en hitos con fecha proxima o vencida, especialmente cuando no hay responsable operativo claro.');
-    lines.push('- El seguimiento local registrado cubre ' + records.filter(r => r.local_note || r.local_action).length + ' casos, lo que ayuda a sostener trazabilidad sin depender de Power BI.');
+    lines.push('- El seguimiento local registrado cubre ' + records.filter(r => r.local_note || r.local_action).length + ' casos, lo que ayuda a sostener trazabilidad operativa y continuidad de gestión.');
   }
   lines.push('');
   lines.push('3. Casos vencidos');

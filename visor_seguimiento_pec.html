@@ -43,7 +43,7 @@ body{min-height:100vh}
 .report-box h2{margin:0;font-size:16px;color:var(--brand)}
 .report-box .actions,.toolbar-actions{display:flex;gap:10px;flex-wrap:wrap}
 .toolbar{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;margin-bottom:16px}
-.filters{display:grid;grid-template-columns:1.4fr repeat(4,minmax(0,1fr));gap:10px}
+.filters{display:grid;grid-template-columns:1.4fr repeat(5,minmax(0,1fr));gap:10px}
 .ingest{display:grid;grid-template-columns:1.2fr auto auto;gap:10px;align-items:end}
 .field{display:grid;gap:6px}
 .field label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700}
@@ -245,6 +245,10 @@ tbody tr:hover td{background:#f8fbfe}
         <select id="groupFilter"></select>
       </div>
       <div class="field">
+        <label for="responsibleFilter">Responsable</label>
+        <select id="responsibleFilter"></select>
+      </div>
+      <div class="field">
         <label for="ownerFilter">Seguimiento DGPPCS</label>
         <select id="ownerFilter"></select>
       </div>
@@ -316,7 +320,12 @@ tbody tr:hover td{background:#f8fbfe}
       </div>
 
       <div class="panel">
-        <h2>Carga por seguimiento</h2>
+        <h2>Carga operativa por responsable</h2>
+        <div class="bar-list" id="responsibleBars"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Carga de seguimiento DGPPCS</h2>
         <div class="bar-list" id="ownerBars"></div>
       </div>
 
@@ -596,8 +605,10 @@ function hydrateData(){
 }
 
 function updateMeta(meta){
-  document.getElementById('metaGeneratedAt').textContent = meta.generatedAt || '-';
-  document.getElementById('metaReferenceDate').textContent = meta.referenceDate || '-';
+  const generatedEl = document.getElementById('metaGeneratedAt');
+  const referenceEl = document.getElementById('metaReferenceDate');
+  if(generatedEl) generatedEl.textContent = meta.generatedAt || '-';
+  if(referenceEl) referenceEl.textContent = meta.referenceDate || '-';
 }
 
 function resetExpandedState(){
@@ -641,6 +652,7 @@ function applyFilters(){
   const status = text(document.getElementById('statusFilter').value);
   const alert = text(document.getElementById('alertFilter').value);
   const group = text(document.getElementById('groupFilter').value);
+  const responsible = text(document.getElementById('responsibleFilter').value);
   const owner = text(document.getElementById('ownerFilter').value);
 
   const matched = appState.raw.filter(record => {
@@ -652,6 +664,7 @@ function applyFilters(){
     if(status && record.estado !== status) return false;
     if(alert && record.alerta !== alert) return false;
     if(group && record.grupo !== group) return false;
+    if(responsible && !splitPeople(record.responsable).some(person => personKey(person) === personKey(responsible))) return false;
     if(owner && !splitPeople(record.seguimiento_dgppcs).some(person => personKey(person) === personKey(owner))) return false;
     return true;
   });
@@ -876,6 +889,7 @@ function renderAll(){
   renderQuickSummary();
   renderAlerts();
   renderStatusBars();
+  renderResponsibleBars();
   renderOwnerBars();
   renderGantt();
   renderTable();
@@ -1014,6 +1028,24 @@ function renderOwnerBars(){
   const groups = groupCount(expandedOwners, 'owner').slice(0,8);
   const max = Math.max(1, ...groups.map(x => x.count));
   document.getElementById('ownerBars').innerHTML = groups.map(item =>
+    barRow(item.label, item.count, max, '')
+  ).join('');
+}
+
+function renderResponsibleBars(){
+  const expandedOwners = [];
+  const allowed = new Set(getAssignablePeople().map(personKey));
+  appState.matched.forEach(r => {
+    const people = splitPeople(r.responsable).filter(person => allowed.has(personKey(person)));
+    if(!people.length){
+      expandedOwners.push({owner:'Sin asignar'});
+      return;
+    }
+    people.forEach(owner => expandedOwners.push({owner}));
+  });
+  const groups = groupCount(expandedOwners, 'owner').slice(0,8);
+  const max = Math.max(1, ...groups.map(x => x.count));
+  document.getElementById('responsibleBars').innerHTML = groups.map(item =>
     barRow(item.label, item.count, max, '')
   ).join('');
 }
@@ -1268,6 +1300,7 @@ function buildExecutiveReport(){
   const overdue = records.filter(r => r.alerta === 'vencido').sort((a,b)=>text(a.final).localeCompare(text(b.final)));
   const critical = records.filter(r => r.alerta === 'critico').sort((a,b)=>text(a.final).localeCompare(text(b.final)));
   const byOwner = groupCount(records.map(r => ({owner:r.seguimiento_dgppcs || 'Sin asignar'})), 'owner').slice(0,5);
+  const byResponsible = groupCount(records.map(r => ({owner:r.responsable || 'Sin asignar'})), 'owner').slice(0,5);
   const nextMilestones = records
     .filter(r => r.final && r.estado !== 'Completado')
     .sort((a,b)=>text(a.final).localeCompare(text(b.final)))
@@ -1313,14 +1346,21 @@ function buildExecutiveReport(){
     });
   }
   lines.push('');
-  lines.push('5. Carga por seguimiento');
+  lines.push('5. Carga operativa por responsable');
+  if(!byResponsible.length){
+    lines.push('- Sin informacion.');
+  }else{
+    byResponsible.forEach(item => lines.push('- ' + item.label + ': ' + item.count + ' casos'));
+  }
+  lines.push('');
+  lines.push('6. Carga de seguimiento DGPPCS');
   if(!byOwner.length){
     lines.push('- Sin informacion.');
   }else{
     byOwner.forEach(item => lines.push('- ' + item.label + ': ' + item.count + ' casos'));
   }
   lines.push('');
-  lines.push('6. Recomendaciones inmediatas');
+  lines.push('7. Recomendaciones inmediatas');
   lines.push('- Revisar primero los casos vencidos y criticos con reunion corta de destrabe.');
   lines.push('- Completar responsable operativo y contacto en los casos sin asignacion clara.');
   lines.push('- Registrar acuerdos y proximo paso en la ficha de cada caso para que el visor sirva como bitacora operativa.');
@@ -1341,9 +1381,11 @@ function buildExecutiveReport(){
     ${overdue.length ? '<ul>' + overdue.slice(0,10).map(r => '<li>' + escapeHtml([r.edt, r.actividad, fmtDate(r.final), r.seguimiento_dgppcs || r.responsable || 'Sin responsable'].filter(Boolean).join(' | ')) + '</li>').join('') + '</ul>' : '<p>No hay casos vencidos en la vista actual.</p>'}
     <h2>3. Proximos hitos</h2>
     ${nextMilestones.length ? '<ul>' + nextMilestones.map(r => '<li>' + escapeHtml([fmtDate(r.final), r.edt, r.actividad, r.estado].filter(Boolean).join(' | ')) + '</li>').join('') + '</ul>' : '<p>No hay hitos proximos con fecha registrada.</p>'}
-    <h2>4. Carga por seguimiento</h2>
+    <h2>4. Carga operativa por responsable</h2>
+    ${byResponsible.length ? '<ul>' + byResponsible.map(item => '<li>' + escapeHtml(item.label + ': ' + item.count + ' casos') + '</li>').join('') + '</ul>' : '<p>Sin informacion.</p>'}
+    <h2>5. Carga de seguimiento DGPPCS</h2>
     ${byOwner.length ? '<ul>' + byOwner.map(item => '<li>' + escapeHtml(item.label + ': ' + item.count + ' casos') + '</li>').join('') + '</ul>' : '<p>Sin informacion.</p>'}
-    <h2>5. Recomendaciones inmediatas</h2>
+    <h2>6. Recomendaciones inmediatas</h2>
     <ul>
       <li>Revisar primero los casos vencidos y criticos con reunion corta de destrabe.</li>
       <li>Completar responsable operativo y contacto en los casos sin asignacion clara.</li>
@@ -1417,12 +1459,12 @@ function printReport(){
 }
 
 function bindEvents(){
-  ['searchInput','statusFilter','alertFilter','groupFilter','ownerFilter'].forEach(id => {
+  ['searchInput','statusFilter','alertFilter','groupFilter','responsibleFilter','ownerFilter'].forEach(id => {
     document.getElementById(id).addEventListener('input', applyFilters);
     document.getElementById(id).addEventListener('change', applyFilters);
   });
   document.getElementById('resetFiltersBtn').addEventListener('click', () => {
-    ['searchInput','statusFilter','alertFilter','groupFilter','ownerFilter'].forEach(id => {
+    ['searchInput','statusFilter','alertFilter','groupFilter','responsibleFilter','ownerFilter'].forEach(id => {
       document.getElementById(id).value = '';
     });
     applyFilters();
@@ -1486,6 +1528,7 @@ function initFilters(){
   alertSelect.innerHTML = '<option value="">Todas las alertas</option>' +
     uniqueSorted(appState.raw.map(r => r.alerta)).map(v => '<option value="' + escapeHtml(v) + '">' + escapeHtml(alertLabel(v)) + '</option>').join('');
   buildSelect('groupFilter', uniqueSorted(appState.raw.map(r => r.grupo)), 'Todos los grupos');
+  buildSelect('responsibleFilter', getAssignablePeople(), 'Todo responsable');
   buildSelect('ownerFilter', getAssignablePeople(), 'Todo seguimiento');
   initSearchSuggestions();
 }

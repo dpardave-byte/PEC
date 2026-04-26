@@ -170,6 +170,10 @@ tbody tr:hover td{background:#f8fbfe}
 .assign-item{display:flex;gap:8px;align-items:flex-start;padding:8px;border:1px solid #e6edf5;border-radius:10px;background:#fff}
 .assign-item input{min-height:auto;width:auto;margin-top:2px}
 .assign-extra{margin-top:10px}
+.assign-picker{margin-top:4px}
+.assign-picker summary{cursor:pointer;list-style:none;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;font-weight:700;color:var(--brand)}
+.assign-picker summary::-webkit-details-marker{display:none}
+.assign-picker[open] summary{border-bottom-left-radius:8px;border-bottom-right-radius:8px;margin-bottom:10px}
 .local-note-box{display:grid;gap:10px;margin-top:16px}
 .modal{padding:20px;overflow:auto}
 .modal-card{max-width:960px;margin:0 auto;padding:18px}
@@ -2139,13 +2143,20 @@ function getMergedRecord(record){
   merged.avance_estimado = deriveProgress(merged.estado);
   merged.dias_restantes = deriveRemaining(merged.final, merged.estado);
   merged.alerta = deriveAlert(merged.inicio, merged.final, merged.estado);
+  merged.source_order = Number(record.source_order || String(record.id || '').replace(/\D+/g,'')) || 0;
   merged.resumen = text(merged.resumen) || [merged.edt ? `EDT ${merged.edt}` : '', merged.seguimiento_dgppcs || merged.responsable, merged.estado].filter(Boolean).join(' | ');
   return merged;
 }
 
+function isExcludedRecord(record){
+  const edt = text(record.edt);
+  const actividad = text(record.actividad).toLowerCase();
+  return edt === '4' && /elaboraci[oó]n del sistema de seguimiento/.test(actividad);
+}
+
 function hydrateData(){
   const payload = window.PEC_TRACKING_DATA || {meta:{},summary:{},records:[]};
-  appState.raw = payload.records.map(getMergedRecord);
+  appState.raw = payload.records.map(getMergedRecord).filter(record => !isExcludedRecord(record));
   updateMeta(payload.meta);
   resetExpandedState();
 }
@@ -2160,7 +2171,7 @@ function updateMeta(meta){
 function resetExpandedState(){
   appState.expanded = {};
   appState.raw.filter(r => Number(r.nivel) === 1).forEach(r => {
-    appState.expanded[r.edt] = true;
+    appState.expanded[r.id] = true;
   });
 }
 
@@ -2228,19 +2239,29 @@ function parentEdt(edt){
 }
 
 function withAncestors(matched, all){
-  const byEdt = new Map(all.map(record => [text(record.edt), record]));
+  const ordered = all.slice().sort((a,b) => (Number(a.source_order) || 0) - (Number(b.source_order) || 0));
+  const parentById = new Map();
+  const stack = [];
+  ordered.forEach(record => {
+    const level = Math.max(1, Number(record.nivel || deriveLevel(record.edt) || 1));
+    while(stack.length && stack[stack.length - 1].level >= level) stack.pop();
+    parentById.set(record.id, stack.length ? stack[stack.length - 1].id : '');
+    stack.push({id: record.id, level});
+  });
+
+  const allById = new Map(ordered.map(record => [record.id, record]));
   const out = new Map();
   matched.forEach(record => {
-    out.set(record.id, record);
-    let parent = parentEdt(record.edt);
-    while(parent){
-      const ancestor = byEdt.get(parent);
-      if(!ancestor) break;
-      out.set(ancestor.id, ancestor);
-      parent = parentEdt(ancestor.edt);
+    let currentId = record.id;
+    while(currentId){
+      if(out.has(currentId)) break;
+      const current = allById.get(currentId);
+      if(!current) break;
+      out.set(currentId, current);
+      currentId = parentById.get(currentId);
     }
   });
-  return Array.from(out.values());
+  return ordered.filter(record => out.has(record.id));
 }
 
 function normalizeHeader(value, idx){
@@ -2331,6 +2352,7 @@ function buildRecordFromExcel(raw, idx){
   const contacto = text(raw.Contacto);
   return {
     id: `case-${String(idx).padStart(3,'0')}`,
+    source_order: idx,
     edt,
     actividad,
     responsable,
@@ -2371,7 +2393,9 @@ function parseWorkbookRecords(workbook){
     });
     if(!hasData) continue;
     if(!text(raw.EDT) && !text(raw.Actividad)) continue;
-    records.push(buildRecordFromExcel(raw, records.length + 1));
+    const record = buildRecordFromExcel(raw, records.length + 1);
+    if(isExcludedRecord(record)) continue;
+    records.push(record);
   }
   return records;
 }
@@ -2441,19 +2465,23 @@ function renderAll(){
   renderTable();
 }
 
-function sortByEdt(records){
+function sortBySourceOrder(records){
   return records
     .slice()
-    .sort((a,b) => text(a.edt).localeCompare(text(b.edt), 'es', {numeric:true}));
+    .sort((a,b) => (Number(a.source_order) || 0) - (Number(b.source_order) || 0));
 }
 
 function buildHierarchyMaps(records){
-  const ordered = sortByEdt(records);
+  const ordered = sortBySourceOrder(records);
   const childrenMap = new Map();
+  const stack = [];
   ordered.forEach(record => {
-    const parent = parentEdt(record.edt) || '__root__';
+    const level = Math.max(1, Number(record.nivel || deriveLevel(record.edt) || 1));
+    while(stack.length && stack[stack.length - 1].level >= level) stack.pop();
+    const parent = stack.length ? stack[stack.length - 1].id : '__root__';
     if(!childrenMap.has(parent)) childrenMap.set(parent, []);
     childrenMap.get(parent).push(record);
+    stack.push({id: record.id, level});
   });
   return {ordered, childrenMap};
 }
@@ -2465,7 +2493,7 @@ function getVisibleHierarchy(records){
     const items = childrenMap.get(parentKey) || [];
     items.forEach(record => {
       visible.push(record);
-      if(appState.expanded[record.edt]) walk(record.edt);
+      if(appState.expanded[record.id]) walk(record.id);
     });
   }
   walk('__root__');
@@ -2618,7 +2646,7 @@ function renderGantt(){
   const source = appState.filtered.filter(r =>
     r.inicio &&
     r.final &&
-    !(text(r.edt) === '4' && /elaboraci[oó]n del sistema de seguimiento/i.test(text(r.actividad)))
+    !isExcludedRecord(r)
   );
   const monthsEl = document.getElementById('timelineMonths');
   const listEl = document.getElementById('ganttList');
@@ -2643,7 +2671,7 @@ function renderGantt(){
   const totalDays = Math.max(1, diffDays(maxDate, minDate) + 1);
   const todayOffset = clamp(diffDays(today, minDate) / totalDays * 100, 0, 100);
   listEl.innerHTML = records.map(r => {
-    const kids = childrenMap.get(r.edt) || [];
+    const kids = childrenMap.get(r.id) || [];
     const hasChildren = kids.length > 0;
     const level = Math.max(1, Number(r.nivel || deriveLevel(r.edt) || 1));
     const indent = (level - 1) * 18;
@@ -2654,7 +2682,7 @@ function renderGantt(){
     const stateCls = r.estado === 'Completado' ? 'done' : r.alerta === 'vencido' ? 'overdue' : r.alerta === 'critico' ? 'overdue' : r.alerta === 'atencion' ? 'attention' : r.estado === 'Pendiente de Iniciar' ? 'pending' : '';
     return '<div class="timeline-row" data-open="' + escapeHtml(r.id) + '">' +
       '<div class="timeline-title"><div class="edt-cell" style="padding-left:' + indent + 'px">' +
-      '<button class="tree-toggle' + (hasChildren ? '' : ' empty') + '" data-toggle="' + escapeHtml(r.edt) + '" ' + (hasChildren ? '' : 'tabindex="-1" aria-hidden="true"') + '>' + (hasChildren ? (appState.expanded[r.edt] ? '−' : '+') : '+') + '</button>' +
+      '<button class="tree-toggle' + (hasChildren ? '' : ' empty') + '" data-toggle="' + escapeHtml(r.id) + '" ' + (hasChildren ? '' : 'tabindex="-1" aria-hidden="true"') + '>' + (hasChildren ? (appState.expanded[r.id] ? '−' : '+') : '+') + '</button>' +
       '<div><strong>' + escapeHtml((r.edt ? r.edt + ' - ' : '') + r.actividad) + '</strong><span>' +
       escapeHtml((r.seguimiento_dgppcs || r.responsable || 'Sin responsable') + ' | ' + fmtDate(r.inicio) + ' a ' + fmtDate(r.final) + (hasChildren ? ' | ' + kids.length + ' subactividad(es)' : '')) +
       '</span></div></div></div>' +
@@ -2693,14 +2721,14 @@ function renderTable(){
   empty.hidden = true;
   const {childrenMap, visible} = getVisibleHierarchy(appState.filtered);
   tbody.innerHTML = visible.map(r => {
-      const kids = childrenMap.get(r.edt) || [];
+      const kids = childrenMap.get(r.id) || [];
       const hasChildren = kids.length > 0;
       const level = Math.max(1, Number(r.nivel || deriveLevel(r.edt) || 1));
       const indent = (level - 1) * 18;
       return '<tr class="row-level-' + level + '" data-open="' + escapeHtml(r.id) + '">' +
         '<td>' +
           '<div class="edt-cell" style="padding-left:' + indent + 'px">' +
-            '<button class="tree-toggle' + (hasChildren ? '' : ' empty') + '" data-toggle="' + escapeHtml(r.edt) + '" ' + (hasChildren ? '' : 'tabindex="-1" aria-hidden="true"') + '>' + (hasChildren ? (appState.expanded[r.edt] ? '−' : '+') : '+') + '</button>' +
+            '<button class="tree-toggle' + (hasChildren ? '' : ' empty') + '" data-toggle="' + escapeHtml(r.id) + '" ' + (hasChildren ? '' : 'tabindex="-1" aria-hidden="true"') + '>' + (hasChildren ? (appState.expanded[r.id] ? '−' : '+') : '+') + '</button>' +
             '<span class="edt-chip">' + escapeHtml(r.edt || '-') + '</span>' +
           '</div>' +
         '</td>' +
@@ -2769,14 +2797,18 @@ function assignmentBox(label, prefix, value){
   const selected = new Set(splitPeople(value));
   const options = getAssignablePeople();
   const extra = splitPeople(value).filter(name => !options.includes(name)).join(' / ');
+  const selectedCount = selected.size + (extra ? splitPeople(extra).length : 0);
   return '<div class="detail-box"><b>' + escapeHtml(label) + '</b>' +
-    '<div class="assign-grid">' +
-      options.map(name =>
-        '<label class="assign-item"><input type="checkbox" class="assign-person assign-person-' + escapeHtml(prefix) + '" value="' + escapeHtml(name) + '"' + (selected.has(name) ? ' checked' : '') + '><span>' + escapeHtml(name) + '</span></label>'
-      ).join('') +
-    '</div>' +
-    '<div class="assign-extra"><input id="editExtra-' + escapeHtml(prefix) + '" type="text" value="' + escapeHtml(extra) + '" placeholder="Agregar otra persona o grupo adicional"></div>' +
-    '<div class="assign-extra"><input id="editNewPerson-' + escapeHtml(prefix) + '" type="text" value="" placeholder="Agregar nueva persona al catálogo local"></div>' +
+    '<details class="assign-picker">' +
+      '<summary>' + escapeHtml(selectedCount ? `Seleccionadas: ${selectedCount}` : 'Seleccionar asignacion') + '</summary>' +
+      '<div class="assign-grid">' +
+        options.map(name =>
+          '<label class="assign-item"><input type="checkbox" class="assign-person assign-person-' + escapeHtml(prefix) + '" value="' + escapeHtml(name) + '"' + (selected.has(name) ? ' checked' : '') + '><span>' + escapeHtml(name) + '</span></label>'
+        ).join('') +
+      '</div>' +
+      '<div class="assign-extra"><input id="editExtra-' + escapeHtml(prefix) + '" type="text" value="' + escapeHtml(extra) + '" placeholder="Agregar otra persona o grupo adicional"></div>' +
+      '<div class="assign-extra"><input id="editNewPerson-' + escapeHtml(prefix) + '" type="text" value="" placeholder="Agregar nueva persona al catálogo local"></div>' +
+    '</details>' +
   '</div>';
 }
 

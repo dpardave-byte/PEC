@@ -28,9 +28,9 @@ body{min-height:100vh}
 .hero,.report-box,.panel,.drawer-card,.modal-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
 .hero{padding:0;overflow:hidden;display:grid;grid-template-columns:1.15fr .85fr;min-height:320px}
 .hero-copy{padding:34px 28px;background:linear-gradient(135deg,rgba(16,57,88,.96),rgba(14,90,106,.90));color:#fff;display:flex;flex-direction:column;justify-content:center}
-.hero-copy h1{margin:0;font-size:48px;line-height:1.02;color:#fff;letter-spacing:-.02em}
-.hero-copy p{margin:14px 0 0;color:rgba(255,255,255,.92);max-width:760px;font-size:24px;line-height:1.25}
-.hero-copy .hero-meta{color:rgba(255,255,255,.9);font-size:16px;gap:20px}
+.hero-copy h1{margin:0;font-size:58px;line-height:1.02;color:#fff;letter-spacing:-.02em}
+.hero-copy p{margin:16px 0 0;color:rgba(255,255,255,.94);max-width:820px;font-size:28px;line-height:1.25}
+.hero-copy .hero-meta{color:rgba(255,255,255,.92);font-size:18px;gap:20px}
 .hero-visual{position:relative;background:#dbe9f4}
 .hero-visual img{width:100%;height:100%;object-fit:cover;display:block}
 .hero-visual:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(16,57,88,.18),rgba(16,57,88,.02))}
@@ -176,6 +176,7 @@ tbody tr:hover td{background:#f8fbfe}
 .assign-picker summary{cursor:pointer;list-style:none;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;font-weight:700;color:var(--brand)}
 .assign-picker summary::-webkit-details-marker{display:none}
 .assign-picker[open] summary{border-bottom-left-radius:8px;border-bottom-right-radius:8px;margin-bottom:10px}
+.filter-picker summary{min-height:40px;display:flex;align-items:center}
 .local-note-box{display:grid;gap:10px;margin-top:16px}
 .summary-bullets{margin:8px 0 0;padding-left:18px;display:grid;gap:6px}
 .summary-bullets li{color:var(--muted);font-size:14px;line-height:1.3}
@@ -206,11 +207,7 @@ tbody tr:hover td{background:#f8fbfe}
       <div class="hero-copy">
         <h1 id="heroTitle">Visor de Seguimiento PEC</h1>
         <p id="heroSubtitle">Programa de Economía Circular para Puno y Lima.</p>
-        <div class="hero-meta">
-          <div><b id="heroMeta1">DGPPCS</b></div>
-          <div><b id="heroMeta2">Puno y Lima</b></div>
-          <div><b id="heroMeta3">Seguimiento operativo</b></div>
-        </div>
+        <div class="hero-meta" id="heroMetaList"></div>
       </div>
       <div class="hero-visual">
         <img src="./assets/ingeniero-40.jpeg" alt="Ingeniería y tecnologías aplicadas al seguimiento del programa">
@@ -244,7 +241,10 @@ tbody tr:hover td{background:#f8fbfe}
       </div>
       <div class="field">
         <label for="statusFilter">Estado</label>
-        <select id="statusFilter"></select>
+        <details class="assign-picker filter-picker" id="statusFilterBox">
+          <summary id="statusFilterSummary">Todos los estados</summary>
+          <div class="assign-grid" id="statusFilterOptions"></div>
+        </details>
       </div>
       <div class="field">
         <label for="alertFilter">Alerta</label>
@@ -479,6 +479,7 @@ tbody tr:hover td{background:#f8fbfe}
       <div class="detail-box"><b>Etiqueta 1</b><input id="heroEditMeta1" type="text" value=""></div>
       <div class="detail-box"><b>Etiqueta 2</b><input id="heroEditMeta2" type="text" value=""></div>
       <div class="detail-box"><b>Etiqueta 3</b><input id="heroEditMeta3" type="text" value=""></div>
+      <div class="detail-box"><b>Etiquetas adicionales</b><input id="heroEditMetaExtra" type="text" value="" placeholder="Separar con |"></div>
     </div>
     <div class="toolbar-actions" style="margin-top:14px">
       <button id="saveHeroBtn">Guardar portada</button>
@@ -2103,7 +2104,8 @@ const DEFAULT_HERO = {
   subtitle: 'Programa de Economía Circular para Puno y Lima.',
   meta1: 'DGPPCS',
   meta2: 'Puno y Lima',
-  meta3: 'Seguimiento operativo'
+  meta3: 'Seguimiento operativo',
+  extras: []
 };
 const appState = {
   raw: [],
@@ -2178,11 +2180,12 @@ function loadHeroConfig(){
   try{
     const saved = JSON.parse(localStorage.getItem(HERO_STORAGE_KEY) || '{}');
     return {
-      title: text(saved.title) || DEFAULT_HERO.title,
-      subtitle: text(saved.subtitle) || DEFAULT_HERO.subtitle,
-      meta1: text(saved.meta1) || DEFAULT_HERO.meta1,
-      meta2: text(saved.meta2) || DEFAULT_HERO.meta2,
-      meta3: text(saved.meta3) || DEFAULT_HERO.meta3
+      title: saved.title != null ? String(saved.title) : DEFAULT_HERO.title,
+      subtitle: saved.subtitle != null ? String(saved.subtitle) : DEFAULT_HERO.subtitle,
+      meta1: saved.meta1 != null ? String(saved.meta1) : DEFAULT_HERO.meta1,
+      meta2: saved.meta2 != null ? String(saved.meta2) : DEFAULT_HERO.meta2,
+      meta3: saved.meta3 != null ? String(saved.meta3) : DEFAULT_HERO.meta3,
+      extras: Array.isArray(saved.extras) ? saved.extras.map(String) : []
     };
   }catch(error){
     return {...DEFAULT_HERO};
@@ -2513,11 +2516,10 @@ function updateMeta(meta){
 
 function renderHero(){
   const hero = appState.hero || DEFAULT_HERO;
-  document.getElementById('heroTitle').textContent = hero.title || DEFAULT_HERO.title;
-  document.getElementById('heroSubtitle').textContent = hero.subtitle || DEFAULT_HERO.subtitle;
-  document.getElementById('heroMeta1').textContent = hero.meta1 || DEFAULT_HERO.meta1;
-  document.getElementById('heroMeta2').textContent = hero.meta2 || DEFAULT_HERO.meta2;
-  document.getElementById('heroMeta3').textContent = hero.meta3 || DEFAULT_HERO.meta3;
+  document.getElementById('heroTitle').textContent = hero.title != null ? hero.title : DEFAULT_HERO.title;
+  document.getElementById('heroSubtitle').textContent = hero.subtitle != null ? hero.subtitle : DEFAULT_HERO.subtitle;
+  const metaItems = [hero.meta1, hero.meta2, hero.meta3].concat(Array.isArray(hero.extras) ? hero.extras : []).map(value => String(value || '').trim()).filter(Boolean);
+  document.getElementById('heroMetaList').innerHTML = metaItems.map(item => '<div><b>' + escapeHtml(item) + '</b></div>').join('');
 }
 
 function resetExpandedState(){
@@ -2539,14 +2541,34 @@ function buildSelect(selectId, values, placeholder){
   if(values.includes(current)) el.value = current;
 }
 
+function initStatusFilter(){
+  const container = document.getElementById('statusFilterOptions');
+  const summary = document.getElementById('statusFilterSummary');
+  const current = getSelectedStatusValues();
+  const values = uniqueSorted(appState.raw.map(r => r.estado));
+  container.innerHTML = values.map(value =>
+    '<label class="assign-item"><input type="checkbox" class="status-filter-option" value="' + escapeHtml(value) + '"' + (current.includes(value) ? ' checked' : '') + '><span>' + escapeHtml(value) + '</span></label>'
+  ).join('');
+  updateStatusFilterSummary();
+}
+
+function getSelectedStatusValues(){
+  return Array.from(document.querySelectorAll('.status-filter-option:checked')).map(input => text(input.value)).filter(Boolean);
+}
+
+function updateStatusFilterSummary(){
+  const summary = document.getElementById('statusFilterSummary');
+  if(!summary) return;
+  const selected = getSelectedStatusValues();
+  summary.textContent = selected.length ? ('Estados: ' + selected.length) : 'Todos los estados';
+}
+
 function initSearchSuggestions(){
   const datalist = document.getElementById('searchSuggestions');
   const items = uniqueSorted(
-    appState.raw.flatMap(r => {
+    getGroupRecords(appState.raw).flatMap(r => {
       const values = [];
       if(text(r.edt) || text(r.actividad)) values.push(displayTitle(r));
-      splitEntities(r.responsable).forEach(entity => values.push(entity));
-      splitPeople(r.seguimiento_dgppcs).forEach(person => values.push(person));
       return values;
     }).filter(value => text(value).length > 3)
   ).slice(0, 180);
@@ -2564,7 +2586,7 @@ function escapeHtml(value){
 
 function applyFilters(){
   const q = text(document.getElementById('searchInput').value).toLowerCase();
-  const status = text(document.getElementById('statusFilter').value);
+  const statuses = getSelectedStatusValues();
   const alert = text(document.getElementById('alertFilter').value);
   const group = text(document.getElementById('groupFilter').value);
   const responsible = text(document.getElementById('responsibleFilter').value);
@@ -2572,11 +2594,11 @@ function applyFilters(){
 
   const matched = appState.raw.filter(record => {
     const haystack = [
-      record.edt, record.actividad, record.responsable, record.seguimiento_dgppcs,
+      record.edt, record.actividad, displayTitle(record), record.responsable, record.seguimiento_dgppcs,
       record.contacto, record.local_note, record.local_action
     ].join(' ').toLowerCase();
     if(q && !haystack.includes(q)) return false;
-    if(status && record.estado !== status) return false;
+    if(statuses.length && !statuses.includes(record.estado)) return false;
     if(alert && record.alerta !== alert) return false;
     if(group && record.grupo !== group) return false;
     if(responsible && !splitEntities(record.responsable).some(entity => entityKey(entity) === entityKey(responsible))) return false;
@@ -2856,7 +2878,8 @@ function exportStructureXlsx(){
     {clave:'subtitle', valor:text((appState.hero || DEFAULT_HERO).subtitle)},
     {clave:'meta1', valor:text((appState.hero || DEFAULT_HERO).meta1)},
     {clave:'meta2', valor:text((appState.hero || DEFAULT_HERO).meta2)},
-    {clave:'meta3', valor:text((appState.hero || DEFAULT_HERO).meta3)}
+    {clave:'meta3', valor:text((appState.hero || DEFAULT_HERO).meta3)},
+    {clave:'extras', valor:((appState.hero || DEFAULT_HERO).extras || []).join(' | ')}
   ]), STRUCTURE_CONFIG_SHEET);
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet((appState.customPeople || []).map(value => ({persona:value}))), STRUCTURE_PEOPLE_SHEET);
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet((appState.customEntities || []).map(value => ({entidad:value}))), STRUCTURE_ENTITY_SHEET);
@@ -3042,6 +3065,7 @@ async function loadStructureFromInput(){
       const key = text(row.clave || row.Clave);
       const value = text(row.valor || row.Valor);
       if(['title','subtitle','meta1','meta2','meta3'].includes(key)) hero[key] = value || hero[key];
+      if(key === 'extras') hero.extras = value ? value.split('|').map(item => item.trim()).filter(Boolean) : [];
     });
   }
   const peopleSheet = workbook.Sheets[STRUCTURE_PEOPLE_SHEET];
@@ -3726,11 +3750,12 @@ function closeDrawer(){
 
 function openHeroModal(){
   const hero = appState.hero || DEFAULT_HERO;
-  document.getElementById('heroEditTitle').value = hero.title || DEFAULT_HERO.title;
-  document.getElementById('heroEditSubtitle').value = hero.subtitle || DEFAULT_HERO.subtitle;
-  document.getElementById('heroEditMeta1').value = hero.meta1 || DEFAULT_HERO.meta1;
-  document.getElementById('heroEditMeta2').value = hero.meta2 || DEFAULT_HERO.meta2;
-  document.getElementById('heroEditMeta3').value = hero.meta3 || DEFAULT_HERO.meta3;
+  document.getElementById('heroEditTitle').value = hero.title != null ? hero.title : DEFAULT_HERO.title;
+  document.getElementById('heroEditSubtitle').value = hero.subtitle != null ? hero.subtitle : DEFAULT_HERO.subtitle;
+  document.getElementById('heroEditMeta1').value = hero.meta1 != null ? hero.meta1 : DEFAULT_HERO.meta1;
+  document.getElementById('heroEditMeta2').value = hero.meta2 != null ? hero.meta2 : DEFAULT_HERO.meta2;
+  document.getElementById('heroEditMeta3').value = hero.meta3 != null ? hero.meta3 : DEFAULT_HERO.meta3;
+  document.getElementById('heroEditMetaExtra').value = Array.isArray(hero.extras) ? hero.extras.join(' | ') : '';
   document.getElementById('heroModal').classList.add('open');
 }
 
@@ -3739,12 +3764,17 @@ function closeHeroModal(){
 }
 
 function saveHeroModal(){
+  const extras = text(document.getElementById('heroEditMetaExtra').value)
+    .split('|')
+    .map(value => value.trim())
+    .filter(Boolean);
   appState.hero = {
-    title: text(document.getElementById('heroEditTitle').value) || DEFAULT_HERO.title,
-    subtitle: text(document.getElementById('heroEditSubtitle').value) || DEFAULT_HERO.subtitle,
-    meta1: text(document.getElementById('heroEditMeta1').value) || DEFAULT_HERO.meta1,
-    meta2: text(document.getElementById('heroEditMeta2').value) || DEFAULT_HERO.meta2,
-    meta3: text(document.getElementById('heroEditMeta3').value) || DEFAULT_HERO.meta3
+    title: document.getElementById('heroEditTitle').value,
+    subtitle: document.getElementById('heroEditSubtitle').value,
+    meta1: document.getElementById('heroEditMeta1').value,
+    meta2: document.getElementById('heroEditMeta2').value,
+    meta3: document.getElementById('heroEditMeta3').value,
+    extras
   };
   saveHeroConfig();
   appendAudit('editar_portada', appState.hero.title);
@@ -4123,14 +4153,20 @@ function printReport(){
 }
 
 function bindEvents(){
-  ['searchInput','statusFilter','alertFilter','groupFilter','responsibleFilter','ownerFilter'].forEach(id => {
+  ['searchInput','alertFilter','groupFilter','responsibleFilter','ownerFilter'].forEach(id => {
     document.getElementById(id).addEventListener('input', applyFilters);
     document.getElementById(id).addEventListener('change', applyFilters);
   });
+  document.getElementById('statusFilterOptions').addEventListener('change', () => {
+    updateStatusFilterSummary();
+    applyFilters();
+  });
   document.getElementById('resetFiltersBtn').addEventListener('click', () => {
-    ['searchInput','statusFilter','alertFilter','groupFilter','responsibleFilter','ownerFilter'].forEach(id => {
+    ['searchInput','alertFilter','groupFilter','responsibleFilter','ownerFilter'].forEach(id => {
       document.getElementById(id).value = '';
     });
+    document.querySelectorAll('.status-filter-option').forEach(input => { input.checked = false; });
+    updateStatusFilterSummary();
     applyFilters();
   });
   document.getElementById('closeDrawerBtn').addEventListener('click', closeDrawer);
@@ -4208,7 +4244,7 @@ function bindEvents(){
 }
 
 function initFilters(){
-  buildSelect('statusFilter', uniqueSorted(appState.raw.map(r => r.estado)), 'Todos los estados');
+  initStatusFilter();
   const alertSelect = document.getElementById('alertFilter');
   alertSelect.innerHTML = '<option value="">Todas las alertas</option>' +
     uniqueSorted(appState.raw.map(r => r.alerta)).map(v => '<option value="' + escapeHtml(v) + '">' + escapeHtml(alertLabel(v)) + '</option>').join('');

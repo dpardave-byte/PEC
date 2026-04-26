@@ -26,11 +26,19 @@ body{min-height:100vh}
 .app{max-width:1500px;margin:0 auto;padding:18px}
 .topbar{display:grid;grid-template-columns:1.2fr .8fr;gap:16px;margin-bottom:16px}
 .hero,.report-box,.panel,.drawer-card,.modal-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
-.hero{padding:22px}
-.hero h1{margin:0;font-size:28px;line-height:1.05;color:var(--brand)}
-.hero p{margin:8px 0 0;color:var(--muted);max-width:860px}
+.hero{padding:0;overflow:hidden;display:grid;grid-template-columns:1.2fr .8fr;min-height:220px}
+.hero-copy{padding:24px;background:linear-gradient(135deg,rgba(16,57,88,.94),rgba(14,90,106,.88));color:#fff;display:flex;flex-direction:column;justify-content:center}
+.hero-copy h1{margin:0;font-size:30px;line-height:1.05;color:#fff}
+.hero-copy p{margin:10px 0 0;color:rgba(255,255,255,.88);max-width:760px}
+.hero-copy .hero-meta{color:rgba(255,255,255,.82)}
+.hero-visual{position:relative;background:#dbe9f4}
+.hero-visual img{width:100%;height:100%;object-fit:cover;display:block}
+.hero-visual:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(16,57,88,.18),rgba(16,57,88,.02))}
 .hero-meta{display:flex;gap:18px;flex-wrap:wrap;margin-top:14px;font-size:13px;color:var(--muted)}
 .hero-meta b{color:var(--ink)}
+.report-box figure{margin:0;border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+.report-box figure img{width:100%;height:180px;object-fit:cover;display:block}
+.report-box figcaption{padding:10px 12px;font-size:12px;color:var(--muted);background:#fbfdff}
 .report-box{padding:18px;display:grid;gap:14px}
 .report-box h2{margin:0;font-size:16px;color:var(--brand)}
 .report-box .actions,.toolbar-actions{display:flex;gap:10px;flex-wrap:wrap}
@@ -172,6 +180,7 @@ tbody tr:hover td{background:#f8fbfe}
 @media (max-width:1200px){
   .cards{grid-template-columns:repeat(3,minmax(0,1fr))}
   .layout,.topbar,.split,.detail-grid,.filters,.toolbar{grid-template-columns:1fr}
+  .hero{grid-template-columns:1fr}
 }
 @media (max-width:760px){
   .app{padding:10px}
@@ -186,17 +195,26 @@ tbody tr:hover td{background:#f8fbfe}
 <div class="app">
   <section class="topbar">
     <div class="hero">
-      <h1>Visor de Seguimiento PEC</h1>
-      <p>Tablero standalone para seguimiento de actividades, alertas de vencimiento, Gantt ejecutivo y gestion de casos para uso operativo y toma de decisiones.</p>
-      <div class="hero-meta">
-        <div><b>Fuente:</b> Sistema Seguimiento-PEC - 20.04.26.xlsx</div>
-        <div><b>Corte:</b> <span id="metaGeneratedAt">-</span></div>
-        <div><b>Fecha de referencia:</b> <span id="metaReferenceDate">-</span></div>
+      <div class="hero-copy">
+        <h1>Visor de Seguimiento PEC</h1>
+        <p>Programa de Economía Circular para Puno y Lima.</p>
+        <div class="hero-meta">
+          <div><b>DGPPCS</b></div>
+          <div><b>Puno y Lima</b></div>
+          <div><b>Seguimiento operativo</b></div>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <img src="./assets/ingeniero-40.jpeg" alt="Ingeniería y tecnologías aplicadas al seguimiento del programa">
       </div>
     </div>
     <aside class="report-box">
       <h2>Reportes</h2>
       <div class="summary-list" id="quickReportSummary"></div>
+      <figure>
+        <img src="./assets/planta-tratamiento-2.jpg" alt="Planta de tratamiento y enfoque de economía circular">
+        <figcaption>Seguimiento de hitos, riesgos, inversión y operación del programa.</figcaption>
+      </figure>
     <div class="toolbar-actions">
       <button id="buildReportBtn">Generar reporte ejecutivo</button>
       <button id="openAnalyticsBtn" class="ghost">Ver analitica</button>
@@ -211,7 +229,8 @@ tbody tr:hover td{background:#f8fbfe}
     <div class="filters">
       <div class="field">
         <label for="searchInput">Busqueda</label>
-        <input id="searchInput" type="search" placeholder="Actividad, EDT, responsable, seguimiento o contacto">
+        <input id="searchInput" list="searchSuggestions" type="search" placeholder="Actividad, EDT, responsable, seguimiento o contacto">
+        <datalist id="searchSuggestions"></datalist>
       </div>
       <div class="field">
         <label for="statusFilter">Estado</label>
@@ -378,6 +397,11 @@ tbody tr:hover td{background:#f8fbfe}
         <h2>Riesgo por hito principal</h2>
         <div class="bar-list" id="analyticsRisk"></div>
       </div>
+      <div class="panel" style="grid-column:1 / -1">
+        <figure style="margin:0;border-radius:12px;overflow:hidden;border:1px solid var(--line)">
+          <img src="./assets/mercados-mundiales.png" alt="Contexto financiero y mercados para lectura ejecutiva del programa" style="width:100%;height:220px;object-fit:cover;display:block">
+        </figure>
+      </div>
     </div>
   </div>
 </div>
@@ -397,8 +421,8 @@ const BASE_PEOPLE = [
   'Sandra Torres',
   'Rolando Carpio',
   'Carlos Portocarrero',
-  'Fredy Ruiz',
   'Freddy Ruiz',
+  'Oriana Perez',
   'Marjorie Mellet'
 ];
 const appState = {
@@ -476,6 +500,7 @@ function personKey(name){
 function canonicalPersonName(name){
   const cleaned = cleanPersonName(name);
   if(!cleaned) return '';
+  if(personKey(cleaned) === personKey('Fredy Ruiz')) return 'Freddy Ruiz';
   const key = personKey(cleaned);
   const preferred = BASE_PEOPLE.find(person => personKey(person) === key);
   return preferred || cleaned;
@@ -503,8 +528,6 @@ function getAssignablePeople(){
     []
       .concat(BASE_PEOPLE)
       .concat(appState.customPeople || [])
-      .concat(appState.raw.map(r => r.seguimiento_dgppcs).filter(Boolean))
-      .concat(appState.raw.map(r => r.responsable).filter(Boolean))
   );
 }
 
@@ -580,7 +603,7 @@ function updateMeta(meta){
 function resetExpandedState(){
   appState.expanded = {};
   appState.raw.filter(r => Number(r.nivel) === 1).forEach(r => {
-    appState.expanded[r.edt] = false;
+    appState.expanded[r.edt] = true;
   });
 }
 
@@ -594,6 +617,14 @@ function buildSelect(selectId, values, placeholder){
   el.innerHTML = '<option value="">' + placeholder + '</option>' +
     values.map(v => '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + '</option>').join('');
   if(values.includes(current)) el.value = current;
+}
+
+function initSearchSuggestions(){
+  const datalist = document.getElementById('searchSuggestions');
+  const items = uniqueSorted(
+    appState.raw.flatMap(r => [r.edt, r.actividad, r.responsable, r.seguimiento_dgppcs]).filter(Boolean)
+  ).slice(0, 300);
+  datalist.innerHTML = items.map(item => '<option value="' + escapeHtml(item) + '"></option>').join('');
 }
 
 function escapeHtml(value){
@@ -971,8 +1002,9 @@ function statusBarClass(label){
 
 function renderOwnerBars(){
   const expandedOwners = [];
+  const allowed = new Set(getAssignablePeople().map(personKey));
   appState.matched.forEach(r => {
-    const people = splitPeople(r.seguimiento_dgppcs);
+    const people = splitPeople(r.seguimiento_dgppcs).filter(person => allowed.has(personKey(person)));
     if(!people.length){
       expandedOwners.push({owner:'Sin asignar'});
       return;
@@ -1005,7 +1037,11 @@ function groupCount(records, key){
 }
 
 function renderGantt(){
-  const source = appState.filtered.filter(r => r.inicio && r.final);
+  const source = appState.filtered.filter(r =>
+    r.inicio &&
+    r.final &&
+    !(text(r.edt) === '4' && /elaboraci[oó]n del sistema de seguimiento/i.test(text(r.actividad)))
+  );
   const monthsEl = document.getElementById('timelineMonths');
   const listEl = document.getElementById('ganttList');
   if(!source.length){
@@ -1115,8 +1151,8 @@ function openDrawer(recordId){
     '<div><b>Alerta:</b> ' + escapeHtml(alertLabel(record.alerta)) + '</div>' +
     '<div><b>Fechas:</b> ' + escapeHtml(fmtDate(record.inicio) + ' - ' + fmtDate(record.final)) + '</div>';
   document.getElementById('detailGrid').innerHTML = [
-    editableBox('Responsable','editResponsable','text',record.responsable,'Define responsable operativo'),
-    assignmentBox(record),
+    assignmentBox('Responsable','responsable', record.responsable),
+    assignmentBox('Seguimiento DGPPCS','seguimiento', record.seguimiento_dgppcs),
     editableBox('Contacto','editContacto','textarea',record.contacto,'Agrega correos, telefonos o nombres'),
     editableBox('Estado','editEstado','select',record.estado,'', ['Completado','En Proceso','Pendiente de Iniciar','Sin estado']),
     editableBox('Fecha inicio','editInicio','date',record.inicio,''),
@@ -1151,24 +1187,24 @@ function readonlyBox(label, value){
   return '<div class="detail-box"><b>' + escapeHtml(label) + '</b><div>' + escapeHtml(value) + '</div></div>';
 }
 
-function assignmentBox(record){
-  const selected = new Set(splitPeople(record.seguimiento_dgppcs));
+function assignmentBox(label, prefix, value){
+  const selected = new Set(splitPeople(value));
   const options = getAssignablePeople();
-  const extra = splitPeople(record.seguimiento_dgppcs).filter(name => !options.includes(name)).join(' / ');
-  return '<div class="detail-box"><b>Seguimiento DGPPCS</b>' +
+  const extra = splitPeople(value).filter(name => !options.includes(name)).join(' / ');
+  return '<div class="detail-box"><b>' + escapeHtml(label) + '</b>' +
     '<div class="assign-grid">' +
       options.map(name =>
-        '<label class="assign-item"><input type="checkbox" class="assign-person" value="' + escapeHtml(name) + '"' + (selected.has(name) ? ' checked' : '') + '><span>' + escapeHtml(name) + '</span></label>'
+        '<label class="assign-item"><input type="checkbox" class="assign-person assign-person-' + escapeHtml(prefix) + '" value="' + escapeHtml(name) + '"' + (selected.has(name) ? ' checked' : '') + '><span>' + escapeHtml(name) + '</span></label>'
       ).join('') +
     '</div>' +
-    '<div class="assign-extra"><input id="editSeguimientoExtra" type="text" value="' + escapeHtml(extra) + '" placeholder="Agregar otra persona o grupo adicional"></div>' +
-    '<div class="assign-extra"><input id="editNewPerson" type="text" value="" placeholder="Agregar nueva persona al catalogo local"></div>' +
+    '<div class="assign-extra"><input id="editExtra-' + escapeHtml(prefix) + '" type="text" value="' + escapeHtml(extra) + '" placeholder="Agregar otra persona o grupo adicional"></div>' +
+    '<div class="assign-extra"><input id="editNewPerson-' + escapeHtml(prefix) + '" type="text" value="" placeholder="Agregar nueva persona al catálogo local"></div>' +
   '</div>';
 }
 
-function getSelectedPeople(){
-  const selected = Array.from(document.querySelectorAll('.assign-person:checked')).map(input => cleanPersonName(input.value));
-  const extra = splitPeople(document.getElementById('editSeguimientoExtra')?.value || '');
+function getSelectedPeople(prefix){
+  const selected = Array.from(document.querySelectorAll('.assign-person-' + prefix + ':checked')).map(input => canonicalPersonName(input.value));
+  const extra = splitPeople(document.getElementById('editExtra-' + prefix)?.value || '');
   return Array.from(new Set(selected.concat(extra))).filter(Boolean);
 }
 
@@ -1178,14 +1214,14 @@ function closeDrawer(){
 
 function saveCurrentCase(){
   if(!appState.selectedId) return;
-  const newPeople = splitPeople(document.getElementById('editNewPerson')?.value || '');
+  const newPeople = splitPeople((document.getElementById('editNewPerson-responsable')?.value || '') + ' / ' + (document.getElementById('editNewPerson-seguimiento')?.value || ''));
   if(newPeople.length){
     appState.customPeople = uniquePeople([].concat(appState.customPeople || []).concat(newPeople));
     saveCustomPeople();
   }
   appState.edits[appState.selectedId] = {
-    responsable: text(document.getElementById('editResponsable').value),
-    seguimiento_dgppcs: getSelectedPeople().join(' / '),
+    responsable: getSelectedPeople('responsable').join(' / '),
+    seguimiento_dgppcs: getSelectedPeople('seguimiento').join(' / '),
     contacto: text(document.getElementById('editContacto').value),
     estado: text(document.getElementById('editEstado').value),
     inicio: text(document.getElementById('editInicio').value),
@@ -1451,6 +1487,7 @@ function initFilters(){
     uniqueSorted(appState.raw.map(r => r.alerta)).map(v => '<option value="' + escapeHtml(v) + '">' + escapeHtml(alertLabel(v)) + '</option>').join('');
   buildSelect('groupFilter', uniqueSorted(appState.raw.map(r => r.grupo)), 'Todos los grupos');
   buildSelect('ownerFilter', getAssignablePeople(), 'Todo seguimiento');
+  initSearchSuggestions();
 }
 
 function init(){

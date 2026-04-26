@@ -43,10 +43,10 @@ body{min-height:100vh}
 .report-box{padding:18px;display:grid;gap:14px}
 .report-box h2{margin:0;font-size:16px;color:var(--brand)}
 .report-box .actions,.toolbar-actions{display:flex;gap:10px;flex-wrap:wrap}
-.toolbar{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;margin-bottom:16px}
-.filters{display:grid;grid-template-columns:1.4fr repeat(5,minmax(0,1fr));gap:10px}
+.toolbar{display:grid;grid-template-columns:1fr;gap:12px;align-items:start;margin-bottom:16px}
+.filters{display:grid;grid-template-columns:1.4fr repeat(5,minmax(150px,1fr));gap:16px;align-items:start}
 .ingest{display:grid;grid-template-columns:1.2fr auto auto;gap:10px;align-items:end}
-.field{display:grid;gap:6px}
+.field{display:grid;gap:6px;min-width:0}
 .field label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700}
 .field input,.field select,.field textarea{
   width:100%;min-height:40px;border:1px solid var(--line);border-radius:10px;background:#fff;
@@ -172,16 +172,22 @@ tbody tr:hover td{background:#f8fbfe}
 .assign-item{display:flex;gap:8px;align-items:flex-start;padding:8px;border:1px solid #e6edf5;border-radius:10px;background:#fff}
 .assign-item input{min-height:auto;width:auto;margin-top:2px}
 .assign-extra{margin-top:10px}
-.assign-picker{margin-top:4px}
+.assign-picker{margin-top:4px;position:relative}
 .assign-picker summary{cursor:pointer;list-style:none;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;font-weight:700;color:var(--brand)}
 .assign-picker summary::-webkit-details-marker{display:none}
-.assign-picker[open] summary{border-bottom-left-radius:8px;border-bottom-right-radius:8px;margin-bottom:10px}
-  .filter-picker summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:12px}
-  .filters .filter-picker{width:100%}
-  .filters .filter-picker .assign-grid{grid-template-columns:1fr;max-height:260px;overflow:auto;padding-right:2px}
-  .filters .filter-picker .assign-item{padding:11px 12px;border-radius:12px;min-height:44px;align-items:center}
-  .filters .filter-picker .assign-item span{font-size:15px;line-height:1.25;color:var(--ink);font-weight:600}
-  .filters .filter-picker .assign-item input{margin-top:0}
+.assign-picker[open] summary{border-color:#c7d5e5}
+.filter-picker{z-index:1}
+.filter-picker[open]{z-index:30}
+.filter-picker summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.filters .filter-picker{width:100%}
+.filters .filter-picker .assign-grid{grid-template-columns:1fr;max-height:260px;overflow:auto;padding-right:2px;position:absolute;left:0;right:0;top:calc(100% + 8px);background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);z-index:40}
+.filters .filter-picker .assign-item{padding:11px 12px;border-radius:12px;min-height:44px;align-items:center}
+.filters .filter-picker .assign-item span{font-size:15px;line-height:1.25;color:var(--ink);font-weight:600}
+.filters .filter-picker .assign-item input{margin-top:0}
+.operations-panel{margin-top:16px}
+.operations-panel .summary-list{margin-bottom:14px}
+.operations-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.operations-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
 .local-note-box{display:grid;gap:10px;margin-top:16px}
 .summary-bullets{margin:8px 0 0;padding-left:18px;display:grid;gap:6px}
 .summary-bullets li{color:var(--muted);font-size:14px;line-height:1.3}
@@ -195,6 +201,7 @@ tbody tr:hover td{background:#f8fbfe}
   .cards{grid-template-columns:repeat(3,minmax(0,1fr))}
   .layout,.topbar,.split,.detail-grid,.filters,.toolbar{grid-template-columns:1fr}
   .hero{grid-template-columns:1fr}
+  .operations-grid{grid-template-columns:1fr}
 }
 @media (max-width:760px){
   .app{padding:10px}
@@ -219,21 +226,12 @@ tbody tr:hover td{background:#f8fbfe}
       </div>
     </div>
     <aside class="report-box">
-      <h2>Reportes</h2>
+      <h2>Resumen rapido</h2>
       <div class="summary-list" id="quickReportSummary"></div>
       <figure>
         <img src="./assets/planta-tratamiento-2.jpg" alt="Planta de tratamiento y enfoque de economía circular">
         <figcaption>Seguimiento de hitos, riesgos, inversión y operación del programa.</figcaption>
       </figure>
-    <div class="toolbar-actions">
-      <button id="buildReportBtn">Generar reporte ejecutivo</button>
-      <button id="editHeroBtn" class="secondary">Editar portada</button>
-      <button id="openAnalyticsBtn" class="ghost">Ver analitica</button>
-      <button id="exportTxtBtn" class="secondary">Exportar TXT</button>
-      <button id="exportJsonBtn" class="ghost">Exportar JSON filtrado</button>
-      <button id="printReportBtn" class="soft">Imprimir reporte</button>
-      <button id="openAdminBtn" class="secondary" style="display:none">Panel admin</button>
-    </div>
     </aside>
   </section>
 
@@ -271,29 +269,8 @@ tbody tr:hover td{background:#f8fbfe}
         <select id="ownerFilter"></select>
       </div>
     </div>
-    <div class="toolbar-actions" style="display:grid;gap:10px">
-      <div class="ingest">
-        <div class="field">
-          <label for="xlsxInput">Cargar Excel</label>
-          <input id="xlsxInput" type="file" accept=".xlsx,.xls,.xlsm,.xlsb,.csv">
-        </div>
-        <button id="loadXlsxBtn" class="ghost">Leer Excel</button>
-        <button id="useEmbeddedBtn" class="soft">Usar datos embebidos</button>
-      </div>
-      <div class="ingest">
-        <div class="field">
-          <label for="structureInput">Cargar estructura editable</label>
-          <input id="structureInput" type="file" accept=".xlsx,.xls,.json">
-        </div>
-        <button id="loadStructureBtn" class="ghost">Leer estructura</button>
-        <button id="exportStructureXlsxBtn" class="soft">Exportar estructura XLSX</button>
-      </div>
-      <div class="toolbar-actions">
-        <button id="exportStructureJsonBtn" class="ghost">Exportar estructura JSON</button>
-      </div>
+    <div class="toolbar-actions">
       <button id="resetFiltersBtn" class="secondary">Limpiar filtros</button>
-      <button id="openReportBtn" class="ghost">Ver reporte</button>
-      <button id="openAnalyticsBtnToolbar" class="ghost">Ver analitica</button>
     </div>
   </section>
 
@@ -358,17 +335,46 @@ tbody tr:hover td{background:#f8fbfe}
         <div class="bar-list" id="ownerBars"></div>
       </div>
 
-      <div class="panel">
-        <h2>Analitica y reportes</h2>
-        <div class="summary-list">
-          <div class="summary-item"><div><strong>Resumen ejecutivo</strong><span>Se genera solo cuando lo solicitas.</span></div></div>
-          <div class="summary-item"><div><strong>Analitica</strong><span>Consulta avances por hito y concentracion de riesgos en una ventana separada.</span></div></div>
+    </div>
+  </section>
+
+  <section class="panel operations-panel">
+    <h2>Operaciones y reportes</h2>
+    <div class="summary-list">
+      <div class="summary-item"><div><strong>Resumen ejecutivo</strong><span>Genera, revisa e imprime el consolidado del seguimiento.</span></div></div>
+      <div class="summary-item"><div><strong>Analitica</strong><span>Consulta avances por hito y concentración de riesgos en una ventana separada.</span></div></div>
+    </div>
+    <div class="operations-grid">
+      <div class="ingest">
+        <div class="field">
+          <label for="xlsxInput">Cargar Excel</label>
+          <input id="xlsxInput" type="file" accept=".xlsx,.xls,.xlsm,.xlsb,.csv">
         </div>
-        <div class="toolbar-actions" style="margin-top:12px">
-          <button id="openReportPanelBtn">Abrir resumen ejecutivo</button>
-          <button id="openAnalyticsPanelBtn" class="ghost">Abrir analitica</button>
-        </div>
+        <button id="loadXlsxBtn" class="ghost">Leer Excel</button>
+        <button id="useEmbeddedBtn" class="soft">Usar datos embebidos</button>
       </div>
+      <div class="ingest">
+        <div class="field">
+          <label for="structureInput">Cargar estructura editable</label>
+          <input id="structureInput" type="file" accept=".xlsx,.xls,.json">
+        </div>
+        <button id="loadStructureBtn" class="ghost">Leer estructura</button>
+        <button id="exportStructureXlsxBtn" class="soft">Exportar estructura XLSX</button>
+      </div>
+    </div>
+    <div class="operations-actions">
+      <button id="buildReportBtn">Generar reporte ejecutivo</button>
+      <button id="openReportBtn" class="ghost">Ver reporte</button>
+      <button id="openAnalyticsBtn" class="ghost">Ver analitica</button>
+      <button id="exportTxtBtn" class="secondary">Exportar TXT</button>
+      <button id="exportJsonBtn" class="ghost">Exportar JSON filtrado</button>
+      <button id="exportStructureJsonBtn" class="ghost">Exportar estructura JSON</button>
+      <button id="printReportBtn" class="soft">Imprimir reporte</button>
+      <button id="editHeroBtn" class="secondary">Editar portada</button>
+      <button id="openAdminBtn" class="secondary" style="display:none">Panel admin</button>
+      <button id="openReportPanelBtn" hidden>Abrir resumen ejecutivo</button>
+      <button id="openAnalyticsPanelBtn" hidden class="ghost">Abrir analitica</button>
+      <button id="openAnalyticsBtnToolbar" hidden class="ghost">Ver analitica</button>
     </div>
   </section>
 </div>

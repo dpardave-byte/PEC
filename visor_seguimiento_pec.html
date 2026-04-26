@@ -176,7 +176,12 @@ tbody tr:hover td{background:#f8fbfe}
 .assign-picker summary{cursor:pointer;list-style:none;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;font-weight:700;color:var(--brand)}
 .assign-picker summary::-webkit-details-marker{display:none}
 .assign-picker[open] summary{border-bottom-left-radius:8px;border-bottom-right-radius:8px;margin-bottom:10px}
-.filter-picker summary{min-height:40px;display:flex;align-items:center}
+  .filter-picker summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .filters .filter-picker{width:100%}
+  .filters .filter-picker .assign-grid{grid-template-columns:1fr;max-height:260px;overflow:auto;padding-right:2px}
+  .filters .filter-picker .assign-item{padding:11px 12px;border-radius:12px;min-height:44px;align-items:center}
+  .filters .filter-picker .assign-item span{font-size:15px;line-height:1.25;color:var(--ink);font-weight:600}
+  .filters .filter-picker .assign-item input{margin-top:0}
 .local-note-box{display:grid;gap:10px;margin-top:16px}
 .summary-bullets{margin:8px 0 0;padding-left:18px;display:grid;gap:6px}
 .summary-bullets li{color:var(--muted);font-size:14px;line-height:1.3}
@@ -248,7 +253,10 @@ tbody tr:hover td{background:#f8fbfe}
       </div>
       <div class="field">
         <label for="alertFilter">Alerta</label>
-        <select id="alertFilter"></select>
+        <details class="assign-picker filter-picker" id="alertFilterBox">
+          <summary id="alertFilterSummary">Todas las alertas</summary>
+          <div class="assign-grid" id="alertFilterOptions"></div>
+        </details>
       </div>
       <div class="field">
         <label for="groupFilter">Grupo EDT</label>
@@ -2563,6 +2571,27 @@ function updateStatusFilterSummary(){
   summary.textContent = selected.length ? ('Estados: ' + selected.length) : 'Todos los estados';
 }
 
+function initAlertFilter(){
+  const container = document.getElementById('alertFilterOptions');
+  const current = getSelectedAlertValues();
+  const values = uniqueSorted(appState.raw.map(r => r.alerta));
+  container.innerHTML = values.map(value =>
+    '<label class="assign-item"><input type="checkbox" class="alert-filter-option" value="' + escapeHtml(value) + '"' + (current.includes(value) ? ' checked' : '') + '><span>' + escapeHtml(alertLabel(value)) + '</span></label>'
+  ).join('');
+  updateAlertFilterSummary();
+}
+
+function getSelectedAlertValues(){
+  return Array.from(document.querySelectorAll('.alert-filter-option:checked')).map(input => text(input.value)).filter(Boolean);
+}
+
+function updateAlertFilterSummary(){
+  const summary = document.getElementById('alertFilterSummary');
+  if(!summary) return;
+  const selected = getSelectedAlertValues();
+  summary.textContent = selected.length ? ('Alertas: ' + selected.length) : 'Todas las alertas';
+}
+
 function initSearchSuggestions(){
   const datalist = document.getElementById('searchSuggestions');
   const items = uniqueSorted(
@@ -2587,7 +2616,7 @@ function escapeHtml(value){
 function applyFilters(){
   const q = text(document.getElementById('searchInput').value).toLowerCase();
   const statuses = getSelectedStatusValues();
-  const alert = text(document.getElementById('alertFilter').value);
+  const alerts = getSelectedAlertValues();
   const group = text(document.getElementById('groupFilter').value);
   const responsible = text(document.getElementById('responsibleFilter').value);
   const owner = text(document.getElementById('ownerFilter').value);
@@ -2599,7 +2628,7 @@ function applyFilters(){
     ].join(' ').toLowerCase();
     if(q && !haystack.includes(q)) return false;
     if(statuses.length && !statuses.includes(record.estado)) return false;
-    if(alert && record.alerta !== alert) return false;
+    if(alerts.length && !alerts.includes(record.alerta)) return false;
     if(group && record.grupo !== group) return false;
     if(responsible && !splitEntities(record.responsable).some(entity => entityKey(entity) === entityKey(responsible))) return false;
     if(owner && !splitPeople(record.seguimiento_dgppcs).some(person => personKey(person) === personKey(owner))) return false;
@@ -4153,7 +4182,7 @@ function printReport(){
 }
 
 function bindEvents(){
-  ['searchInput','alertFilter','groupFilter','responsibleFilter','ownerFilter'].forEach(id => {
+  ['searchInput','groupFilter','responsibleFilter','ownerFilter'].forEach(id => {
     document.getElementById(id).addEventListener('input', applyFilters);
     document.getElementById(id).addEventListener('change', applyFilters);
   });
@@ -4161,12 +4190,18 @@ function bindEvents(){
     updateStatusFilterSummary();
     applyFilters();
   });
+  document.getElementById('alertFilterOptions').addEventListener('change', () => {
+    updateAlertFilterSummary();
+    applyFilters();
+  });
   document.getElementById('resetFiltersBtn').addEventListener('click', () => {
-    ['searchInput','alertFilter','groupFilter','responsibleFilter','ownerFilter'].forEach(id => {
+    ['searchInput','groupFilter','responsibleFilter','ownerFilter'].forEach(id => {
       document.getElementById(id).value = '';
     });
     document.querySelectorAll('.status-filter-option').forEach(input => { input.checked = false; });
+    document.querySelectorAll('.alert-filter-option').forEach(input => { input.checked = false; });
     updateStatusFilterSummary();
+    updateAlertFilterSummary();
     applyFilters();
   });
   document.getElementById('closeDrawerBtn').addEventListener('click', closeDrawer);
@@ -4245,9 +4280,7 @@ function bindEvents(){
 
 function initFilters(){
   initStatusFilter();
-  const alertSelect = document.getElementById('alertFilter');
-  alertSelect.innerHTML = '<option value="">Todas las alertas</option>' +
-    uniqueSorted(appState.raw.map(r => r.alerta)).map(v => '<option value="' + escapeHtml(v) + '">' + escapeHtml(alertLabel(v)) + '</option>').join('');
+  initAlertFilter();
   buildSelect('groupFilter', uniqueSorted(appState.raw.map(r => r.grupo)), 'Todos los grupos');
   buildSelect('responsibleFilter', getAssignableEntities(), 'Toda entidad responsable');
   buildSelect('ownerFilter', getAssignablePeople(), 'Todo seguimiento');

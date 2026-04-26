@@ -387,15 +387,27 @@ tbody tr:hover td{background:#f8fbfe}
 <script>
 const STORAGE_KEY = 'pec_tracking_notes_v1';
 const EDIT_STORAGE_KEY = 'pec_tracking_edits_v1';
+const PEOPLE_STORAGE_KEY = 'pec_tracking_people_v1';
 const HEADER_ROW = 7;
 const SHEET_NAME = 'CRONOGRAMA';
 const SELECTED_COLUMNS = [1, 2, 3, 4, 5, 6, 7, 8, 248, 249, 250];
+const BASE_PEOPLE = [
+  'Alain Sanchez',
+  'Betsabé Araindia',
+  'Sandra Torres',
+  'Rolando Carpio',
+  'Carlos Portocarrero',
+  'Fredy Ruiz',
+  'Freddy Ruiz',
+  'Marjorie Mellet'
+];
 const appState = {
   raw: [],
   matched: [],
   filtered: [],
   notes: loadNotes(),
   edits: loadEdits(),
+  customPeople: loadCustomPeople(),
   selectedId: '',
   reportText: '',
   reportHtml: '',
@@ -427,6 +439,18 @@ function saveEdits(){
   localStorage.setItem(EDIT_STORAGE_KEY, JSON.stringify(appState.edits));
 }
 
+function loadCustomPeople(){
+  try{
+    return JSON.parse(localStorage.getItem(PEOPLE_STORAGE_KEY) || '[]');
+  }catch(error){
+    return [];
+  }
+}
+
+function saveCustomPeople(){
+  localStorage.setItem(PEOPLE_STORAGE_KEY, JSON.stringify(appState.customPeople));
+}
+
 function slugify(text){
   return String(text || '')
     .toLowerCase()
@@ -451,6 +475,16 @@ function splitPeople(value){
 
 function uniquePeople(values){
   return Array.from(new Set(values.flatMap(splitPeople))).sort((a,b)=>a.localeCompare(b,'es'));
+}
+
+function getAssignablePeople(){
+  return uniquePeople(
+    []
+      .concat(BASE_PEOPLE)
+      .concat(appState.customPeople || [])
+      .concat(appState.raw.map(r => r.seguimiento_dgppcs).filter(Boolean))
+      .concat(appState.raw.map(r => r.responsable).filter(Boolean))
+  );
 }
 
 function fmtDate(value){
@@ -1098,7 +1132,7 @@ function readonlyBox(label, value){
 
 function assignmentBox(record){
   const selected = new Set(splitPeople(record.seguimiento_dgppcs));
-  const options = uniquePeople(appState.raw.map(r => r.seguimiento_dgppcs).filter(Boolean));
+  const options = getAssignablePeople();
   const extra = splitPeople(record.seguimiento_dgppcs).filter(name => !options.includes(name)).join(' / ');
   return '<div class="detail-box"><b>Seguimiento DGPPCS</b>' +
     '<div class="assign-grid">' +
@@ -1107,6 +1141,7 @@ function assignmentBox(record){
       ).join('') +
     '</div>' +
     '<div class="assign-extra"><input id="editSeguimientoExtra" type="text" value="' + escapeHtml(extra) + '" placeholder="Agregar otra persona o grupo adicional"></div>' +
+    '<div class="assign-extra"><input id="editNewPerson" type="text" value="" placeholder="Agregar nueva persona al catalogo local"></div>' +
   '</div>';
 }
 
@@ -1122,6 +1157,11 @@ function closeDrawer(){
 
 function saveCurrentCase(){
   if(!appState.selectedId) return;
+  const newPeople = splitPeople(document.getElementById('editNewPerson')?.value || '');
+  if(newPeople.length){
+    appState.customPeople = uniquePeople([].concat(appState.customPeople || []).concat(newPeople));
+    saveCustomPeople();
+  }
   appState.edits[appState.selectedId] = {
     responsable: text(document.getElementById('editResponsable').value),
     seguimiento_dgppcs: getSelectedPeople().join(' / '),
@@ -1389,7 +1429,7 @@ function initFilters(){
   alertSelect.innerHTML = '<option value="">Todas las alertas</option>' +
     uniqueSorted(appState.raw.map(r => r.alerta)).map(v => '<option value="' + escapeHtml(v) + '">' + escapeHtml(alertLabel(v)) + '</option>').join('');
   buildSelect('groupFilter', uniqueSorted(appState.raw.map(r => r.grupo)), 'Todos los grupos');
-  buildSelect('ownerFilter', uniquePeople(appState.raw.map(r => r.seguimiento_dgppcs).filter(Boolean)), 'Todo seguimiento');
+  buildSelect('ownerFilter', getAssignablePeople(), 'Todo seguimiento');
 }
 
 function init(){

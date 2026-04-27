@@ -60,6 +60,18 @@ El visor compartido usa la misma Web App, pero en la vista:
 .../exec?view=visor
 ```
 
+Para el visor web publicado por GitHub Pages, la URL esperada es:
+
+```text
+https://dpardave-byte.github.io/PEC/visor_seguimiento_pec.html
+```
+
+Si el navegador mantiene una versión anterior, usar:
+
+```text
+https://dpardave-byte.github.io/PEC/visor_seguimiento_pec.html?v=<commit>
+```
+
 En ese modo:
 
 - la fuente visual sigue siendo el mismo visor PEC;
@@ -103,6 +115,10 @@ Los administradores pueden:
 - descargar el backup mas reciente del estado compartido;
 - ver quien guardo y cuando se actualizo el backend.
 
+Checklist operativo detallado:
+
+- [CHECKLIST_OPERATIVO_VISOR_PEC.md](/C:/Users/Dpard/OneDrive/Escritorio/EC/PEC_repo_limpio/CHECKLIST_OPERATIVO_VISOR_PEC.md)
+
 ### Si se danan los datos compartidos
 
 1. Abre el folder `\_VisorSeguimientoPEC` en Drive.
@@ -123,6 +139,36 @@ Los administradores pueden:
 - Apps Script no ofrece colaboracion en tiempo real real en este visor; se usa polling de 30 segundos.
 - Si dos usuarios editan al mismo tiempo, el backend detecta conflicto basico por revision y evita sobrescribir silenciosamente la version mas reciente.
 - Si el backend no responde, el visor mantiene fallback local y lo informa en el estado de la fuente.
+
+## Guia de despliegue rapido del visor compartido
+
+1. Abrir el proyecto Apps Script.
+2. Actualizar `Code.gs`.
+3. Crear o actualizar el archivo HTML `Visor`.
+4. Pegar el contenido de `apps_script/Visor.html`.
+5. Revisar que se mantenga el bootstrap:
+
+   ```javascript
+   window.PEC_SERVER_BOOTSTRAP = <?!= visorBootstrapJson ?>;
+   ```
+
+6. Configurar administradores si aplica:
+
+   ```text
+   PEC_VISOR_ADMIN_EMAILS=darwin@dominio.com;otro@dominio.com
+   ```
+
+7. Implementar como `Web App`.
+8. Definir permisos de acceso del despliegue.
+9. Abrir la URL `.../exec?view=visor`.
+10. Validar:
+    - carga inicial;
+    - edición de ficha;
+    - guardado compartido;
+    - auditoría;
+    - backup;
+    - acceso admin;
+    - acceso no admin.
 
 ## Flujo de trabajo recomendado
 

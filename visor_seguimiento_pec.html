@@ -2248,6 +2248,14 @@ const BASE_PEOPLE = [
   'Oriana Perez',
   'Marjorie Mellet'
 ];
+const PERSON_CANONICAL_ALIASES = [
+  ['Teresa Anana', 'Teresa Arana'],
+  ['Teresa  Arana', 'Teresa Arana'],
+  ['TERESA ARANA', 'Teresa Arana'],
+  ['Darwin Pardave', 'Darwin Pardavé'],
+  ['Betsabe Araindia', 'Betsabé Araindia'],
+  ['Fredy Ruiz', 'Freddy Ruiz']
+];
 const BASE_ENTITIES = [
   'DGPPCS',
   'PNSU',
@@ -2507,8 +2515,9 @@ function personKey(name){
 function canonicalPersonName(name){
   const cleaned = cleanPersonName(name);
   if(!cleaned) return '';
-  if(personKey(cleaned) === personKey('Fredy Ruiz')) return 'Freddy Ruiz';
   const key = personKey(cleaned);
+  const aliased = PERSON_CANONICAL_ALIASES.find(([alias]) => personKey(alias) === key);
+  if(aliased) return aliased[1];
   const preferred = BASE_PEOPLE.find(person => personKey(person) === key);
   return preferred || cleaned;
 }
@@ -2531,11 +2540,33 @@ function canonicalEntityName(name){
   return preferred || cleaned;
 }
 
+function isLikelyInstitutionalEntity(name){
+  const cleaned = cleanEntityName(name);
+  if(!cleaned) return false;
+  const key = entityKey(cleaned);
+  if(BASE_ENTITIES.some(entity => entityKey(entity) === key)) return true;
+  if(/^[A-ZÁÉÍÓÚÑ0-9/&.\-]{2,}$/.test(cleaned)) return true;
+  if(/[0-9]/.test(cleaned)) return true;
+  return /\b(direccion|dirección|oficina|unidad|programa|proyecto|equipo|comite|comité|ministerio|municipalidad|empresa|banco|gerencia|secretaria|secretaría|viceministerio|mesa|comision|comisión|grupo|ptar|emsa|eps|ogaj|ogpp|pnsu|paslc|dgppcs|vmcs|bm|sg|mpp)\b/i.test(cleaned);
+}
+
+function isLikelyPersonName(name){
+  const cleaned = cleanPersonName(name);
+  if(!cleaned) return false;
+  const key = personKey(cleaned);
+  if(BASE_PEOPLE.some(person => personKey(person) === key)) return true;
+  if(isLikelyInstitutionalEntity(cleaned)) return false;
+  if(/[0-9]/.test(cleaned)) return false;
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+  if(parts.length < 2 || parts.length > 5) return false;
+  return parts.every(part => /^[A-ZÁÉÍÓÚÑ][a-záéíóúñ'-]+$/u.test(part));
+}
+
 function splitPeople(value){
   return text(value)
     .split(/[\/,;]+/g)
     .map(canonicalPersonName)
-    .filter(Boolean);
+    .filter(name => name && isLikelyPersonName(name));
 }
 
 function splitEntityFragment(value){
@@ -2555,7 +2586,7 @@ function splitEntities(value){
     .split(/[\/,;|]+/g)
     .flatMap(splitEntityFragment)
     .map(canonicalEntityName)
-    .filter(Boolean);
+    .filter(name => name && isLikelyInstitutionalEntity(name) && !isLikelyPersonName(name));
 }
 
 function normalizeSeguimientoValue(value){

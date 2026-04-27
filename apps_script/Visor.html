@@ -2182,8 +2182,8 @@ window.PEC_TRACKING_DATA = {
 
 }
 </script>
+<script id="pecServerBootstrap" type="application/json"><?!= visorBootstrapJson ?></script>
 <script>
-window.PEC_SERVER_BOOTSTRAP = <?!= visorBootstrapJson ?>;
 const STORAGE_KEY = 'pec_tracking_notes_v1';
 const EDIT_STORAGE_KEY = 'pec_tracking_edits_v1';
 const PEOPLE_STORAGE_KEY = 'pec_tracking_people_v1';
@@ -2320,8 +2320,43 @@ const appState = {
   remoteRevision: 0,
   serverInfo: null
 };
-const SERVER_BOOTSTRAP = typeof window !== 'undefined' && window.PEC_SERVER_BOOTSTRAP && window.PEC_SERVER_BOOTSTRAP.ok
-  ? window.PEC_SERVER_BOOTSTRAP
+function readServerBootstrapEnvelope(){
+  const node = typeof document !== 'undefined' ? document.getElementById('pecServerBootstrap') : null;
+  const raw = text(node && node.textContent);
+  if(!raw) return {ok:false, reason:'missing'};
+  if(/^<\?/.test(raw) || /visorBootstrapJson/.test(raw)) return {ok:false, reason:'template_unprocessed'};
+  try{
+    const parsed = JSON.parse(raw);
+    if(!parsed || typeof parsed !== 'object') return {ok:false, reason:'invalid'};
+    return {ok:true, value:parsed};
+  }catch(error){
+    return {ok:false, reason:'invalid', error};
+  }
+}
+
+function hasValidSharedBootstrapState(bootstrap){
+  return Boolean(
+    bootstrap &&
+    bootstrap.ok &&
+    bootstrap.state &&
+    bootstrap.state.payload &&
+    Array.isArray(bootstrap.state.payload.records) &&
+    bootstrap.state.payload.records.length
+  );
+}
+
+function resolveBootstrapFallbackMessage(result, bootstrap){
+  if(hasValidSharedBootstrapState(bootstrap)) return '';
+  if(result.reason === 'missing') return '';
+  if(result.reason === 'template_unprocessed'){
+    return 'No se procesó el estado compartido de Apps Script. Se cargaron datos embebidos de respaldo.';
+  }
+  return 'No se encontró estado compartido válido. Se cargaron datos embebidos de respaldo.';
+}
+
+const SERVER_BOOTSTRAP_RESULT = readServerBootstrapEnvelope();
+const SERVER_BOOTSTRAP = SERVER_BOOTSTRAP_RESULT.ok && SERVER_BOOTSTRAP_RESULT.value && SERVER_BOOTSTRAP_RESULT.value.ok
+  ? SERVER_BOOTSTRAP_RESULT.value
   : null;
 let sharedSyncTimer = null;
 let sharedSyncInFlight = false;
@@ -5867,13 +5902,20 @@ function initFilters(){
 }
 
 function init(){
-  if(SERVER_BOOTSTRAP && SERVER_BOOTSTRAP.state){
+  const fallbackMessage = resolveBootstrapFallbackMessage(SERVER_BOOTSTRAP_RESULT, SERVER_BOOTSTRAP);
+  if(hasValidSharedBootstrapState(SERVER_BOOTSTRAP)){
     applySharedStateBundle(SERVER_BOOTSTRAP.state, {skipRenderHero:true});
     updateServerInfoFromEnvelope(SERVER_BOOTSTRAP);
     setSharedSyncState('synced', 'Estado compartido cargado desde Apps Script.');
   }else{
     ensureServerInfo();
-    setSharedSyncState('local', 'Modo local: los cambios se guardan en este navegador.');
+    if(SERVER_BOOTSTRAP) updateServerInfoFromEnvelope(SERVER_BOOTSTRAP);
+    if(fallbackMessage){
+      setImportFeedback('Fuente embebida de respaldo', fallbackMessage, 'warn');
+      setSharedSyncState(isSharedBackendMode() ? 'error' : 'local', fallbackMessage);
+    }else{
+      setSharedSyncState('local', 'Modo local: los cambios se guardan en este navegador.');
+    }
     hydrateData();
   }
   renderHero();

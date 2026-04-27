@@ -8,6 +8,7 @@
 :root{
   --bg:#eef3f8;
   --panel:#ffffff;
+  --panel-soft:#f7fbff;
   --ink:#102132;
   --muted:#5f7287;
   --line:#d7e0ea;
@@ -19,65 +20,86 @@
   --red:#ba2d3b;
   --soft:#f6f9fc;
   --shadow:0 18px 44px rgba(16,33,50,.10);
+  --shadow-soft:0 10px 28px rgba(16,33,50,.08);
 }
 *{box-sizing:border-box}
-html,body{margin:0;padding:0;background:linear-gradient(180deg,#f2f6fb 0,#eef3f8 100%);color:var(--ink);font-family:Arial,Helvetica,sans-serif}
+html,body{
+  margin:0;padding:0;
+  background:
+    radial-gradient(circle at top left,rgba(22,99,199,.08),transparent 28%),
+    linear-gradient(180deg,#f4f8fc 0,#eef3f8 100%);
+  color:var(--ink);
+  font-family:"Segoe UI","Aptos",Arial,sans-serif
+}
 body{min-height:100vh}
-.app{max-width:1500px;margin:0 auto;padding:18px}
-.topbar{display:grid;grid-template-columns:1.2fr .8fr;gap:16px;margin-bottom:16px}
-.hero,.report-box,.panel,.drawer-card,.modal-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
-.hero{padding:0;overflow:hidden;display:grid;grid-template-columns:1.15fr .85fr;min-height:320px}
-.hero-copy{padding:34px 28px;background:linear-gradient(135deg,rgba(16,57,88,.96),rgba(14,90,106,.90));color:#fff;display:flex;flex-direction:column;justify-content:center}
-.hero-copy h1{margin:0;font-size:58px;line-height:1.02;color:#fff;letter-spacing:-.02em}
-.hero-copy p{margin:16px 0 0;color:rgba(255,255,255,.94);max-width:820px;font-size:28px;line-height:1.25}
-.hero-copy .hero-meta{color:rgba(255,255,255,.92);font-size:18px;gap:20px}
+.app{max-width:1520px;margin:0 auto;padding:20px}
+.topbar{display:grid;grid-template-columns:1.25fr .75fr;gap:18px;margin-bottom:18px}
+.hero,.report-box,.panel,.drawer-card,.modal-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+.hero{padding:0;overflow:hidden;display:grid;grid-template-columns:1.15fr .85fr;min-height:336px}
+.hero-copy{padding:36px 30px;background:linear-gradient(145deg,rgba(16,57,88,.98),rgba(11,88,101,.92));color:#fff;display:flex;flex-direction:column;justify-content:center}
+.hero-copy h1{margin:0;font-size:60px;line-height:1;color:#fff;letter-spacing:-.035em}
+.hero-copy p{margin:18px 0 0;color:rgba(255,255,255,.94);max-width:820px;font-size:27px;line-height:1.24}
+.hero-copy .hero-meta{color:rgba(255,255,255,.94);font-size:18px;gap:12px}
 .hero-visual{position:relative;background:#dbe9f4}
 .hero-visual img{width:100%;height:100%;object-fit:cover;display:block}
-.hero-visual:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(16,57,88,.18),rgba(16,57,88,.02))}
-.hero-meta{display:flex;gap:18px;flex-wrap:wrap;margin-top:14px;font-size:13px;color:var(--muted)}
+.hero-visual:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(16,57,88,.24),rgba(16,57,88,.02))}
+.hero-meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;font-size:13px;color:var(--muted)}
+.hero-meta > div{display:inline-flex;gap:6px;align-items:center;padding:7px 10px;border-radius:999px;background:rgba(255,255,255,.12);backdrop-filter:blur(5px)}
 .hero-meta b{color:var(--ink)}
 .hero-copy .hero-meta b{color:#fff}
 .report-box figure{margin:0;border-radius:12px;overflow:hidden;border:1px solid var(--line)}
 .report-box figure img{width:100%;height:180px;object-fit:cover;display:block}
 .report-box figcaption{padding:10px 12px;font-size:12px;color:var(--muted);background:#fbfdff}
-.report-box{padding:18px;display:grid;gap:14px}
-.report-box h2{margin:0;font-size:16px;color:var(--brand)}
+.report-box{padding:20px;display:grid;gap:16px;background:linear-gradient(180deg,#ffffff 0,#f9fbfe 100%)}
+.report-box h2{margin:0;font-size:16px;color:var(--brand);letter-spacing:.04em;text-transform:uppercase}
 .report-box .actions,.toolbar-actions{display:flex;gap:10px;flex-wrap:wrap}
-.toolbar{display:grid;grid-template-columns:1fr;gap:12px;align-items:start;margin-bottom:16px}
-.filters{display:grid;grid-template-columns:1.4fr repeat(5,minmax(150px,1fr));gap:16px;align-items:start}
+.toolbar{display:grid;grid-template-columns:1fr;gap:12px;align-items:start;margin-bottom:18px}
+.filters{display:grid;grid-template-columns:1.55fr repeat(5,minmax(150px,1fr));gap:16px;align-items:start}
 .ingest{display:grid;grid-template-columns:1.2fr auto auto;gap:10px;align-items:end}
 .field{display:grid;gap:6px;min-width:0}
 .field label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700}
 .field input,.field select,.field textarea{
-  width:100%;min-height:40px;border:1px solid var(--line);border-radius:10px;background:#fff;
-  color:var(--ink);padding:10px 12px;font:14px Arial,Helvetica,sans-serif
+  width:100%;min-height:44px;border:1px solid var(--line);border-radius:12px;background:#fff;
+  color:var(--ink);padding:10px 12px;font:14px "Segoe UI","Aptos",Arial,sans-serif;box-shadow:inset 0 1px 2px rgba(16,33,50,.02)
 }
 .field textarea{min-height:110px;resize:vertical}
+.field-help{margin:0;color:var(--muted);font-size:12px;line-height:1.35}
 button{
-  border:0;border-radius:10px;background:var(--blue);color:#fff;font-weight:700;cursor:pointer;
-  min-height:40px;padding:0 14px
+  border:0;border-radius:12px;background:var(--blue);color:#fff;font-weight:700;cursor:pointer;
+  min-height:42px;padding:0 15px;box-shadow:0 10px 24px rgba(22,99,199,.18)
 }
 button.secondary{background:#41586f}
 button.ghost{background:#edf4ff;color:var(--blue)}
 button.soft{background:#e8f5f1;color:#0e615a}
 .layout{display:grid;grid-template-columns:1.6fr .9fr;gap:16px}
 .stack{display:grid;gap:16px}
-.cards{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow)}
-.card span{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700}
-.card b{display:block;font-size:30px;margin-top:6px;color:var(--brand)}
-.card small{display:block;margin-top:8px;color:var(--muted)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
+.card{background:linear-gradient(180deg,#ffffff 0,#f8fbff 100%);border:1px solid var(--line);border-radius:16px;padding:16px 16px 14px;box-shadow:var(--shadow-soft);display:grid;gap:8px}
+.card span{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+.card b{display:block;font-size:30px;margin-top:2px;color:var(--brand);line-height:1}
+.card small{display:block;margin-top:0;color:var(--muted);line-height:1.35}
+.card .metric-note strong{color:var(--ink)}
+.card.alert{background:linear-gradient(180deg,#fffaf9 0,#fff3f3 100%);border-color:#f1d2d6}
 .card.alert b{color:var(--red)}
-.panel{padding:16px}
-.panel h2{margin:0 0 12px;font-size:15px;color:var(--brand);text-transform:uppercase;letter-spacing:.5px}
+.card.good{background:linear-gradient(180deg,#f6fffb 0,#eefaf5 100%)}
+.card.good b{color:var(--brand-2)}
+.card.neutral{background:linear-gradient(180deg,#fbfcfe 0,#f4f8fb 100%)}
+.panel{padding:18px}
+.panel h2{margin:0 0 14px;font-size:15px;color:var(--brand);text-transform:uppercase;letter-spacing:.08em}
 .split{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .mini-list,.alert-list,.summary-list,.report-output{display:grid;gap:10px}
 .mini-item,.alert-item,.summary-item{
   display:flex;justify-content:space-between;gap:12px;align-items:flex-start;
-  padding:10px 12px;border:1px solid #e8eef5;border-radius:10px;background:var(--soft)
+  padding:12px 13px;border:1px solid #e8eef5;border-radius:12px;background:var(--soft)
 }
 .summary-item strong,.alert-item strong{display:block}
 .summary-item span,.alert-item span{color:var(--muted);font-size:12px}
+.summary-item .kicker,.alert-item .kicker{
+  display:inline-flex;align-items:center;gap:6px;margin-bottom:8px;
+  padding:4px 8px;border-radius:999px;background:#eaf1f8;color:var(--brand);
+  font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em
+}
+.summary-item p,.alert-item p{margin:8px 0 0;color:var(--muted);font-size:13px;line-height:1.35}
 .status-pill,.alert-pill{
   display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;
   border-radius:999px;padding:4px 9px;font-size:11px;font-weight:700
@@ -90,7 +112,7 @@ button.soft{background:#e8f5f1;color:#0e615a}
 .al-critico,.al-vencido{background:#fdecee;color:var(--red)}
 .al-atencion,.al-sin-fecha{background:#fbf1e3;color:var(--amber)}
 .bar-list{display:grid;gap:10px}
-.bar-row{display:grid;grid-template-columns:minmax(120px,1.2fr) minmax(180px,2.4fr) 48px;gap:10px;align-items:center}
+.bar-row{display:grid;grid-template-columns:minmax(120px,1.2fr) minmax(180px,2.4fr) 56px;gap:10px;align-items:center}
 .track{height:14px;border-radius:999px;background:#e8edf3;overflow:hidden}
 .fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--blue),#7db3ff)}
 .fill.green{background:linear-gradient(90deg,var(--brand-2),#4fb8a5)}
@@ -98,18 +120,42 @@ button.soft{background:#e8f5f1;color:#0e615a}
 .fill.amber{background:linear-gradient(90deg,#c78818,#ffd082)}
 .timeline-shell{overflow:auto;padding-bottom:6px}
 .timeline-head,.timeline-row{
-  display:grid;grid-template-columns:420px minmax(680px,1fr) 130px 110px;gap:16px;align-items:center
+  display:grid;grid-template-columns:430px minmax(680px,1fr) 138px 118px;gap:16px;align-items:center
 }
 .timeline-head{margin-bottom:12px;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.6px}
+.timeline-legend{display:flex;gap:10px;flex-wrap:wrap;margin:-2px 0 14px}
+.timeline-legend span{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:#f3f7fb;color:var(--muted);font-size:12px;font-weight:700}
+.timeline-legend i{display:inline-flex;width:12px;height:12px;border-radius:999px}
+.timeline-legend .done{background:linear-gradient(90deg,#547c4a,#86b378)}
+.timeline-legend .progress{background:linear-gradient(90deg,var(--brand-2),#53b0a0)}
+.timeline-legend .attention{background:linear-gradient(90deg,#c78818,#ffd082)}
+.timeline-legend .overdue{background:linear-gradient(90deg,#b32738,#ff7a88)}
 .months{display:grid;grid-template-columns:repeat(var(--months),1fr);gap:4px}
-.months div{padding:7px 0;background:#f2f6fa;border-radius:8px;text-align:center;font-size:13px}
+.months div{padding:8px 0;background:#f3f7fb;border-radius:10px;text-align:center;font-size:13px;font-weight:700;color:#486178}
 .gantt-list{display:grid;gap:12px}
 .timeline-row{padding:14px 0;border-top:1px solid #edf2f6}
+.timeline-row.level-1{
+  padding:16px 14px;border:1px solid #d7e3ef;border-radius:16px;
+  background:linear-gradient(180deg,#fcfdff 0,#f2f7fc 100%)
+}
+.timeline-row.level-2{padding-left:8px}
+.timeline-row.level-3,.timeline-row.level-4,.timeline-row.level-5{padding-left:12px}
 .timeline-title strong{display:block;font-size:20px;line-height:1.12}
+.timeline-row.level-1 .timeline-title strong{font-size:21px;color:var(--brand)}
+.timeline-row.level-2 .timeline-title strong{font-size:18px}
+.timeline-row.level-3 .timeline-title strong,.timeline-row.level-4 .timeline-title strong,.timeline-row.level-5 .timeline-title strong{font-size:16px}
 .timeline-title span{display:block;color:var(--muted);font-size:14px;line-height:1.25;margin-top:5px}
-.timeline-title small{display:block;color:var(--brand-2);font-size:14px;line-height:1.25;margin-top:6px;font-weight:700}
+.timeline-title small{display:block;color:var(--brand-2);font-size:13px;line-height:1.35;margin-top:8px;font-weight:700}
+.timeline-kickers{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.timeline-kind{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;background:#edf4fb;color:var(--brand);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+.timeline-kind.root{background:#e8f0fa}
+.timeline-kind.phase{background:#f0f5fb}
+.timeline-kind.milestone{background:#eef7f4;color:var(--brand-2)}
 .timeline-title .edt-cell{align-items:center}
-.gantt-track{height:26px;background:#eef3f8;border-radius:999px;position:relative;overflow:hidden}
+.timeline-row.level-1 .gantt-track{background:#e3ebf4}
+.timeline-row.level-1 .gantt-progress .progress-track{background:#dfe7f0}
+.timeline-row.level-1 .tree-toggle{background:#dfeafa}
+.gantt-track{height:28px;background:#eef3f8;border-radius:999px;position:relative;overflow:hidden;border:1px solid #e2eaf3}
 .gantt-bar{
   position:absolute;top:4px;height:18px;border-radius:999px;
   background:linear-gradient(90deg,var(--brand-2),#53b0a0);box-shadow:0 8px 20px rgba(27,111,106,.22)
@@ -118,10 +164,11 @@ button.soft{background:#e8f5f1;color:#0e615a}
 .gantt-bar.attention{background:linear-gradient(90deg,#b5750d,#ffc363)}
 .gantt-bar.pending{background:linear-gradient(90deg,#74879d,#b4c0ce)}
 .gantt-bar.done{background:linear-gradient(90deg,#547c4a,#86b378)}
-.gantt-today{position:absolute;top:0;bottom:0;width:2px;background:#1d4ed8;opacity:.7}
+.gantt-today{position:absolute;top:0;bottom:0;width:2px;background:#1d4ed8;opacity:.75}
 .gantt-label{font-size:12px;color:var(--muted);text-align:right}
-.gantt-progress{display:grid;gap:4px}
+.gantt-progress{display:grid;gap:6px}
 .gantt-progress .progress-track{width:100%}
+.gantt-progress span{font-weight:700;color:var(--brand)}
 .table-shell{overflow:auto}
 table{width:100%;min-width:1200px;border-collapse:collapse}
 th,td{padding:10px 12px;border-bottom:1px solid #edf2f6;text-align:left;vertical-align:top;font-size:13px}
@@ -137,11 +184,16 @@ tbody tr:hover td{background:#f8fbfe}
   background:#eef4fb;color:var(--brand);font-size:12px;line-height:1
 }
 .tree-toggle.empty{visibility:visible;opacity:.42;cursor:default}
+.tree-node-spacer{display:inline-flex;min-height:26px;height:26px;min-width:26px;width:26px;flex:0 0 26px}
 .edt-chip{
   display:inline-flex;align-items:center;min-height:26px;padding:3px 8px;border-radius:999px;
   background:#f2f6fa;color:var(--brand);font-weight:700;font-size:12px
 }
-.row-level-1 td{background:#fbfdff}
+.row-level-1 td{background:#f8fbfe}
+.row-level-1 .edt-chip{background:var(--brand);color:#fff}
+.row-level-1 .activity-wrap strong{font-size:15px;color:var(--brand)}
+.row-level-2 .activity-wrap strong{font-size:14px}
+.row-level-3 .activity-wrap strong,.row-level-4 .activity-wrap strong,.row-level-5 .activity-wrap strong{font-size:13px}
 .row-level-2 td{background:#fdfefe}
 .row-level-3 td,.row-level-4 td,.row-level-5 td{background:#fff}
 .activity-wrap{display:grid;gap:4px}
@@ -165,7 +217,7 @@ tbody tr:hover td{background:#f8fbfe}
 .detail-box b{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
 .detail-box input,.detail-box select,.detail-box textarea{
   width:100%;min-height:40px;border:1px solid var(--line);border-radius:10px;background:#fff;
-  color:var(--ink);padding:10px 12px;font:14px Arial,Helvetica,sans-serif
+  color:var(--ink);padding:10px 12px;font:14px "Segoe UI","Aptos",Arial,sans-serif
 }
 .detail-box textarea{min-height:96px;resize:vertical}
 .assign-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-height:180px;overflow:auto;padding:2px}
@@ -184,26 +236,42 @@ tbody tr:hover td{background:#f8fbfe}
 .filters .filter-picker .assign-item{padding:11px 12px;border-radius:12px;min-height:44px;align-items:center}
 .filters .filter-picker .assign-item span{font-size:15px;line-height:1.25;color:var(--ink);font-weight:600}
 .filters .filter-picker .assign-item input{margin-top:0}
-.operations-panel{margin-top:16px;padding:18px 20px}
-.operations-grid{display:grid;grid-template-columns:1.1fr 1.1fr .9fr;gap:14px;align-items:start}
-.operations-card{background:#fbfdff;border:1px solid var(--line);border-radius:10px;padding:14px;display:grid;gap:12px}
+.operations-panel{margin-top:16px;padding:20px 22px;background:linear-gradient(180deg,#ffffff 0,#f8fbfe 100%)}
+.operations-grid{display:grid;grid-template-columns:1.05fr 1fr 1fr;gap:14px;align-items:start}
+.operations-card{background:#fbfdff;border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:12px}
 .operations-card h3{margin:0;font-size:14px;color:var(--brand);text-transform:uppercase;letter-spacing:.08em}
-.operations-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
-.operations-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.operations-card p{margin:0;color:var(--muted);font-size:13px;line-height:1.4}
+.operations-stack{display:grid;gap:10px}
+.operations-actions-grid{display:grid;gap:10px}
+.source-status,.ops-feedback{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff}
+.source-status strong,.ops-feedback strong{display:block;color:var(--brand);margin-bottom:4px}
+.source-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:#eaf1f8;color:var(--brand);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+.ops-feedback.info{background:#f7fbff}
+.ops-feedback.success{background:#eefaf5;border-color:#d8ece2}
+.ops-feedback.warn{background:#fff7eb;border-color:#f0dfbb}
 .local-note-box{display:grid;gap:10px;margin-top:16px}
 .summary-bullets{margin:8px 0 0;padding-left:18px;display:grid;gap:6px}
 .summary-bullets li{color:var(--muted);font-size:14px;line-height:1.3}
 .modal{padding:20px;overflow:auto}
-.modal-card{max-width:960px;margin:0 auto;padding:18px}
+.modal-card{max-width:1160px;margin:0 auto;padding:20px}
 .report-preview{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;line-height:1.6}
 .report-preview h1,.report-preview h2,.report-preview h3{color:var(--brand)}
-.analytics-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.analytics-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:14px}
+.analytics-card{border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,#ffffff 0,#f7fbff 100%);padding:14px;display:grid;gap:6px;box-shadow:var(--shadow-soft)}
+.analytics-card span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+.analytics-card b{font-size:28px;color:var(--brand);line-height:1}
+.analytics-card small{color:var(--muted);line-height:1.35}
+.analytics-narrative{margin-bottom:14px}
+.analytics-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.analytics-panel-wide{grid-column:1 / -1}
+.chart-surface{border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,#ffffff 0,#f8fbfe 100%);padding:12px}
+.chart-caption{margin-top:10px;color:var(--muted);font-size:12px;line-height:1.45}
+.s-curve-svg{width:100%;height:auto;display:block}
 .empty{padding:32px;text-align:center;color:var(--muted)}
 @media (max-width:1200px){
   .cards{grid-template-columns:repeat(3,minmax(0,1fr))}
-  .layout,.topbar,.split,.detail-grid,.filters,.toolbar{grid-template-columns:1fr}
+  .layout,.topbar,.split,.detail-grid,.filters,.toolbar,.operations-grid{grid-template-columns:1fr}
   .hero{grid-template-columns:1fr}
-.operations-grid{grid-template-columns:1fr}
 }
 @media (max-width:760px){
   .app{padding:10px}
@@ -211,6 +279,7 @@ tbody tr:hover td{background:#f8fbfe}
   .timeline-head,.timeline-row{grid-template-columns:1fr}
   .gantt-label{text-align:left}
   .assign-grid,.analytics-grid{grid-template-columns:1fr}
+  .analytics-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 </style>
 </head>
@@ -241,7 +310,7 @@ tbody tr:hover td{background:#f8fbfe}
     <div class="filters">
       <div class="field">
         <label for="searchInput">Busqueda</label>
-        <input id="searchInput" list="searchSuggestions" type="search" placeholder="Actividad, EDT, responsable, seguimiento o contacto">
+        <input id="searchInput" list="searchSuggestions" type="search" placeholder="Bloque, fase, hito, EDT o caso">
         <datalist id="searchSuggestions"></datalist>
       </div>
       <div class="field">
@@ -282,6 +351,12 @@ tbody tr:hover td{background:#f8fbfe}
     <div class="stack">
       <div class="panel">
         <h2>Seguimiento maestro</h2>
+        <div class="timeline-legend">
+          <span><i class="progress"></i> En proceso</span>
+          <span><i class="done"></i> Completado</span>
+          <span><i class="attention"></i> Próximo a vencer</span>
+          <span><i class="overdue"></i> Atrasado o crítico</span>
+        </div>
         <div class="timeline-shell">
           <div class="timeline-head">
             <div>Actividad y detalle</div>
@@ -344,38 +419,51 @@ tbody tr:hover td{background:#f8fbfe}
     <h2>Operaciones y reportes</h2>
     <div class="operations-grid">
       <div class="operations-card">
-        <h3>Fuente central</h3>
-        <div class="field">
-          <label for="xlsxInput">Cargar Excel</label>
-          <input id="xlsxInput" type="file" accept=".xlsx,.xls,.xlsm,.xlsb,.csv">
+        <h3>Fuente de datos</h3>
+        <p>Actualiza el visor con cronogramas operativos o estructuras editables sin perder la lógica de jerarquía, responsables y seguimiento.</p>
+        <div class="operations-stack">
+          <div class="field">
+            <label for="xlsxInput">Cronograma operativo</label>
+            <input id="xlsxInput" type="file" accept=".xlsx,.xls,.xlsm,.xlsb,.csv">
+            <p class="field-help">Formatos admitidos: XLSX, XLS y CSV con hoja o estructura tipo <strong>CRONOGRAMA</strong>.</p>
+          </div>
+          <div class="field">
+            <label for="structureInput">Estructura editable</label>
+            <input id="structureInput" type="file" accept=".xlsx,.xls,.json">
+            <p class="field-help">Admite estructura exportada del visor en XLSX o JSON, incluyendo catálogos y portada.</p>
+          </div>
         </div>
-        <button id="loadXlsxBtn" class="ghost">Leer Excel</button>
-        <button id="useEmbeddedBtn" class="soft">Usar datos embebidos</button>
+        <div class="operations-actions-grid">
+          <button id="loadXlsxBtn" class="ghost">Leer Excel o CSV</button>
+          <button id="loadStructureBtn" class="ghost">Leer estructura</button>
+          <button id="useEmbeddedBtn" class="soft">Usar datos embebidos</button>
+        </div>
+        <div class="source-status" id="sourceStatusCard"></div>
+        <div class="ops-feedback info" id="importFeedback"></div>
       </div>
       <div class="operations-card">
-        <h3>Estructura editable</h3>
-        <div class="field">
-          <label for="structureInput">Cargar estructura editable</label>
-          <input id="structureInput" type="file" accept=".xlsx,.xls,.json">
+        <h3>Exportación y respaldo</h3>
+        <p>Genera salidas reutilizables para respaldo, intercambio y continuidad operativa sin alterar los datos base del visor.</p>
+        <div class="operations-actions-grid">
+          <button id="exportJsonBtn" class="ghost">Exportar JSON filtrado</button>
+          <button id="exportTxtBtn" class="secondary">Exportar TXT</button>
+          <button id="exportStructureXlsxBtn" class="soft">Exportar estructura XLSX</button>
+          <button id="exportStructureJsonBtn" class="ghost">Exportar estructura JSON</button>
+          <button id="exportBackupBtn" class="soft">Exportar backup del día</button>
         </div>
-        <button id="loadStructureBtn" class="ghost">Leer estructura</button>
-        <button id="exportStructureXlsxBtn" class="soft">Exportar estructura XLSX</button>
       </div>
       <div class="operations-card">
-        <h3>Publicación</h3>
-        <div class="summary-item"><div><strong>Visor compartido</strong><span>Los cambios en fichas, estructura y portada se guardan y se reflejan en la vista común.</span></div></div>
-        <button id="editHeroBtn" class="secondary">Editar portada</button>
+        <h3>Reportes y analítica</h3>
+        <div class="summary-item"><div><strong>Visor compartido</strong><span>DGPPCS se mantiene visible como actor institucional y los cambios de fichas, estructura y portada se reflejan en la vista común.</span></div></div>
+        <div class="operations-actions-grid">
+          <button id="buildReportBtn">Generar reporte ejecutivo</button>
+          <button id="openReportBtn" class="ghost">Ver reporte</button>
+          <button id="openAnalyticsBtn" class="ghost">Ver analítica</button>
+          <button id="printReportBtn" class="soft">Imprimir reporte</button>
+          <button id="editHeroBtn" class="secondary">Editar portada</button>
+        </div>
         <button id="openAdminBtn" class="secondary" style="display:none">Panel admin</button>
       </div>
-    </div>
-    <div class="operations-actions">
-      <button id="buildReportBtn">Generar reporte ejecutivo</button>
-      <button id="openReportBtn" class="ghost">Ver reporte</button>
-      <button id="openAnalyticsBtn" class="ghost">Ver analitica</button>
-      <button id="exportTxtBtn" class="secondary">Exportar TXT</button>
-      <button id="exportJsonBtn" class="ghost">Exportar JSON filtrado</button>
-      <button id="exportStructureJsonBtn" class="ghost">Exportar estructura JSON</button>
-      <button id="printReportBtn" class="soft">Imprimir reporte</button>
     </div>
   </section>
 </div>
@@ -452,26 +540,48 @@ tbody tr:hover td{background:#f8fbfe}
   <div class="modal-card">
     <div class="modal-head">
       <div>
-        <h3>Analitica de avances y riesgos</h3>
+        <h3>Analítica ejecutiva del portafolio</h3>
         <div class="hero-meta">
           <div><b>Base:</b> vista filtrada actual</div>
         </div>
       </div>
       <button id="closeAnalyticsBtn" class="secondary">Cerrar</button>
     </div>
+    <div class="analytics-summary" id="analyticsSummary"></div>
+    <div class="summary-list analytics-narrative" id="analyticsNarrative"></div>
+    <div class="panel analytics-panel-wide">
+      <h2>Curva S o equivalente</h2>
+      <div class="chart-surface" id="analyticsSCurve"></div>
+      <div class="chart-caption" id="analyticsSCurveCaption"></div>
+    </div>
     <div class="analytics-grid">
       <div class="panel">
-        <h2>Avance por hito principal</h2>
+        <h2>Avance por bloque raíz</h2>
         <div class="bar-list" id="analyticsProgress"></div>
       </div>
       <div class="panel">
-        <h2>Riesgo por hito principal</h2>
+        <h2>Riesgo por bloque raíz</h2>
         <div class="bar-list" id="analyticsRisk"></div>
       </div>
-      <div class="panel" style="grid-column:1 / -1">
-        <figure style="margin:0;border-radius:12px;overflow:hidden;border:1px solid var(--line)">
-          <img src="./assets/mercados-mundiales.png" alt="Contexto financiero y mercados para lectura ejecutiva del programa" style="width:100%;height:220px;object-fit:cover;display:block">
-        </figure>
+      <div class="panel">
+        <h2>Distribución por estado</h2>
+        <div class="bar-list" id="analyticsState"></div>
+      </div>
+      <div class="panel">
+        <h2>Distribución por alerta</h2>
+        <div class="bar-list" id="analyticsAlerts"></div>
+      </div>
+      <div class="panel">
+        <h2>Carga por unidad responsable</h2>
+        <div class="bar-list" id="analyticsResponsible"></div>
+      </div>
+      <div class="panel">
+        <h2>Carga por seguimiento DGPPCS</h2>
+        <div class="bar-list" id="analyticsOwner"></div>
+      </div>
+      <div class="panel analytics-panel-wide">
+        <h2>Vencimientos próximos y atrasos abiertos</h2>
+        <div class="bar-list" id="analyticsUpcoming"></div>
       </div>
     </div>
   </div>
@@ -517,7 +627,6 @@ tbody tr:hover td{background:#f8fbfe}
     </div>
     <div class="toolbar-actions" style="margin-bottom:12px">
       <button id="exportAuditBtn" class="ghost">Exportar auditoria</button>
-      <button id="exportBackupBtn" class="soft">Exportar backup del dia</button>
     </div>
     <div class="summary-list" id="adminAuditList"></div>
   </div>
@@ -2072,6 +2181,9 @@ window.PEC_TRACKING_DATA = {
 }
 </script>
 <script>
+window.PEC_SERVER_BOOTSTRAP = <?!= visorBootstrapJson ?>;
+</script>
+<script>
 const STORAGE_KEY = 'pec_tracking_notes_v1';
 const EDIT_STORAGE_KEY = 'pec_tracking_edits_v1';
 const PEOPLE_STORAGE_KEY = 'pec_tracking_people_v1';
@@ -2093,6 +2205,8 @@ const SELECTED_COLUMNS = [1, 2, 3, 4, 5, 6, 7, 8, 248, 249, 250];
 const BASE_PEOPLE = [
   'Alain Sanchez',
   'Betsabé Araindia',
+  'Darwin Pardavé',
+  'Teresa Arana',
   'Sandra Torres',
   'Rolando Carpio',
   'Carlos Portocarrero',
@@ -2101,6 +2215,7 @@ const BASE_PEOPLE = [
   'Marjorie Mellet'
 ];
 const BASE_ENTITIES = [
+  'DGPPCS',
   'PNSU',
   'PASLC',
   'BM',
@@ -2108,6 +2223,19 @@ const BASE_ENTITIES = [
   'OGAJ',
   'SG',
   'OGPP'
+];
+const INTRINSIC_NOTE_PATTERNS = [
+  /^nota\b/i,
+  /^comentario\b/i,
+  /^observaci[oó]n\b/i,
+  /considerad[ao].*en lugar de/i
+];
+const HIERARCHY_ACTIVITY_OVERRIDES = [
+  {
+    childActivityPattern: /evaluaci[oó]n de los tdr del head hunter/i,
+    parentActivityPattern: /gesti[oó]n de la donaci[oó]n/i,
+    reason: 'Mantener esta actividad dentro de la rama operativa de Gestión de la Donación.'
+  }
 ];
 const DEFAULT_TITLE_BY_EDT = {
   '3.2': 'Creación del Equipo Técnico de Gestión del Programa - Programa de Economía Circular (ETGP-PEC)',
@@ -2139,6 +2267,11 @@ const appState = {
   reportHtml: '',
   payload: loadSavedPayload(),
   sourceMode: loadSourceMode(),
+  importFeedback: {
+    tone: 'info',
+    title: 'Fuente lista',
+    detail: 'El visor está preparado para leer cronogramas, estructuras exportadas y respaldos del flujo actual.'
+  },
   expanded: {},
   adminEnabled: isAdminMode(),
   remoteRevision: 0,
@@ -2371,13 +2504,44 @@ function splitPeople(value){
     .filter(Boolean);
 }
 
+function splitEntityFragment(value){
+  const cleaned = cleanEntityName(value);
+  if(!cleaned) return [];
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+  const isUpperToken = token => /^[A-ZÁÉÍÓÚÑ0-9]{2,}$/.test(token);
+  if(parts.length > 1 && parts.every(isUpperToken)) return parts;
+  return [cleaned];
+}
+
 function splitEntities(value){
   const normalized = text(value)
-    .replace(/([A-ZÁÉÍÓÚÑ]{2,})-([A-ZÁÉÍÓÚÑ]{2,})/g, '$1/$2');
+    .replace(/([A-ZÁÉÍÓÚÑ]{2,})-([A-ZÁÉÍÓÚÑ]{2,})/g, '$1/$2')
+    .replace(/\s+y\s+/gi,'/');
   return normalized
-    .split(/[\/,;]+/g)
+    .split(/[\/,;|]+/g)
+    .flatMap(splitEntityFragment)
     .map(canonicalEntityName)
     .filter(Boolean);
+}
+
+function normalizeSeguimientoValue(value){
+  return uniquePeople(Array.isArray(value) ? value : [value]).join(' / ');
+}
+
+function normalizeResponsibleValue(value){
+  return uniqueEntities(Array.isArray(value) ? value : [value]).join('; ');
+}
+
+function normalizeCatalogFields(record){
+  return {
+    ...record,
+    responsable: normalizeResponsibleValue(record.responsable),
+    seguimiento_dgppcs: normalizeSeguimientoValue(record.seguimiento_dgppcs),
+    contacto: text(record.contacto),
+    intrinsic_notes: Array.isArray(record.intrinsic_notes)
+      ? uniqueSorted(record.intrinsic_notes.map(item => text(item)).filter(Boolean))
+      : []
+  };
 }
 
 function uniquePeople(values){
@@ -2390,13 +2554,24 @@ function uniquePeople(values){
   return Array.from(out.values()).sort((a,b)=>a.localeCompare(b,'es'));
 }
 
-function getAssignablePeople(){
+function getGlobalPeopleCatalog(){
+  const payloadRecords = appState.payload && Array.isArray(appState.payload.records) ? appState.payload.records : [];
+  const auditActors = Array.isArray(appState.audit) ? appState.audit.map(item => item && item.actor) : [];
   return uniquePeople(
     []
       .concat(BASE_PEOPLE)
       .concat(appState.customPeople || [])
-      .concat(appState.raw.map(r => r.seguimiento_dgppcs || ''))
+      .concat(payloadRecords.map(record => record && record.seguimiento_dgppcs || ''))
+      .concat(appState.raw.map(record => record && record.seguimiento_dgppcs || ''))
+      .concat(Object.values(appState.edits || {}).map(edit => edit && edit.seguimiento_dgppcs || ''))
+      .concat(text(appState.serverInfo && appState.serverInfo.savedBy))
+      .concat(text(getClientActorName()))
+      .concat(auditActors)
   );
+}
+
+function getAssignablePeople(){
+  return getGlobalPeopleCatalog();
 }
 
 function uniqueEntities(values){
@@ -2414,6 +2589,7 @@ function getAssignableEntities(){
     []
       .concat(BASE_ENTITIES)
       .concat(appState.customEntities || [])
+      .concat(appState.raw.map(r => r.responsable || ''))
   );
 }
 
@@ -2574,7 +2750,7 @@ function startSharedStatePolling(){
 }
 
 function getGroupRecords(records){
-  return sortBySourceOrder(records || appState.raw).filter(record => Number(record.nivel || deriveLevel(record.edt) || 1) === 1 && text(record.edt));
+  return sortBySourceOrder(records || appState.raw).filter(record => visualHierarchyLevel(record) === 1 && text(record.edt));
 }
 
 function getGroupOptionList(records){
@@ -2652,6 +2828,11 @@ function getMergedRecord(record){
   merged.nivel = normalizedLevelValue(merged.edt, toNumber(merged.nivel) || toNumber(record.nivel));
   if(isTopLevelEdt(merged.edt)) merged.parent_edt = '';
   merged.grupo = text(merged.grupo) || deriveGroup(merged.edt) || text(record.grupo) || 'Sin grupo';
+  merged.responsable = normalizeResponsibleValue(merged.responsable);
+  merged.seguimiento_dgppcs = normalizeSeguimientoValue(merged.seguimiento_dgppcs);
+  merged.intrinsic_notes = Array.isArray(merged.intrinsic_notes)
+    ? uniqueSorted(merged.intrinsic_notes.map(item => text(item)).filter(Boolean))
+    : [];
   merged.avance_estimado = deriveProgress(merged.estado);
   merged.dias_restantes = deriveRemaining(merged.final, merged.estado);
   merged.alerta = deriveAlert(merged.inicio, merged.final, merged.estado);
@@ -2672,22 +2853,48 @@ function isExcludedRecord(record){
   return isSystemTrackingBlock(record);
 }
 
-function isCommentOnlyRecord(record){
+function isIntrinsicNoteRecord(record){
   const edt = text(record.edt);
   const actividad = text(record.actividad);
-  if(!edt) return true;
   if(edt === '*') return true;
-  if(/sandra torres es considerada en lugar de rolando carpio/i.test(actividad)) return true;
+  if(!actividad) return true;
+  if(!edt && INTRINSIC_NOTE_PATTERNS.some(pattern => pattern.test(actividad))) return true;
   return false;
+}
+
+function isCommentOnlyRecord(record){
+  return isIntrinsicNoteRecord(record);
+}
+
+function getIntrinsicNoteText(record){
+  const actividad = text(record.actividad);
+  const resumen = text(record.resumen)
+    .replace(/^EDT\s*\*\s*\|\s*/i,'')
+    .replace(/\|\s*Sin estado$/i,'')
+    .trim();
+  return uniqueSorted([actividad, resumen].filter(Boolean)).join(' | ');
+}
+
+function attachIntrinsicNote(record, noteText){
+  if(!record || !noteText) return;
+  const notes = Array.isArray(record.intrinsic_notes) ? record.intrinsic_notes : [];
+  record.intrinsic_notes = uniqueSorted(notes.concat(noteText));
 }
 
 function normalizeRecords(records){
   const ordered = sortBySourceOrder(records.map(record => ({...record})));
   const out = [];
+  let lastActionableRecord = null;
   ordered.forEach(record => {
     if(isExcludedRecord(record)) return;
-    if(isCommentOnlyRecord(record)) return;
-    out.push(record);
+    const normalizedRecord = normalizeCatalogFields(record);
+    if(isIntrinsicNoteRecord(normalizedRecord)){
+      const noteText = getIntrinsicNoteText(normalizedRecord);
+      if(noteText && lastActionableRecord) attachIntrinsicNote(lastActionableRecord, noteText);
+      return;
+    }
+    out.push(normalizedRecord);
+    lastActionableRecord = normalizedRecord;
   });
   return reconcileHierarchyRecords(out);
 }
@@ -2713,22 +2920,48 @@ function registerAssignedEdt(assignedEdt, parentEdtValue, usedEdtsByParent, used
   }
 }
 
+function resolveHierarchyOverride(record, assignedRecords){
+  const actividad = text(record.actividad);
+  if(!actividad) return null;
+  for(const override of HIERARCHY_ACTIVITY_OVERRIDES){
+    if(!override.childActivityPattern.test(actividad)) continue;
+    for(let idx = assignedRecords.length - 1; idx >= 0; idx -= 1){
+      const candidate = assignedRecords[idx];
+      if(override.parentActivityPattern.test(text(candidate.actividad))) return candidate;
+    }
+  }
+  return null;
+}
+
 function reconcileHierarchyRecords(records){
   const ordered = sortBySourceOrder(records.map(record => ({...record})));
   const stack = [];
+  const assignedRecords = [];
   const usedEdtsByParent = new Map();
   const usedDirectChildNumbers = new Map();
 
   ordered.forEach(record => {
     let level = Math.max(1, Number(record.nivel || deriveLevel(record.edt) || 1));
+    const rawEdt = normalizeProgramEdt(text(record.edt), text(record.actividad));
+    if(rawEdt && isRootBlockEdt(rawEdt)){
+      level = 1;
+      stack.length = 0;
+    }
     while(stack.length && stack[stack.length - 1].level >= level) stack.pop();
     if(!stack.length) level = 1;
     if(stack.length && level > stack[stack.length - 1].level + 1){
       level = stack[stack.length - 1].level + 1;
     }
 
-    const rawEdt = normalizeProgramEdt(text(record.edt), text(record.actividad));
-    const parentNode = level > 1 ? stack[stack.length - 1] : null;
+    const overrideParent = resolveHierarchyOverride(record, assignedRecords);
+    if(overrideParent){
+      while(stack.length && stack[stack.length - 1].level >= overrideParent.level) stack.pop();
+      if(!stack.length || stack[stack.length - 1].id !== overrideParent.id){
+        stack.push({id: overrideParent.id, edt: overrideParent.edt, level: overrideParent.level});
+      }
+      level = overrideParent.level + 1;
+    }
+    const parentNode = overrideParent || (level > 1 ? stack[stack.length - 1] : null);
     const parentEdtValue = parentNode ? parentNode.edt : '';
     const parentKey = parentEdtValue || '__root__';
     const usedSiblings = usedEdtsByParent.get(parentKey) || new Set();
@@ -2763,9 +2996,12 @@ function reconcileHierarchyRecords(records){
     record.parent_edt = parentEdtValue;
     record.nivel = level;
     record.grupo = deriveGroup(edt);
-    record.resumen = buildSummaryText(record);
+    if(!text(record.resumen)){
+      record.resumen = buildSummaryText(record);
+    }
     registerAssignedEdt(edt, parentEdtValue, usedEdtsByParent, usedDirectChildNumbers);
     stack.push({id: record.id, edt, level});
+    assignedRecords.push({id: record.id, edt, level, actividad: record.actividad});
   });
 
   return ordered;
@@ -2859,13 +3095,21 @@ function updateAlertFilterSummary(){
 
 function initSearchSuggestions(){
   const datalist = document.getElementById('searchSuggestions');
-  const items = uniqueSorted(
-    getGroupRecords(appState.raw).flatMap(r => {
-      const values = [];
-      if(text(r.edt) || text(r.actividad)) values.push(displayTitle(r));
-      return values;
-    }).filter(value => text(value).length > 3)
-  ).slice(0, 180);
+  const suggestionRecords = sortBySourceOrder(appState.raw)
+    .filter(record => text(record.edt) && text(record.actividad));
+  const seen = new Set();
+  const items = suggestionRecords
+    .sort((a,b) => visualHierarchyLevel(a) - visualHierarchyLevel(b) || (Number(a.source_order) || 0) - (Number(b.source_order) || 0))
+    .map(record => displayTitle(record))
+    .filter(value => {
+      const cleaned = text(value);
+      if(!cleaned || cleaned.length <= 2) return false;
+      if(/^\d+(?:\.\d+)*$/.test(cleaned)) return false;
+      if(seen.has(cleaned)) return false;
+      seen.add(cleaned);
+      return true;
+    })
+    .slice(0, 180);
   datalist.innerHTML = items.map(item => '<option value="' + escapeHtml(item) + '"></option>').join('');
 }
 
@@ -2878,8 +3122,70 @@ function escapeHtml(value){
     .replace(/'/g,'&#39;');
 }
 
+function isEdtScopedQuery(query){
+  return /^\d+(?:\.\d+)*$/.test(text(query));
+}
+
+function isRootBlockEdt(edt){
+  return /^\d+$/.test(text(edt));
+}
+
+function normalizeSearchText(value){
+  return text(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase();
+}
+
+function edtQueryMatches(record, query){
+  const scopedEdt = text(record.edt);
+  const level = deriveLevel(query);
+  if(level >= 3){
+    return scopedEdt === query;
+  }
+  return scopedEdt === query || scopedEdt.startsWith(query + '.');
+}
+
+function hierarchyQueryMatches(record, query){
+  const normalizedQuery = normalizeSearchText(query);
+  if(!normalizedQuery) return true;
+  const hierarchyTerms = buildSearchHierarchyTerms(record).map(normalizeSearchText);
+  if(/^bloque \d+$/.test(normalizedQuery) || /^fase \d+(?:\.\d+)*$/.test(normalizedQuery)){
+    return hierarchyTerms.some(term => term === normalizedQuery) || edtQueryMatches(record, normalizedQuery.replace(/^(bloque|fase)\s+/, ''));
+  }
+  return hierarchyTerms.includes(normalizedQuery);
+}
+
+function buildSearchHierarchyTerms(record){
+  const edt = text(record.edt);
+  if(!edt) return [];
+  const level = visualHierarchyLevel(record);
+  const terms = [edt];
+  if(level === 1){
+    terms.push('bloque ' + edt);
+  }else if(level === 2){
+    terms.push('fase ' + edt);
+  }else{
+    terms.push('hito ' + edt, 'caso ' + edt);
+  }
+  return terms;
+}
+
+function buildSearchHaystack(record){
+  return normalizeSearchText([
+    ...buildSearchHierarchyTerms(record),
+    text(record.grupo),
+    displayTitle(record),
+    text(record.actividad),
+    intrinsicLine(record),
+    text(record.local_note),
+    text(record.local_action)
+  ].join(' '));
+}
+
 function applyFilters(){
-  const q = text(document.getElementById('searchInput').value).toLowerCase();
+  const rawQuery = text(document.getElementById('searchInput').value);
+  const q = normalizeSearchText(rawQuery);
   const statuses = getSelectedStatusValues();
   const alerts = getSelectedAlertValues();
   const group = text(document.getElementById('groupFilter').value);
@@ -2887,11 +3193,15 @@ function applyFilters(){
   const owner = text(document.getElementById('ownerFilter').value);
 
   const matched = appState.raw.filter(record => {
-    const haystack = [
-      record.edt, record.actividad, displayTitle(record), record.responsable, record.seguimiento_dgppcs,
-      record.contacto, record.local_note, record.local_action
-    ].join(' ').toLowerCase();
-    if(q && !haystack.includes(q)) return false;
+    if(q){
+      if(isEdtScopedQuery(q)){
+        if(!edtQueryMatches(record, q)) return false;
+      }else if(/^(bloque|fase|hito|caso)\s+\d+(?:\.\d+)*$/.test(q)){
+        if(!hierarchyQueryMatches(record, q)) return false;
+      }else if(!buildSearchHaystack(record).includes(q)){
+        return false;
+      }
+    }
     if(statuses.length && !statuses.includes(record.estado)) return false;
     if(alerts.length && !alerts.includes(record.alerta)) return false;
     if(group && record.grupo !== group) return false;
@@ -3016,13 +3326,16 @@ function deriveLevel(edt){
 }
 
 function isTopLevelEdt(edt){
-  const raw = text(edt);
-  return Boolean(raw) && !raw.includes('.');
+  return isRootBlockEdt(edt);
 }
 
 function normalizedLevelValue(edt, fallback){
   if(isTopLevelEdt(edt)) return 1;
   return Math.max(1, Number(fallback || deriveLevel(edt) || 1));
+}
+
+function visualHierarchyLevel(record){
+  return isTopLevelEdt(record && record.edt) ? 1 : normalizedLevelValue(record && record.edt, record && record.nivel);
 }
 
 function deriveGroup(edt){
@@ -3056,11 +3369,11 @@ function buildRecordFromExcel(raw, idx){
     actividad = 'Inicio de Efectividad del Préstamo';
   }
   edt = normalizeProgramEdt(edt, actividad);
-  const responsable = text(raw.Responsable);
+  const responsable = normalizeResponsibleValue(raw.Responsable);
   const inicio = toIsoDate(raw.Inicio);
   const final = toIsoDate(raw.Final);
   const estado = text(raw.Estado) || 'Sin estado';
-  const seguimiento = text(raw['Responsable de Seguimiento DGPPCS']);
+  const seguimiento = normalizeSeguimientoValue(raw['Responsable de Seguimiento DGPPCS']);
   const contacto = text(raw.Contacto);
   return {
     id: `case-${String(idx).padStart(3,'0')}`,
@@ -3113,15 +3426,24 @@ function parseWorkbookRecords(workbook){
 }
 
 function buildPayloadFromRecords(records, sourceFile){
+  const normalizedRecords = records.map(record => ({
+    ...record,
+    responsable: normalizeResponsibleValue(record.responsable),
+    seguimiento_dgppcs: normalizeSeguimientoValue(record.seguimiento_dgppcs),
+    contacto: text(record.contacto),
+    intrinsic_notes: Array.isArray(record.intrinsic_notes)
+      ? uniqueSorted(record.intrinsic_notes.map(item => text(item)).filter(Boolean))
+      : []
+  }));
   const summary = {
-    total: records.length,
-    completed: records.filter(r => r.estado === 'Completado').length,
-    inProgress: records.filter(r => r.estado === 'En Proceso').length,
-    pending: records.filter(r => r.estado === 'Pendiente de Iniciar').length,
-    withoutStatus: records.filter(r => r.estado === 'Sin estado').length,
-    critical: records.filter(r => r.alerta === 'critico').length,
-    overdue: records.filter(r => r.alerta === 'vencido').length,
-    attention: records.filter(r => r.alerta === 'atencion').length
+    total: normalizedRecords.length,
+    completed: normalizedRecords.filter(r => r.estado === 'Completado').length,
+    inProgress: normalizedRecords.filter(r => r.estado === 'En Proceso').length,
+    pending: normalizedRecords.filter(r => r.estado === 'Pendiente de Iniciar').length,
+    withoutStatus: normalizedRecords.filter(r => r.estado === 'Sin estado').length,
+    critical: normalizedRecords.filter(r => r.alerta === 'critico').length,
+    overdue: normalizedRecords.filter(r => r.alerta === 'vencido').length,
+    attention: normalizedRecords.filter(r => r.alerta === 'atencion').length
   };
   return {
     meta: {
@@ -3129,10 +3451,10 @@ function buildPayloadFromRecords(records, sourceFile){
       sheetName: SHEET_NAME,
       generatedAt: new Date().toISOString().slice(0,19),
       referenceDate: todayIso(),
-      recordCount: records.length
+      recordCount: normalizedRecords.length
     },
     summary,
-    records
+    records: normalizedRecords
   };
 }
 
@@ -3209,14 +3531,14 @@ function normalizeStructureRow(raw, idx){
     edt: text(raw.edt),
     parent_edt: text(raw.parent_edt),
     actividad: text(raw.actividad),
-    responsable: text(raw.responsable),
+    responsable: normalizeResponsibleValue(raw.responsable),
     inicio,
     final,
     duracion_cal: toNumber(raw.duracion_cal),
     dias_habiles: toNumber(raw.dias_habiles),
     dias_restantes: deriveRemaining(final, estado),
     estado,
-    seguimiento_dgppcs: text(raw.seguimiento_dgppcs),
+    seguimiento_dgppcs: normalizeSeguimientoValue(raw.seguimiento_dgppcs),
     contacto: text(raw.contacto),
     nivel: Math.max(1, toNumber(raw.nivel) || deriveLevel(raw.edt) || 1),
     grupo: text(raw.grupo) || deriveGroup(raw.edt),
@@ -3242,6 +3564,7 @@ function resetLocalTrackingState(){
 
 function applyImportedStructure(rows, options){
   const normalized = normalizeRecords(rows.map(normalizeStructureRow));
+  const omitted = Math.max(0, rows.length - normalized.length);
   resetLocalTrackingState();
   const aliasMap = {};
   const notesMap = {};
@@ -3287,6 +3610,12 @@ function applyImportedStructure(rows, options){
   hydrateData(appState.payload);
   initFilters();
   applyFilters();
+  setImportFeedback(
+    'Estructura cargada',
+    normalized.length + ' actividades activas importadas desde ' + ((options && options.sourceFile) || 'estructura') + '. ' +
+      omitted + ' filas auxiliares o intrínsecas se omitieron del tablero operativo. Catálogos, portada y analítica fueron reconstruidos.',
+    'success'
+  );
   scheduleSharedSync('cargar_estructura');
 }
 
@@ -3407,7 +3736,8 @@ async function loadExcelFromInput(){
   }
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, {type:'array'});
-  const baseRecords = normalizeRecords(parseWorkbookRecords(workbook));
+  const parsedRecords = parseWorkbookRecords(workbook);
+  const baseRecords = normalizeRecords(parsedRecords);
   const payload = buildPayloadFromRecords(baseRecords, file.name);
   appState.payload = payload;
   appState.sourceMode = 'xlsx';
@@ -3417,6 +3747,12 @@ async function loadExcelFromInput(){
   hydrateData(payload);
   initFilters();
   applyFilters();
+  setImportFeedback(
+    'Cronograma cargado',
+    baseRecords.length + ' actividades activas leídas desde ' + file.name + '. ' +
+      Math.max(0, parsedRecords.length - baseRecords.length) + ' filas auxiliares o no operativas fueron omitidas. KPIs, Gantt, reportes y catálogos quedaron actualizados.',
+    'success'
+  );
   scheduleSharedSync('cargar_excel');
 }
 
@@ -3428,6 +3764,11 @@ function useEmbeddedData(){
   hydrateData(appState.payload);
   initFilters();
   applyFilters();
+  setImportFeedback(
+    'Fuente embebida restaurada',
+    'El visor volvió a la base integrada del proyecto. La jerarquía, los catálogos y la analítica se recalcularon sobre esa fuente.',
+    'info'
+  );
   scheduleSharedSync('usar_embebido');
 }
 
@@ -3440,6 +3781,7 @@ function renderAll(){
   renderOwnerBars();
   renderGantt();
   renderTable();
+  renderOperationsStatus();
 }
 
 function sortBySourceOrder(records){
@@ -3458,12 +3800,12 @@ function buildHierarchyMaps(records){
   });
   const stack = [];
   ordered.forEach(record => {
-    const level = normalizedLevelValue(record.edt, record.nivel);
+    const level = visualHierarchyLevel(record);
     while(stack.length && stack[stack.length - 1].level >= level) stack.pop();
     let parent = '__root__';
     const explicitParentEdt = text(record.parent_edt);
     const inferredParentEdt = parentEdt(record.edt);
-    if(level === 1 || !text(record.edt).includes('.')){
+    if(level === 1 || isRootBlockEdt(record.edt)){
       parent = '__root__';
     }else if(explicitParentEdt && edtMap.has(explicitParentEdt) && edtMap.get(explicitParentEdt) !== record.id){
       parent = edtMap.get(explicitParentEdt);
@@ -3575,7 +3917,7 @@ function getMoveTargetOptions(record){
   });
   ordered.forEach(item => {
     if(blocked.has(item.id)) return;
-    const level = Math.max(1, Number(item.nivel || deriveLevel(item.edt) || 1));
+    const level = visualHierarchyLevel(item);
     const prefix = '· '.repeat(Math.max(0, level - 1));
     options.push({
       value: item.id,
@@ -3697,67 +4039,166 @@ function makePendingState(value){
 function getVisibleHierarchy(records){
   const {ordered, childrenMap} = buildHierarchyMaps(records);
   const visible = [];
+  const searchActive = Boolean(text(document.getElementById('searchInput')?.value));
   function walk(parentKey){
     const items = childrenMap.get(parentKey) || [];
     items.forEach(record => {
       visible.push(record);
-      if(appState.expanded[record.id]) walk(record.id);
+      if(searchActive || appState.expanded[record.id]) walk(record.id);
     });
   }
   walk('__root__');
   return {ordered, childrenMap, visible};
 }
 
-function renderKpis(){
-  const records = appState.matched;
+function expandOwnerAssignments(records){
+  const rows = [];
+  records.forEach(record => {
+    const people = splitPeople(record.seguimiento_dgppcs);
+    if(!people.length){
+      rows.push({owner:'Sin seguimiento'});
+      return;
+    }
+    people.forEach(owner => rows.push({owner}));
+  });
+  return rows;
+}
+
+function expandResponsibleAssignments(records){
+  const rows = [];
+  records.forEach(record => {
+    const entities = splitEntities(record.responsable);
+    if(!entities.length){
+      rows.push({owner:'Sin responsable'});
+      return;
+    }
+    entities.forEach(owner => rows.push({owner}));
+  });
+  return rows;
+}
+
+function averageProgress(records){
+  if(!records.length) return 0;
+  return Math.round(records.reduce((sum, record) => sum + clamp(Number(record.avance_estimado) || 0, 0, 100), 0) / records.length);
+}
+
+function getUpcomingRecords(records){
+  return records
+    .filter(record => record.estado !== 'Completado' && ['critico','atencion'].includes(record.alerta))
+    .sort((a,b) => text(a.final).localeCompare(text(b.final)));
+}
+
+function topGroupEntry(groups){
+  return groups.length ? groups[0] : {label:'Sin dato', count:0};
+}
+
+function buildVisibleMetrics(records){
   const total = records.length;
   const completed = records.filter(r => r.estado === 'Completado').length;
   const inProgress = records.filter(r => r.estado === 'En Proceso').length;
   const pending = records.filter(r => r.estado === 'Pendiente de Iniciar').length;
   const overdue = records.filter(r => r.alerta === 'vencido').length;
   const critical = records.filter(r => r.alerta === 'critico').length;
+  const upcoming = getUpcomingRecords(records);
   const notesCount = records.filter(r => r.local_note || r.local_action).length;
+  const withoutResponsible = records.filter(r => !splitEntities(r.responsable).length).length;
+  const withoutOwner = records.filter(r => !splitPeople(r.seguimiento_dgppcs).length).length;
+  const byBlock = summarizeBlocks(records);
+  const byOwner = groupCount(expandOwnerAssignments(records), 'owner');
+  const byResponsible = groupCount(expandResponsibleAssignments(records), 'owner');
+  const priorityBlock = byBlock
+    .slice()
+    .sort((a,b) => (b.overdue + b.critical + b.attention) - (a.overdue + a.critical + a.attention) || Number(a.edt) - Number(b.edt))[0] || null;
+  return {
+    total,
+    completed,
+    inProgress,
+    pending,
+    overdue,
+    critical,
+    upcoming,
+    notesCount,
+    withoutResponsible,
+    withoutOwner,
+    avgProgress: averageProgress(records),
+    byBlock,
+    byOwner,
+    byResponsible,
+    priorityBlock,
+    topOwner: topGroupEntry(byOwner),
+    topResponsible: topGroupEntry(byResponsible)
+  };
+}
+
+function renderKpis(){
+  const metrics = buildVisibleMetrics(appState.matched);
   const html = [
-    metricCard('Casos visibles', total, 'Universo actual tras filtros'),
-    metricCard('Completados', completed, pctText(completed, total)),
-    metricCard('En proceso', inProgress, pctText(inProgress, total)),
-    metricCard('Pendientes', pending, pctText(pending, total)),
-    metricCard('Vencidos', overdue, overdue ? 'Requieren accion inmediata' : 'Sin vencidos', true),
-    metricCard('Con notas', notesCount, 'Seguimiento local registrado')
+    metricCard('Casos visibles', metrics.total, 'Universo actual tras filtros'),
+    metricCard('Avance general', metrics.avgProgress + '%', metrics.completed + ' completados de ' + metrics.total, 'good'),
+    metricCard('Completados', metrics.completed, pctText(metrics.completed, metrics.total), 'good'),
+    metricCard('En proceso', metrics.inProgress, pctText(metrics.inProgress, metrics.total)),
+    metricCard('Pendientes', metrics.pending, pctText(metrics.pending, metrics.total), 'neutral'),
+    metricCard('Atrasados', metrics.overdue, metrics.overdue ? 'Casos vencidos abiertos' : 'Sin atrasos abiertos', metrics.overdue ? 'alert' : 'good'),
+    metricCard('Próximos vencimientos', metrics.upcoming.length, metrics.upcoming.length ? 'Vence <= 15 días' : 'Sin presión inmediata', metrics.upcoming.length ? 'alert' : 'good'),
+    metricCard('Sin responsable', metrics.withoutResponsible, metrics.withoutResponsible ? 'Requiere asignación operativa' : 'Cobertura completa'),
+    metricCard('Sin seguimiento DGPPCS', metrics.withoutOwner, metrics.withoutOwner ? 'Pendiente de seguimiento' : 'Cobertura completa'),
+    metricCard('Bloque bajo mayor presión', metrics.priorityBlock ? 'B' + metrics.priorityBlock.edt : '—', metrics.priorityBlock ? blockSummaryLine(metrics.priorityBlock) : 'Sin bloques visibles'),
+    metricCard('Mayor carga responsable', metrics.topResponsible.count, metrics.topResponsible.label, 'neutral'),
+    metricCard('Mayor carga seguimiento', metrics.topOwner.count, metrics.topOwner.label, 'neutral')
   ].join('');
   document.getElementById('kpiGrid').innerHTML = html;
 }
 
-function metricCard(label, value, note, isAlert){
-  return '<article class="card' + (isAlert ? ' alert' : '') + '">' +
+function metricCard(label, value, note, tone){
+  return '<article class="card ' + escapeHtml(tone || '') + '">' +
     '<span>' + escapeHtml(label) + '</span>' +
     '<b>' + escapeHtml(value) + '</b>' +
-    '<small>' + escapeHtml(note) + '</small>' +
+    '<small class="metric-note">' + escapeHtml(note) + '</small>' +
   '</article>';
 }
 
 function pctText(part, total){
-  if(!total) return '0% del total';
-  return Math.round((part / total) * 100) + '% del total';
+  if(!total) return '0% del total visible';
+  return Math.round((part / total) * 100) + '% del total visible';
 }
 
 function renderQuickSummary(){
   const records = appState.matched;
+  const byBlock = summarizeBlocks(records).slice(0,4);
   const nextDue = records
     .filter(r => ['critico','atencion'].includes(r.alerta))
     .sort((a,b) => text(a.final).localeCompare(text(b.final)))
     .slice(0,3);
   const overdue = records.filter(r => r.alerta === 'vencido').slice(0,3);
   const summary = [
-    {title:'Vencimientos inmediatos', items: nextDue.length ? nextDue.map(r => [displayTitle(r), fmtDate(r.final)].filter(Boolean).join(' | ')) : ['Sin actividades por vencer en <= 15 dias']},
-    {title:'Atrasos abiertos', items: overdue.length ? overdue.map(r => [displayTitle(r), fmtDate(r.final)].filter(Boolean).join(' | ')) : ['Sin atrasos abiertos']},
-    {title:'Cobertura local', body: records.filter(r => r.local_note || r.local_action).length + ' casos con informacion adicional guardada en este equipo'}
+    {
+      title:'Vencimientos inmediatos',
+      kicker:'Prioridad',
+      items: nextDue.length ? nextDue.map(r => [hierarchyKindLabel(r) + ' ' + text(r.edt), displayTitle(r), alertDueLabel(r)].filter(Boolean).join(' | ')) : ['Sin actividades por vencer en <= 15 dias']
+    },
+    {
+      title:'Atrasos abiertos',
+      kicker:'Destrabe',
+      items: overdue.length ? overdue.map(r => [hierarchyKindLabel(r) + ' ' + text(r.edt), displayTitle(r), alertDueLabel(r)].filter(Boolean).join(' | ')) : ['Sin atrasos abiertos']
+    },
+    {
+      title:'Presion por bloque',
+      kicker:'Lectura ejecutiva',
+      items: byBlock.length ? byBlock.map(blockSummaryLine) : ['Sin bloques visibles en la vista actual']
+    },
+    {
+      title:'Cobertura local',
+      kicker:'Trazabilidad',
+      body: records.filter(r => r.local_note || r.local_action).length + ' casos con informacion adicional guardada en este equipo'
+    }
   ];
   document.getElementById('quickReportSummary').innerHTML = summary.map(item =>
-    '<div class="summary-item"><div><strong>' + escapeHtml(item.title) + '</strong>' +
+    '<div class="summary-item"><div>' +
+      (item.kicker ? '<span class="kicker">' + escapeHtml(item.kicker) + '</span>' : '') +
+      '<strong>' + escapeHtml(item.title) + '</strong>' +
       (item.items
         ? '<ul class="summary-bullets">' + item.items.map(line => '<li>' + escapeHtml(line) + '</li>').join('') + '</ul>'
-        : '<span>' + escapeHtml(item.body) + '</span>') +
+        : '<p>' + escapeHtml(item.body) + '</p>') +
     '</div></div>'
   ).join('');
 }
@@ -3774,8 +4215,11 @@ function renderAlerts(){
   }
   el.innerHTML = list.map(r =>
     '<div class="alert-item" data-open="' + escapeHtml(r.id) + '">' +
-      '<div><strong>' + escapeHtml(displayTitle(r)) + '</strong>' +
-      '<span>' + escapeHtml([r.seguimiento_dgppcs || r.responsable || 'Sin responsable', fmtDate(r.final)].join(' | ')) + '</span></div>' +
+      '<div>' +
+        '<span class="kicker">' + escapeHtml(hierarchyKindLabel(r) + ' ' + text(r.edt)) + '</span>' +
+        '<strong>' + escapeHtml(displayTitle(r)) + '</strong>' +
+        '<span>' + escapeHtml([r.seguimiento_dgppcs || r.responsable || 'Sin responsable', alertDueLabel(r)].join(' | ')) + '</span>' +
+      '</div>' +
       '<span class="alert-pill al-' + slugify(r.alerta) + '">' + escapeHtml(alertLabel(r.alerta)) + '</span>' +
     '</div>'
   ).join('');
@@ -3801,16 +4245,7 @@ function statusBarClass(label){
 }
 
 function renderOwnerBars(){
-  const expandedOwners = [];
-  const allowed = new Set(getAssignablePeople().map(personKey));
-  appState.matched.forEach(r => {
-    const people = splitPeople(r.seguimiento_dgppcs).filter(person => allowed.has(personKey(person)));
-    if(!people.length){
-      expandedOwners.push({owner:'Sin asignar'});
-      return;
-    }
-    people.forEach(owner => expandedOwners.push({owner}));
-  });
+  const expandedOwners = expandOwnerAssignments(appState.matched);
   const groups = groupCount(expandedOwners, 'owner').slice(0,8);
   const max = Math.max(1, ...groups.map(x => x.count));
   document.getElementById('ownerBars').innerHTML = groups.map(item =>
@@ -3819,16 +4254,7 @@ function renderOwnerBars(){
 }
 
 function renderResponsibleBars(){
-  const expandedOwners = [];
-  const allowed = new Set(getAssignableEntities().map(entityKey));
-  appState.matched.forEach(r => {
-    const entities = splitEntities(r.responsable).filter(entity => allowed.has(entityKey(entity)));
-    if(!entities.length){
-      expandedOwners.push({owner:'Sin asignar'});
-      return;
-    }
-    entities.forEach(owner => expandedOwners.push({owner}));
-  });
+  const expandedOwners = expandResponsibleAssignments(appState.matched);
   const groups = groupCount(expandedOwners, 'owner').slice(0,8);
   const max = Math.max(1, ...groups.map(x => x.count));
   document.getElementById('responsibleBars').innerHTML = groups.map(item =>
@@ -3852,6 +4278,112 @@ function groupCount(records, key){
   return Array.from(map.entries())
     .map(([label,count]) => ({label,count}))
     .sort((a,b) => b.count - a.count || a.label.localeCompare(b.label,'es'));
+}
+
+function hierarchyKindLabel(record){
+  const level = visualHierarchyLevel(record);
+  if(level === 1) return 'Bloque';
+  if(level === 2) return 'Fase';
+  if(level === 3) return 'Hito';
+  return 'Subhito';
+}
+
+function displayStateLabel(value){
+  const normalized = text(value);
+  return normalized || 'Sin estado';
+}
+
+function alertDueLabel(record){
+  return record.final ? fmtDate(record.final) : 'Sin fecha final';
+}
+
+function summarizeBlocks(records){
+  const map = new Map();
+  records.forEach(record => {
+    const edt = text(record.edt);
+    const rootEdt = edt.split('.')[0];
+    if(!rootEdt) return;
+    if(!map.has(rootEdt)){
+      map.set(rootEdt, {
+        edt: rootEdt,
+        label: DEFAULT_TITLE_BY_EDT[rootEdt] || ('Bloque ' + rootEdt),
+        total: 0,
+        inProgress: 0,
+        pending: 0,
+        completed: 0,
+        overdue: 0,
+        critical: 0,
+        attention: 0,
+        progressTotal: 0,
+        withoutResponsible: 0,
+        withoutOwner: 0
+      });
+    }
+    const item = map.get(rootEdt);
+    item.total += 1;
+    if(record.estado === 'En Proceso') item.inProgress += 1;
+    if(record.estado === 'Pendiente de Iniciar') item.pending += 1;
+    if(record.estado === 'Completado') item.completed += 1;
+    if(record.alerta === 'vencido') item.overdue += 1;
+    if(record.alerta === 'critico') item.critical += 1;
+    if(record.alerta === 'atencion') item.attention += 1;
+    item.progressTotal += clamp(Number(record.avance_estimado) || 0, 0, 100);
+    if(!splitEntities(record.responsable).length) item.withoutResponsible += 1;
+    if(!splitPeople(record.seguimiento_dgppcs).length) item.withoutOwner += 1;
+  });
+  return Array.from(map.values()).sort((a,b) => Number(a.edt) - Number(b.edt) || a.edt.localeCompare(b.edt,'es'));
+}
+
+function blockSummaryLine(item){
+  const avgProgress = item.total ? Math.round(item.progressTotal / item.total) : 0;
+  return [
+    'Bloque ' + item.edt + ' - ' + item.label,
+    item.total + ' casos',
+    (item.overdue + item.critical + item.attention) + ' alertas',
+    item.inProgress + ' en proceso',
+    avgProgress + '% de avance'
+  ].join(' | ');
+}
+
+function setImportFeedback(title, detail, tone){
+  appState.importFeedback = {
+    title: text(title) || 'Fuente lista',
+    detail: text(detail) || 'Sin novedades.',
+    tone: tone || 'info'
+  };
+}
+
+function sourceModeLabel(){
+  if(appState.sourceMode === 'xlsx') return 'Excel o CSV operativo';
+  if(appState.sourceMode === 'structure') return 'Estructura editable';
+  return 'Datos embebidos';
+}
+
+function renderOperationsStatus(){
+  const statusHost = document.getElementById('sourceStatusCard');
+  if(statusHost){
+    const meta = (appState.payload && appState.payload.meta) || {};
+    const generatedAt = text(meta.generatedAt);
+    statusHost.innerHTML = [
+      '<strong>Estado de la fuente</strong>',
+      '<span class="source-badge">' + escapeHtml(sourceModeLabel()) + '</span>',
+      '<p>' + escapeHtml(text(meta.sourceFile) || 'Fuente integrada del visor') + '</p>',
+      '<p>' + escapeHtml('Registros operativos: ' + appState.raw.length + (generatedAt ? ' | Actualizado: ' + generatedAt.replace('T',' ') : '')) + '</p>'
+    ].join('');
+  }
+  const feedbackHost = document.getElementById('importFeedback');
+  if(feedbackHost){
+    const feedback = appState.importFeedback || {};
+    feedbackHost.className = 'ops-feedback ' + escapeHtml(feedback.tone || 'info');
+    feedbackHost.innerHTML = '<strong>' + escapeHtml(feedback.title || 'Fuente lista') + '</strong><p>' + escapeHtml(feedback.detail || '') + '</p>';
+  }
+}
+
+function renderTreeAffordance(recordId, hasChildren, level){
+  if(hasChildren){
+    return '<button class="tree-toggle" data-toggle="' + escapeHtml(recordId) + '">' + (appState.expanded[recordId] ? '−' : '+') + '</button>';
+  }
+  return '<span class="tree-node-spacer level-' + level + '" aria-hidden="true"></span>';
 }
 
 function renderGantt(){
@@ -3884,7 +4416,9 @@ function renderGantt(){
     const r = item.record;
     const kids = childrenMap.get(r.id) || [];
     const hasChildren = kids.length > 0;
-    const level = normalizedLevelValue(r.edt, r.nivel);
+    const level = visualHierarchyLevel(r);
+    const hierarchyLabel = hierarchyKindLabel(r) + ' ' + text(r.edt);
+    const hierarchyClass = level === 1 ? 'root' : level === 2 ? 'phase' : 'milestone';
     const indent = (level - 1) * 18;
     const start = item.range.start;
     const end = item.range.end;
@@ -3893,15 +4427,25 @@ function renderGantt(){
     const left = clamp(diffDays(start, minDate) / totalDays * 100, 0, 100);
     const width = clamp((diffDays(end, start) + 1) / totalDays * 100, 1.5, 100);
     const ganttState = makePendingState(r.estado);
-    const stateCls = ganttState === 'Completado' ? 'done' : r.alerta === 'vencido' ? 'overdue' : r.alerta === 'critico' ? 'overdue' : 'pending';
-    return '<div class="timeline-row" data-open="' + escapeHtml(r.id) + '">' +
+    const displayState = displayStateLabel(r.estado || ganttState);
+    const stateCls = ganttState === 'Completado'
+      ? 'done'
+      : r.alerta === 'vencido' || r.alerta === 'critico'
+        ? 'overdue'
+        : r.alerta === 'atencion'
+          ? 'attention'
+          : 'pending';
+    return '<div class="timeline-row level-' + level + '" data-open="' + escapeHtml(r.id) + '">' +
       '<div class="timeline-title"><div class="edt-cell" style="padding-left:' + indent + 'px">' +
-      '<button class="tree-toggle' + (hasChildren ? '' : ' empty') + '"' + (hasChildren ? ' data-toggle="' + escapeHtml(r.id) + '"' : ' type="button" disabled') + '>' + (hasChildren ? (appState.expanded[r.id] ? '−' : '+') : '•') + '</button>' +
-      '<div><strong>' + escapeHtml(displayTitle(r)) + '</strong><span>' +
+      renderTreeAffordance(r.id, hasChildren, level) +
+      '<div><div class="timeline-kickers">' +
+      '<span class="timeline-kind ' + hierarchyClass + '">' + escapeHtml(hierarchyLabel) + '</span>' +
+      '<span class="alert-pill al-' + slugify(r.alerta) + '">' + escapeHtml(alertLabel(r.alerta)) + '</span>' +
+      '</div><strong>' + escapeHtml(displayTitle(r)) + '</strong><span>' +
       escapeHtml((r.seguimiento_dgppcs || r.responsable || 'Sin responsable') + ' | ' + fmtDate(startIso) + ' a ' + fmtDate(endIso) + (hasChildren ? ' | ' + kids.length + ' subactividad(es)' : '')) +
-      '</span></div></div></div>' +
+      '</span><small>' + escapeHtml((r.responsable ? 'Responsable: ' + r.responsable : 'Responsable pendiente') + ' | ' + (r.seguimiento_dgppcs ? 'Seguimiento: ' + r.seguimiento_dgppcs : 'Seguimiento DGPPCS pendiente') + (hasChildren ? ' | ' + kids.length + ' subactividad(es)' : '')) + '</small></div></div></div>' +
       '<div class="gantt-track"><div class="gantt-today" style="left:' + todayOffset + '%"></div><div class="gantt-bar ' + stateCls + '" style="left:' + left + '%;width:' + width + '%"></div></div>' +
-      '<div class="gantt-label"><span class="status-pill st-' + slugify(ganttState === 'Completado' ? 'Completado' : 'Pendiente de Iniciar') + '">' + escapeHtml(ganttState) + '</span></div>' +
+      '<div class="gantt-label"><span class="status-pill st-' + slugify(displayState) + '">' + escapeHtml(displayState) + '</span></div>' +
       '<div class="gantt-progress"><div class="progress-track"><i style="width:' + clamp(r.avance_estimado,0,100) + '%"></i></div><span>' + escapeHtml(String(r.avance_estimado)) + '%</span></div>' +
     '</div>';
   }).join('');
@@ -3939,12 +4483,12 @@ function renderTable(){
   tbody.innerHTML = visible.map(r => {
       const kids = childrenMap.get(r.id) || [];
       const hasChildren = kids.length > 0;
-      const level = normalizedLevelValue(r.edt, r.nivel);
+      const level = visualHierarchyLevel(r);
       const indent = (level - 1) * 18;
       return '<tr class="row-level-' + level + '" data-open="' + escapeHtml(r.id) + '">' +
         '<td>' +
           '<div class="edt-cell" style="padding-left:' + indent + 'px">' +
-            '<button class="tree-toggle' + (hasChildren ? '' : ' empty') + '"' + (hasChildren ? ' data-toggle="' + escapeHtml(r.id) + '"' : ' type="button" disabled') + '>' + (hasChildren ? (appState.expanded[r.id] ? '−' : '+') : '•') + '</button>' +
+            renderTreeAffordance(r.id, hasChildren, level) +
             '<span class="edt-chip">' + escapeHtml(r.edt || '-') + '</span>' +
           '</div>' +
         '</td>' +
@@ -4185,6 +4729,12 @@ function saveCurrentCase(){
     saveCustomEntities();
     appendAudit('catalogo_responsable', 'Se agregaron: ' + newEntities.join(', '));
   }
+  const selectedPeople = getSelectedValues('seguimiento', 'person');
+  const selectedEntities = getSelectedValues('responsable', 'entity');
+  appState.customPeople = uniquePeople([].concat(appState.customPeople || []).concat(selectedPeople));
+  appState.customEntities = uniqueEntities([].concat(appState.customEntities || []).concat(selectedEntities));
+  saveCustomPeople();
+  saveCustomEntities();
   const currentGroup = text(currentRecord.grupo) || deriveGroup(currentRecord.edt);
   const selectedGroup = text(document.getElementById('editGrupo')?.value) || currentGroup;
   const manualEdt = text(document.getElementById('editEdt')?.value);
@@ -4228,8 +4778,8 @@ function saveCurrentCase(){
       parent_edt: nextParentEdt,
       nivel: String(normalizedLevelValue(nextEdt, text(document.getElementById('editNivel').value))),
       grupo: nextGroup,
-    responsable: getSelectedValues('responsable', 'entity').join('; '),
-    seguimiento_dgppcs: getSelectedValues('seguimiento', 'person').join(' / '),
+    responsable: normalizeResponsibleValue(selectedEntities),
+    seguimiento_dgppcs: normalizeSeguimientoValue(selectedPeople),
     contacto: text(document.getElementById('editContacto').value),
     estado: text(document.getElementById('editEstado').value),
     inicio: text(document.getElementById('editInicio').value),
@@ -4295,11 +4845,27 @@ function buildExecutiveReport(){
   const records = appState.matched.slice();
   const total = records.length;
   const hero = appState.hero || DEFAULT_HERO;
+  const q = text(document.getElementById('searchInput')?.value);
+  const statuses = getSelectedStatusValues();
+  const alerts = getSelectedAlertValues();
+  const group = text(document.getElementById('groupFilter')?.value);
+  const responsible = text(document.getElementById('responsibleFilter')?.value);
+  const owner = text(document.getElementById('ownerFilter')?.value);
+  const activeFilters = [];
+  if(q) activeFilters.push('Búsqueda: ' + q);
+  if(group) activeFilters.push('Grupo EDT: ' + group);
+  if(responsible) activeFilters.push('Responsable: ' + responsible);
+  if(owner) activeFilters.push('Seguimiento DGPPCS: ' + owner);
+  if(statuses.length) activeFilters.push('Estado: ' + statuses.join(', '));
+  if(alerts.length) activeFilters.push('Alerta: ' + alerts.map(alertLabel).join(', '));
   const completed = records.filter(r => r.estado === 'Completado').length;
   const inProgress = records.filter(r => r.estado === 'En Proceso').length;
   const pending = records.filter(r => r.estado === 'Pendiente de Iniciar').length;
+  const withoutResponsible = records.filter(r => !splitEntities(r.responsable).length).length;
+  const withoutOwner = records.filter(r => !splitPeople(r.seguimiento_dgppcs).length).length;
   const overdue = records.filter(r => r.alerta === 'vencido').sort((a,b)=>text(a.final).localeCompare(text(b.final)));
   const critical = records.filter(r => r.alerta === 'critico').sort((a,b)=>text(a.final).localeCompare(text(b.final)));
+  const byBlock = summarizeBlocks(records);
   const ownerRows = [];
   records.forEach(r => {
     const people = splitPeople(r.seguimiento_dgppcs);
@@ -4331,6 +4897,7 @@ function buildExecutiveReport(){
   lines.push('');
   lines.push('Fecha de corte: ' + fmtDateLong(todayIso()));
   lines.push('Registros analizados: ' + total);
+  lines.push('Filtros activos: ' + (activeFilters.length ? activeFilters.join(' | ') : 'Vista completa'));
   lines.push('');
   lines.push('1. Resumen directivo');
   lines.push('- Completados: ' + completed);
@@ -4338,6 +4905,8 @@ function buildExecutiveReport(){
   lines.push('- Pendientes de iniciar: ' + pending);
   lines.push('- Vencidos: ' + overdue.length);
   lines.push('- Criticos (vence <= 7 dias): ' + critical.length);
+  lines.push('- Sin responsable: ' + withoutResponsible);
+  lines.push('- Sin seguimiento DGPPCS: ' + withoutOwner);
   lines.push('');
   lines.push('2. Lectura ejecutiva');
   if(!total){
@@ -4366,21 +4935,28 @@ function buildExecutiveReport(){
     });
   }
   lines.push('');
-  lines.push('5. Carga operativa por responsable');
+  lines.push('5. Presion por bloque');
+  if(!byBlock.length){
+    lines.push('- Sin informacion.');
+  }else{
+    byBlock.forEach(item => lines.push('- ' + blockSummaryLine(item)));
+  }
+  lines.push('');
+  lines.push('6. Carga operativa por responsable');
   if(!byResponsible.length){
     lines.push('- Sin informacion.');
   }else{
     byResponsible.forEach(item => lines.push('- ' + item.label + ': ' + item.count + ' casos'));
   }
   lines.push('');
-  lines.push('6. Carga de seguimiento DGPPCS');
+  lines.push('7. Carga de seguimiento DGPPCS');
   if(!byOwner.length){
     lines.push('- Sin informacion.');
   }else{
     byOwner.forEach(item => lines.push('- ' + item.label + ': ' + item.count + ' casos'));
   }
   lines.push('');
-  lines.push('7. Recomendaciones inmediatas');
+  lines.push('8. Recomendaciones inmediatas');
   lines.push('- Revisar primero los casos vencidos y criticos con reunion corta de destrabe.');
   lines.push('- Completar responsable operativo y contacto en los casos sin asignacion clara.');
   lines.push('- Registrar acuerdos y proximo paso en la ficha de cada caso para que el visor sirva como bitacora operativa.');
@@ -4390,6 +4966,7 @@ function buildExecutiveReport(){
     ${text(hero.subtitle) ? '<p><strong>Marco:</strong> ' + escapeHtml(hero.subtitle) + '</p>' : ''}
     <p><strong>Fecha de corte:</strong> ${escapeHtml(fmtDateLong(todayIso()))}</p>
     <p><strong>Registros analizados:</strong> ${total}</p>
+    <p><strong>Filtros activos:</strong> ${escapeHtml(activeFilters.length ? activeFilters.join(' | ') : 'Vista completa')}</p>
     <h2>1. Resumen directivo</h2>
     <ul>
       <li>Completados: ${completed}</li>
@@ -4397,16 +4974,20 @@ function buildExecutiveReport(){
       <li>Pendientes de iniciar: ${pending}</li>
       <li>Vencidos: ${overdue.length}</li>
       <li>Criticos (vence &lt;= 7 dias): ${critical.length}</li>
+      <li>Sin responsable: ${withoutResponsible}</li>
+      <li>Sin seguimiento DGPPCS: ${withoutOwner}</li>
     </ul>
     <h2>2. Casos vencidos</h2>
     ${overdue.length ? '<ul>' + overdue.slice(0,10).map(r => '<li>' + escapeHtml([displayTitle(r), fmtDate(r.final), r.seguimiento_dgppcs || r.responsable || 'Sin responsable'].filter(Boolean).join(' | ')) + '</li>').join('') + '</ul>' : '<p>No hay casos vencidos en la vista actual.</p>'}
     <h2>3. Proximos hitos</h2>
     ${nextMilestones.length ? '<ul>' + nextMilestones.map(r => '<li>' + escapeHtml([fmtDate(r.final), displayTitle(r), r.estado].filter(Boolean).join(' | ')) + '</li>').join('') + '</ul>' : '<p>No hay hitos proximos con fecha registrada.</p>'}
-    <h2>4. Carga operativa por responsable</h2>
+    <h2>4. Presion por bloque</h2>
+    ${byBlock.length ? '<ul>' + byBlock.map(item => '<li>' + escapeHtml(blockSummaryLine(item)) + '</li>').join('') + '</ul>' : '<p>Sin informacion.</p>'}
+    <h2>5. Carga operativa por responsable</h2>
     ${byResponsible.length ? '<ul>' + byResponsible.map(item => '<li>' + escapeHtml(item.label + ': ' + item.count + ' casos') + '</li>').join('') + '</ul>' : '<p>Sin informacion.</p>'}
-    <h2>5. Carga de seguimiento DGPPCS</h2>
+    <h2>6. Carga de seguimiento DGPPCS</h2>
     ${byOwner.length ? '<ul>' + byOwner.map(item => '<li>' + escapeHtml(item.label + ': ' + item.count + ' casos') + '</li>').join('') + '</ul>' : '<p>Sin informacion.</p>'}
-    <h2>6. Recomendaciones inmediatas</h2>
+    <h2>7. Recomendaciones inmediatas</h2>
     <ul>
       <li>Revisar primero los casos vencidos y criticos con reunion corta de destrabe.</li>
       <li>Completar responsable operativo y contacto en los casos sin asignacion clara.</li>
@@ -4420,32 +5001,181 @@ function buildExecutiveReport(){
   document.getElementById('reportCount').textContent = String(total);
 }
 
+// Proxy explícito para curva S: usamos el acumulado programado por fecha final registrada
+// y el acumulado completado usando la misma fecha final como único hito temporal observable.
+function buildSCurveSeries(records){
+  const dated = records.filter(record => text(record.final));
+  if(dated.length < 2) return null;
+  const buckets = new Map();
+  dated.forEach(record => {
+    const key = text(record.final);
+    if(!buckets.has(key)) buckets.set(key, {date:key, planned:0, actual:0});
+    const bucket = buckets.get(key);
+    bucket.planned += 1;
+    if(record.estado === 'Completado') bucket.actual += 1;
+  });
+  const total = dated.length;
+  let runningPlanned = 0;
+  let runningActual = 0;
+  const points = Array.from(buckets.values())
+    .sort((a,b) => a.date.localeCompare(b.date))
+    .map(bucket => {
+      runningPlanned += bucket.planned;
+      runningActual += bucket.actual;
+      return {
+        date: bucket.date,
+        plannedPct: Math.round((runningPlanned / total) * 100),
+        actualPct: Math.round((runningActual / total) * 100)
+      };
+    });
+  return {points, total};
+}
+
+function curvePath(points, key, width, height, padding){
+  if(!points.length) return '';
+  const usableWidth = width - padding.left - padding.right;
+  const usableHeight = height - padding.top - padding.bottom;
+  return points.map((point, index) => {
+    const x = padding.left + (points.length === 1 ? usableWidth / 2 : (usableWidth * index) / (points.length - 1));
+    const y = padding.top + usableHeight - (usableHeight * clamp(Number(point[key]) || 0, 0, 100)) / 100;
+    return (index ? 'L' : 'M') + x.toFixed(1) + ',' + y.toFixed(1);
+  }).join(' ');
+}
+
+function renderSCurveChart(series){
+  if(!series || !series.points.length){
+    return '<div class="empty">No hay suficientes fechas finales visibles para construir una curva acumulada.</div>';
+  }
+  const width = 920;
+  const height = 280;
+  const padding = {top:18,right:18,bottom:44,left:42};
+  const ticks = [0,25,50,75,100];
+  const plannedPath = curvePath(series.points, 'plannedPct', width, height, padding);
+  const actualPath = curvePath(series.points, 'actualPct', width, height, padding);
+  const labelIndexes = Array.from(new Set([0, Math.floor((series.points.length - 1) / 3), Math.floor(((series.points.length - 1) * 2) / 3), series.points.length - 1]))
+    .filter(index => index >= 0 && index < series.points.length);
+  const usableWidth = width - padding.left - padding.right;
+  const usableHeight = height - padding.top - padding.bottom;
+  return `
+    <svg viewBox="0 0 ${width} ${height}" class="s-curve-svg" role="img" aria-label="Curva S de avance acumulado">
+      <rect x="0" y="0" width="${width}" height="${height}" rx="14" fill="#fff"></rect>
+      ${ticks.map(tick => {
+        const y = padding.top + usableHeight - (usableHeight * tick) / 100;
+        return '<line x1="' + padding.left + '" y1="' + y + '" x2="' + (width - padding.right) + '" y2="' + y + '" stroke="#e3ebf4" stroke-width="1"></line>' +
+          '<text x="' + (padding.left - 10) + '" y="' + (y + 4) + '" text-anchor="end" font-size="11" fill="#5f7287">' + tick + '%</text>';
+      }).join('')}
+      ${labelIndexes.map(index => {
+        const x = padding.left + (series.points.length === 1 ? usableWidth / 2 : (usableWidth * index) / (series.points.length - 1));
+        return '<line x1="' + x + '" y1="' + padding.top + '" x2="' + x + '" y2="' + (height - padding.bottom) + '" stroke="#f0f4f8" stroke-width="1"></line>' +
+          '<text x="' + x + '" y="' + (height - 16) + '" text-anchor="middle" font-size="11" fill="#5f7287">' + escapeHtml(fmtDate(series.points[index].date)) + '</text>';
+      }).join('')}
+      <path d="${plannedPath}" fill="none" stroke="#9a6200" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
+      <path d="${actualPath}" fill="none" stroke="#1663c7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
+      ${series.points.map((point, index) => {
+        const x = padding.left + (series.points.length === 1 ? usableWidth / 2 : (usableWidth * index) / (series.points.length - 1));
+        const plannedY = padding.top + usableHeight - (usableHeight * point.plannedPct) / 100;
+        const actualY = padding.top + usableHeight - (usableHeight * point.actualPct) / 100;
+        return '<circle cx="' + x + '" cy="' + plannedY + '" r="3" fill="#9a6200"></circle>' +
+          '<circle cx="' + x + '" cy="' + actualY + '" r="3" fill="#1663c7"></circle>';
+      }).join('')}
+      <g transform="translate(${padding.left},${height - 8})">
+        <circle cx="0" cy="-2" r="4" fill="#9a6200"></circle>
+        <text x="10" y="2" font-size="11" fill="#5f7287">Programado acumulado</text>
+        <circle cx="150" cy="-2" r="4" fill="#1663c7"></circle>
+        <text x="160" y="2" font-size="11" fill="#5f7287">Completado acumulado</text>
+      </g>
+    </svg>
+  `;
+}
+
+function renderBarHost(hostId, rows, max, cls){
+  document.getElementById(hostId).innerHTML = rows.length
+    ? rows.map(item => barRow(item.label, item.display ?? item.value, max, typeof cls === 'function' ? cls(item) : cls, Boolean(item.preserve))).join('')
+    : '<div class="empty">Sin datos para esta vista.</div>';
+}
+
 function renderAnalytics(){
   const records = appState.matched.slice();
-  const byGroup = new Map();
-  records.forEach(record => {
-    const key = record.grupo || 'Sin grupo';
-    if(!byGroup.has(key)) byGroup.set(key, {group:key, total:0, progress:0, risk:0});
-    const entry = byGroup.get(key);
-    entry.total += 1;
-    entry.progress += Number(record.avance_estimado || 0);
-    if(['vencido','critico','atencion'].includes(record.alerta)) entry.risk += 1;
-  });
-  const progressRows = Array.from(byGroup.values())
-    .map(item => ({label:'Hito ' + item.group, value:item.total ? Math.round(item.progress / item.total) : 0}))
-    .sort((a,b) => b.value - a.value || a.label.localeCompare(b.label,'es'));
-  const riskRows = Array.from(byGroup.values())
-    .map(item => ({label:'Hito ' + item.group, value:item.risk}))
-    .sort((a,b) => b.value - a.value || a.label.localeCompare(b.label,'es'));
+  const metrics = buildVisibleMetrics(records);
+  const avgProgress = metrics.avgProgress;
+  document.getElementById('analyticsSummary').innerHTML = [
+    ['Base visible', metrics.total, 'Casos tras filtros'],
+    ['Avance general', avgProgress + '%', 'Promedio visible'],
+    ['Atrasados abiertos', metrics.overdue, metrics.overdue ? 'Requieren destrabe' : 'Sin atraso abierto'],
+    ['Próximos vencimientos', metrics.upcoming.length, metrics.upcoming.length ? 'Vence <= 15 días' : 'Sin presión inmediata'],
+    ['Sin responsable', metrics.withoutResponsible, metrics.withoutResponsible ? 'Pendiente de asignar' : 'Cobertura completa'],
+    ['Sin seguimiento', metrics.withoutOwner, metrics.withoutOwner ? 'Pendiente de seguimiento' : 'Cobertura completa']
+  ].map(item =>
+    '<article class="analytics-card"><span>' + escapeHtml(item[0]) + '</span><b>' + escapeHtml(item[1]) + '</b><small>' + escapeHtml(item[2]) + '</small></article>'
+  ).join('');
 
-  const maxProgress = Math.max(1, ...progressRows.map(r => r.value));
-  const maxRisk = Math.max(1, ...riskRows.map(r => r.value));
-  document.getElementById('analyticsProgress').innerHTML = progressRows.length
-    ? progressRows.map(item => barRow(item.label, item.value + '%', maxProgress, 'green', true)).join('')
-    : '<div class="empty">Sin datos para esta vista.</div>';
-  document.getElementById('analyticsRisk').innerHTML = riskRows.length
-    ? riskRows.map(item => barRow(item.label, item.value, maxRisk, item.value ? 'red' : 'green')).join('')
-    : '<div class="empty">Sin datos para esta vista.</div>';
+  const narrative = [];
+  const riskBlock = metrics.priorityBlock;
+  if(riskBlock){
+    narrative.push({
+      kicker:'Presión',
+      title:'Bloque con mayor carga de riesgo',
+      body:blockSummaryLine(riskBlock)
+    });
+  }
+  narrative.push({
+    kicker:'Carga',
+    title:'Unidad con mayor concentración visible',
+    body:metrics.topResponsible.label + ' | ' + metrics.topResponsible.count + ' casos'
+  });
+  narrative.push({
+    kicker:'Seguimiento',
+    title:'Seguimiento DGPPCS con mayor cartera',
+    body:metrics.topOwner.label + ' | ' + metrics.topOwner.count + ' casos'
+  });
+  narrative.push({
+    kicker:'Asignación',
+    title:'Cobertura pendiente',
+    body:metrics.withoutResponsible + ' sin responsable y ' + metrics.withoutOwner + ' sin seguimiento DGPPCS'
+  });
+  document.getElementById('analyticsNarrative').innerHTML = narrative.map(item =>
+    '<div class="summary-item"><div><span class="kicker">' + escapeHtml(item.kicker) + '</span><strong>' + escapeHtml(item.title) + '</strong><p>' + escapeHtml(item.body) + '</p></div></div>'
+  ).join('');
+
+  const curveSeries = buildSCurveSeries(records);
+  document.getElementById('analyticsSCurve').innerHTML = renderSCurveChart(curveSeries);
+  document.getElementById('analyticsSCurveCaption').textContent = curveSeries
+    ? 'Proxy utilizado: acumulado programado por fecha final registrada frente al acumulado completado observado en la misma base visible.'
+    : 'La curva requiere al menos dos actividades visibles con fecha final registrada.';
+
+  const progressRows = metrics.byBlock.map(item => ({
+    label:'Bloque ' + item.edt,
+    value:item.total ? Math.round(item.progressTotal / item.total) : 0,
+    display:(item.total ? Math.round(item.progressTotal / item.total) : 0) + '%',
+    preserve:true
+  }));
+  const riskRows = metrics.byBlock.map(item => ({
+    label:'Bloque ' + item.edt,
+    value:item.overdue + item.critical + item.attention
+  }));
+  const stateRows = groupCount(records, 'estado').map(item => ({label:item.label, value:item.count}));
+  const alertRows = groupCount(records, 'alerta').map(item => ({label:alertLabel(item.label), value:item.count}));
+  const responsibleRows = metrics.byResponsible.slice(0,8).map(item => ({label:item.label, value:item.count}));
+  const ownerRows = metrics.byOwner.slice(0,8).map(item => ({label:item.label, value:item.count}));
+  const upcomingRows = records
+    .filter(record => record.estado !== 'Completado' && (record.alerta === 'vencido' || record.alerta === 'critico' || record.alerta === 'atencion'))
+    .sort((a,b) => alertRank(a.alerta) - alertRank(b.alerta) || text(a.final).localeCompare(text(b.final)))
+    .slice(0,8)
+    .map(record => ({
+      label:[text(record.edt), displayTitle(record)].filter(Boolean).join(' · '),
+      value:record.alerta === 'vencido' ? 3 : record.alerta === 'critico' ? 2 : 1,
+      display:record.final ? fmtDate(record.final) : alertLabel(record.alerta),
+      preserve:true,
+      alert:record.alerta
+    }));
+
+  renderBarHost('analyticsProgress', progressRows, 100, 'green');
+  renderBarHost('analyticsRisk', riskRows, Math.max(1, ...riskRows.map(item => item.value)), item => item.value ? 'red' : 'green');
+  renderBarHost('analyticsState', stateRows, Math.max(1, ...stateRows.map(item => item.value)), item => statusBarClass(item.label));
+  renderBarHost('analyticsAlerts', alertRows, Math.max(1, ...alertRows.map(item => item.value)), item => item.label.includes('Vencido') || item.label.includes('7') ? 'red' : item.label.includes('15') || item.label.includes('Sin fecha') ? 'amber' : 'green');
+  renderBarHost('analyticsResponsible', responsibleRows, Math.max(1, ...responsibleRows.map(item => item.value)), '');
+  renderBarHost('analyticsOwner', ownerRows, Math.max(1, ...ownerRows.map(item => item.value)), '');
+  renderBarHost('analyticsUpcoming', upcomingRows, 3, item => item.alert === 'vencido' || item.alert === 'critico' ? 'red' : 'amber');
 }
 
 function downloadBlob(filename, type, content){
@@ -4544,12 +5274,14 @@ function bindEvents(){
   document.getElementById('loadXlsxBtn').addEventListener('click', () => {
     loadExcelFromInput().catch(error => {
       console.error(error);
+      setImportFeedback('Error de carga operativa', 'No se pudo leer el archivo. Verifica que tenga la hoja CRONOGRAMA o un CSV compatible con las columnas esperadas.', 'warn');
       alert('No se pudo leer el Excel. Verifica que tenga la hoja CRONOGRAMA y estructura compatible.');
     });
   });
   document.getElementById('loadStructureBtn').addEventListener('click', () => {
     loadStructureFromInput().catch(error => {
       console.error(error);
+      setImportFeedback('Error de estructura', 'No se pudo leer la estructura editable. Revisa el JSON o la hoja GANTT_ESTRUCTURA y vuelve a intentar.', 'warn');
       alert('No se pudo leer la estructura editable. Verifica el formato JSON o la hoja GANTT_ESTRUCTURA.');
     });
   });

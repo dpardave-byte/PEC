@@ -2315,11 +2315,17 @@ function slugify(text){
 function text(v){ return String(v == null ? '' : v).trim(); }
 
 function cleanPersonName(name){
-  return text(name).replace(/\.+$/,'').replace(/\s+/g,' ');
+  return text(name)
+    .replace(/[\u200B-\u200D\uFEFF]/g,'')
+    .replace(/\u00A0/g,' ')
+    .replace(/\.+$/,'')
+    .replace(/\s+/g,' ');
 }
 
 function cleanEntityName(name){
   return text(name)
+    .replace(/[\u200B-\u200D\uFEFF]/g,'')
+    .replace(/\u00A0/g,' ')
     .replace(/\.+$/,'')
     .replace(/\s*\/\s*/g,'/')
     .replace(/\s*-\s*/g,'-')
@@ -2677,7 +2683,92 @@ function normalizeRecords(records){
     if(isCommentOnlyRecord(record)) return;
     out.push(record);
   });
-  return out;
+  return reconcileHierarchyRecords(out);
+}
+
+function nextAvailableChildEdt(parentEdtValue, usedDirectChildNumbers){
+  const used = usedDirectChildNumbers.get(parentEdtValue || '__root__') || new Set();
+  let next = 1;
+  while(used.has(next)) next += 1;
+  used.add(next);
+  usedDirectChildNumbers.set(parentEdtValue || '__root__', used);
+  return parentEdtValue ? (parentEdtValue + '.' + next) : String(next);
+}
+
+function registerAssignedEdt(assignedEdt, parentEdtValue, usedEdtsByParent, usedDirectChildNumbers){
+  const parentKey = parentEdtValue || '__root__';
+  if(!usedEdtsByParent.has(parentKey)) usedEdtsByParent.set(parentKey, new Set());
+  usedEdtsByParent.get(parentKey).add(assignedEdt);
+  const tail = text(assignedEdt).split('.').slice(-1)[0];
+  if(/^\d+$/.test(tail)){
+    const used = usedDirectChildNumbers.get(parentKey) || new Set();
+    used.add(Number(tail));
+    usedDirectChildNumbers.set(parentKey, used);
+  }
+}
+
+function reconcileHierarchyRecords(records){
+  const ordered = sortBySourceOrder(records.map(record => ({...record})));
+  const stack = [];
+  const usedEdtsByParent = new Map();
+  const usedDirectChildNumbers = new Map();
+
+  ordered.forEach(record => {
+    let level = Math.max(1, Number(record.nivel || deriveLevel(record.edt) || 1));
+    while(stack.length && stack[stack.length - 1].level >= level) stack.pop();
+    if(!stack.length) level = 1;
+    if(stack.length && level > stack[stack.length - 1].level + 1){
+      level = stack[stack.length - 1].level + 1;
+    }
+
+    const rawEdt = normalizeProgramEdt(text(record.edt), text(record.actividad));
+    const parentNode = level > 1 ? stack[stack.length - 1] : null;
+    const parentEdtValue = parentNode ? parentNode.edt : '';
+    const parentKey = parentEdtValue || '__root__';
+    const usedSiblings = usedEdtsByParent.get(parentKey) || new Set();
+    let edt = '';
+
+    if(level === 1){
+      if(rawEdt && /^\d+$/.test(rawEdt) && !usedSiblings.has(rawEdt)){
+        edt = rawEdt;
+      }else{
+        edt = nextAvailableChildEdt('', usedDirectChildNumbers);
+      }
+    }else{
+      if(!parentNode){
+        level = 1;
+        if(rawEdt && /^\d+$/.test(rawEdt) && !usedSiblings.has(rawEdt)){
+          edt = rawEdt;
+        }else{
+          edt = nextAvailableChildEdt('', usedDirectChildNumbers);
+        }
+      }else{
+        const rawHasParent = rawEdt && rawEdt.startsWith(parentEdtValue + '.');
+        const rawLevelMatches = deriveLevel(rawEdt) === level;
+        if(rawHasParent && rawLevelMatches && !usedSiblings.has(rawEdt)){
+          edt = rawEdt;
+        }else{
+          edt = nextAvailableChildEdt(parentEdtValue, usedDirectChildNumbers);
+        }
+      }
+    }
+
+    record.edt = edt;
+    record.parent_edt = parentEdtValue;
+    record.nivel = level;
+    record.grupo = deriveGroup(edt);
+    if(!text(record.resumen)){
+      record.resumen = [
+        record.edt ? `EDT ${record.edt}` : '',
+        text(record.seguimiento_dgppcs) || text(record.responsable),
+        text(record.estado)
+      ].filter(Boolean).join(' | ');
+    }
+    registerAssignedEdt(edt, parentEdtValue, usedEdtsByParent, usedDirectChildNumbers);
+    stack.push({id: record.id, edt, level});
+  });
+
+  return ordered;
 }
 
 function hydrateData(payloadOverride){
@@ -2829,6 +2920,14 @@ function withAncestors(matched, all){
   });
   const allById = new Map(ordered.map(record => [record.id, record]));
   const out = new Map();
+  const includeDescendants = recordId => {
+    const children = childrenMap.get(recordId) || [];
+    children.forEach(child => {
+      if(out.has(child.id)) return;
+      out.set(child.id, child);
+      includeDescendants(child.id);
+    });
+  };
   matched.forEach(record => {
     let currentId = record.id;
     while(currentId){
@@ -2838,6 +2937,7 @@ function withAncestors(matched, all){
       out.set(currentId, current);
       currentId = parentById.get(currentId);
     }
+    includeDescendants(record.id);
   });
   return ordered.filter(record => out.has(record.id));
 }
@@ -3381,7 +3481,8 @@ function buildHierarchyMaps(records){
 
 function displayTitle(record){
   const alias = text((appState.aliases && appState.aliases[record.id]) || '');
-  const label = alias || DEFAULT_TITLE_BY_EDT[text(record.edt)] || text(record.actividad);
+  const cleanAlias = alias.replace(/^\*?\s*\d+(?:\.\d+)*\s*-\s*/,'').trim();
+  const label = cleanAlias || DEFAULT_TITLE_BY_EDT[text(record.edt)] || text(record.actividad);
   return (record.edt ? record.edt + ' - ' : '') + label;
 }
 

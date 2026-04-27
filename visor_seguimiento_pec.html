@@ -2763,7 +2763,9 @@ function reconcileHierarchyRecords(records){
     record.parent_edt = parentEdtValue;
     record.nivel = level;
     record.grupo = deriveGroup(edt);
-    record.resumen = buildSummaryText(record);
+    if(!text(record.resumen)){
+      record.resumen = buildSummaryText(record);
+    }
     registerAssignedEdt(edt, parentEdtValue, usedEdtsByParent, usedDirectChildNumbers);
     stack.push({id: record.id, edt, level});
   });

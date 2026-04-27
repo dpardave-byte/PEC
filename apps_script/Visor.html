@@ -2072,6 +2072,9 @@ window.PEC_TRACKING_DATA = {
 }
 </script>
 <script>
+window.PEC_SERVER_BOOTSTRAP = <?!= visorBootstrapJson ?>;
+</script>
+<script>
 const STORAGE_KEY = 'pec_tracking_notes_v1';
 const EDIT_STORAGE_KEY = 'pec_tracking_edits_v1';
 const PEOPLE_STORAGE_KEY = 'pec_tracking_people_v1';
@@ -2763,7 +2766,9 @@ function reconcileHierarchyRecords(records){
     record.parent_edt = parentEdtValue;
     record.nivel = level;
     record.grupo = deriveGroup(edt);
-    record.resumen = buildSummaryText(record);
+    if(!text(record.resumen)){
+      record.resumen = buildSummaryText(record);
+    }
     registerAssignedEdt(edt, parentEdtValue, usedEdtsByParent, usedDirectChildNumbers);
     stack.push({id: record.id, edt, level});
   });

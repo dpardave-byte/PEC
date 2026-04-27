@@ -619,8 +619,10 @@ tbody tr:hover td{background:#f8fbfe}
       <div>
         <h3>Panel administrador</h3>
         <div class="hero-meta">
-          <div><b>Actor:</b> Darwin Pardavé</div>
-          <div><b>Modo:</b> Auditoría local</div>
+          <div><b>Actor:</b> <span id="adminActorValue">Sin identificar</span></div>
+          <div><b>Modo:</b> <span id="adminModeValue">Auditoría local</span></div>
+          <div><b>Sincronización:</b> <span id="adminSyncValue">Solo local</span></div>
+          <div><b>Último backup:</b> <span id="adminBackupValue">Sin registro</span></div>
         </div>
       </div>
       <button id="closeAdminBtn" class="secondary">Cerrar</button>
@@ -2649,6 +2651,135 @@ function getClientActorName(){
   return '';
 }
 
+function getDefaultServerInfo(){
+  return {
+    mode: isSharedBackendMode() ? 'apps_script' : 'local',
+    actor: '',
+    admin: false,
+    pollIntervalSeconds: 30,
+    savedAt: '',
+    savedBy: '',
+    lastBackupAt: '',
+    lastBackupFile: '',
+    syncState: isSharedBackendMode() ? 'ready' : 'local',
+    syncMessage: isSharedBackendMode()
+      ? 'Visor compartido preparado para sincronizar con Apps Script.'
+      : 'Modo local: los cambios se guardan en este navegador.',
+    lastError: ''
+  };
+}
+
+function ensureServerInfo(){
+  if(!appState.serverInfo || typeof appState.serverInfo !== 'object'){
+    appState.serverInfo = getDefaultServerInfo();
+  }
+  return appState.serverInfo;
+}
+
+function renderAdminAccess(){
+  const adminBtn = document.getElementById('openAdminBtn');
+  if(adminBtn) adminBtn.style.display = appState.adminEnabled ? '' : 'none';
+}
+
+function updateServerInfoFromEnvelope(result){
+  const info = ensureServerInfo();
+  const backend = result && result.backend && typeof result.backend === 'object' ? result.backend : {};
+  info.mode = text(backend.mode) || (isSharedBackendMode() ? 'apps_script' : 'local');
+  info.actor = text((result && result.actor) || backend.actor || info.actor);
+  info.admin = Boolean((result && typeof result.admin !== 'undefined' ? result.admin : backend.admin) || info.admin);
+  info.pollIntervalSeconds = Number(backend.pollIntervalSeconds || info.pollIntervalSeconds || 30);
+  info.savedAt = text((result && result.savedAt) || (result && result.state && result.state.savedAt) || info.savedAt);
+  info.savedBy = text((result && result.savedBy) || (result && result.state && result.state.savedBy) || info.savedBy);
+  info.lastBackupAt = text(backend.lastBackupAt || info.lastBackupAt);
+  info.lastBackupFile = text(backend.lastBackupFile || info.lastBackupFile);
+  if(info.admin) appState.adminEnabled = true;
+  renderAdminAccess();
+  return info;
+}
+
+function setSharedSyncState(state, message){
+  const info = ensureServerInfo();
+  info.syncState = text(state) || info.syncState || 'local';
+  if(message) info.syncMessage = text(message);
+  if(state !== 'error' && state !== 'conflict') info.lastError = '';
+  renderOperationsStatus();
+  renderAdminStatus();
+}
+
+function setSharedError(message, state){
+  const info = ensureServerInfo();
+  info.syncState = text(state) || 'error';
+  info.lastError = text(message) || 'Sin detalle.';
+  info.syncMessage = info.lastError;
+  renderOperationsStatus();
+  renderAdminStatus();
+}
+
+function formatIsoDisplay(value){
+  const raw = text(value);
+  if(!raw) return '';
+  const date = new Date(raw);
+  if(Number.isNaN(date.getTime())) return raw.replace('T',' ');
+  return date.toLocaleString('es-PE', {
+    year:'numeric',
+    month:'2-digit',
+    day:'2-digit',
+    hour:'2-digit',
+    minute:'2-digit'
+  });
+}
+
+function backendModeLabel(){
+  const info = ensureServerInfo();
+  return info.mode === 'apps_script' ? 'Compartido Apps Script' : 'Local standalone';
+}
+
+function syncStateLabel(){
+  const info = ensureServerInfo();
+  if(info.syncState === 'syncing') return 'Sincronizando cambios';
+  if(info.syncState === 'conflict') return 'Conflicto de versión';
+  if(info.syncState === 'error') return 'Sin conexión con backend';
+  if(info.syncState === 'synced') return 'Sincronizado';
+  if(info.syncState === 'refreshing') return 'Refrescando estado compartido';
+  return 'Solo local';
+}
+
+function renderAdminStatus(){
+  const info = ensureServerInfo();
+  const actorHost = document.getElementById('adminActorValue');
+  const modeHost = document.getElementById('adminModeValue');
+  const syncHost = document.getElementById('adminSyncValue');
+  const backupHost = document.getElementById('adminBackupValue');
+  if(actorHost) actorHost.textContent = info.actor || info.savedBy || getClientActorName() || 'Sin identificar';
+  if(modeHost){
+    modeHost.textContent = backendModeLabel() + (info.admin ? ' | Admin por correo o modo local' : ' | Usuario estándar');
+  }
+  if(syncHost){
+    const tail = info.syncMessage ? ' | ' + info.syncMessage : '';
+    syncHost.textContent = syncStateLabel() + tail;
+  }
+  if(backupHost){
+    backupHost.textContent = info.lastBackupAt
+      ? formatIsoDisplay(info.lastBackupAt) + (info.lastBackupFile ? ' | ' + info.lastBackupFile : '')
+      : 'Sin registro';
+  }
+}
+
+function describeAuditItem(item){
+  const parts = [
+    text(item && item.actor),
+    formatIsoDisplay(item && item.at),
+    text(item && (item.detail || item.message))
+  ].filter(Boolean);
+  if(item && item.summary && item.summary.total){
+    parts.push('Cambios: ' + item.summary.total);
+  }
+  if(item && item.summary && Array.isArray(item.summary.touchedRecords) && item.summary.touchedRecords.length){
+    parts.push('Registros: ' + item.summary.touchedRecords.slice(0, 4).join(', '));
+  }
+  return parts.join(' | ');
+}
+
 function normalizeSharedStateBundle(bundle){
   const data = bundle && typeof bundle === 'object' ? bundle : {};
   return {
@@ -2731,11 +2862,22 @@ function flushSharedSync(){
   const reason = pendingSharedSyncReason || 'actualizacion';
   pendingSharedSyncReason = '';
   sharedSyncInFlight = true;
+  updateServerInfoFromEnvelope({});
+  setSharedSyncState('syncing', 'Guardando cambios en el estado compartido...');
   const drawerOpen = document.getElementById('drawer')?.classList.contains('open');
   const selectedId = appState.selectedId;
   google.script.run
     .withSuccessHandler(result => {
       sharedSyncInFlight = false;
+      updateServerInfoFromEnvelope(result || {});
+      if(result && result.conflict){
+        const detail = text(result.message) || 'Se detectó una versión más reciente del estado compartido.';
+        setSharedError(detail, 'conflict');
+        setImportFeedback('Conflicto de sincronización', detail + ' Revisa la versión más reciente antes de volver a guardar.', 'warn');
+        renderOperationsStatus();
+        if(pendingSharedSyncReason) flushSharedSync();
+        return;
+      }
       if(result && result.ok && result.state){
         applySharedStateBundle(result.state, {skipRenderHero:true});
         renderHero();
@@ -2743,12 +2885,14 @@ function flushSharedSync(){
         applyFilters();
         buildExecutiveReport();
         if(drawerOpen && selectedId) openDrawer(selectedId);
+        setSharedSyncState('synced', 'Estado compartido guardado en Apps Script.');
       }
       if(pendingSharedSyncReason) flushSharedSync();
     })
     .withFailureHandler(error => {
       sharedSyncInFlight = false;
       console.error('No se pudo sincronizar el estado compartido.', error);
+      setSharedError('No se pudo sincronizar con Apps Script. Se mantiene la copia local.', 'error');
       if(pendingSharedSyncReason) flushSharedSync();
     })
     .saveSharedTrackingState(buildSharedStateBundle(reason), getClientActorName(), reason);
@@ -2756,11 +2900,13 @@ function flushSharedSync(){
 
 function refreshSharedState(force){
   if(!isSharedBackendMode()) return;
+  if(force) setSharedSyncState('refreshing', 'Refrescando estado compartido...');
   const drawerOpen = document.getElementById('drawer')?.classList.contains('open');
   const selectedId = appState.selectedId;
   google.script.run
     .withSuccessHandler(result => {
       if(!result || !result.ok || !result.state) return;
+      updateServerInfoFromEnvelope(result);
       const incomingRevision = Number(result.state.revision || 0);
       if(!force && incomingRevision <= Number(appState.remoteRevision || 0)) return;
       applySharedStateBundle(result.state, {skipRenderHero:true});
@@ -2769,16 +2915,20 @@ function refreshSharedState(force){
       applyFilters();
       buildExecutiveReport();
       if(drawerOpen && selectedId) openDrawer(selectedId);
+      setSharedSyncState('synced', 'Estado compartido actualizado.');
     })
     .withFailureHandler(error => {
       console.error('No se pudo refrescar el estado compartido.', error);
+      setSharedError('No se pudo refrescar Apps Script. Se mantiene el último estado local.', 'error');
     })
     .getSharedTrackingState();
 }
 
 function startSharedStatePolling(){
   if(!isSharedBackendMode() || sharedPollHandle) return;
-  sharedPollHandle = setInterval(() => refreshSharedState(false), 30000);
+  const info = ensureServerInfo();
+  const pollMs = Math.max(10000, Number(info.pollIntervalSeconds || 30) * 1000);
+  sharedPollHandle = setInterval(() => refreshSharedState(false), pollMs);
 }
 
 function getGroupRecords(records){
@@ -3873,20 +4023,44 @@ function ensureDailyBackup(){
 function renderAdminAudit(){
   const host = document.getElementById('adminAuditList');
   if(!host) return;
+  renderAdminStatus();
   if(!appState.adminEnabled){
     host.innerHTML = '<div class="empty">Modo administrador no habilitado.</div>';
     return;
   }
   const list = (appState.audit || []).slice(0,40);
   host.innerHTML = list.length
-    ? list.map(item => '<div class="summary-item"><div><strong>' + escapeHtml(item.action) + '</strong><span>' + escapeHtml([item.actor, item.at, item.detail].filter(Boolean).join(' | ')) + '</span></div></div>').join('')
+    ? list.map(item => '<div class="summary-item"><div><strong>' + escapeHtml(text(item.action) || 'cambio') + '</strong><span>' + escapeHtml(describeAuditItem(item)) + '</span></div></div>').join('')
     : '<div class="empty">Sin cambios auditados todavía.</div>';
+}
+
+function refreshSharedAudit(limit){
+  if(!isSharedBackendMode()) return;
+  const info = ensureServerInfo();
+  if(!info.admin) return;
+  const host = document.getElementById('adminAuditList');
+  if(host) host.innerHTML = '<div class="empty">Cargando auditoría compartida...</div>';
+  google.script.run
+    .withSuccessHandler(result => {
+      updateServerInfoFromEnvelope(result || {});
+      if(result && result.ok && Array.isArray(result.items)){
+        appState.audit = result.items;
+      }
+      renderAdminAudit();
+    })
+    .withFailureHandler(error => {
+      console.error('No se pudo cargar la auditoría compartida.', error);
+      setSharedError('No se pudo cargar la auditoría compartida.', 'error');
+      renderAdminAudit();
+    })
+    .getSharedTrackingAudit(Number(limit || 120));
 }
 
 function openAdminModal(){
   if(!appState.adminEnabled) return;
   renderAdminAudit();
   document.getElementById('adminModal').classList.add('open');
+  refreshSharedAudit(120);
 }
 
 function closeAdminModal(){
@@ -3899,6 +4073,30 @@ function exportAuditLog(){
 }
 
 function exportLatestBackup(){
+  const info = ensureServerInfo();
+  if(isSharedBackendMode() && info.admin){
+    google.script.run
+      .withSuccessHandler(result => {
+        updateServerInfoFromEnvelope(result || {});
+        if(result && result.ok && result.backup && result.backup.content){
+          const name = text(result.backup.fileName) || ('shared_tracking_backup_' + todayIso() + '.json');
+          downloadBlob(name, 'application/json;charset=utf-8', result.backup.content);
+          setImportFeedback('Backup compartido exportado', 'Se descargó el backup más reciente del estado compartido en Drive.', 'success');
+          renderOperationsStatus();
+          return;
+        }
+        const detail = text(result && result.message) || 'No fue posible exportar el backup compartido.';
+        setImportFeedback('Error de backup compartido', detail, 'warn');
+        renderOperationsStatus();
+      })
+      .withFailureHandler(error => {
+        console.error('No se pudo exportar el backup compartido.', error);
+        setImportFeedback('Error de backup compartido', 'No se pudo descargar el backup desde Apps Script. Se mantiene el respaldo local.', 'warn');
+        renderOperationsStatus();
+      })
+      .getSharedTrackingLatestBackup();
+    return;
+  }
   const today = new Date().toISOString().slice(0,10);
   const backupKey = 'pec_tracking_backup_' + today;
   const backup = localStorage.getItem(backupKey) || JSON.stringify(exportStructureJson(), null, 2);
@@ -4654,11 +4852,23 @@ function renderOperationsStatus(){
   if(statusHost){
     const meta = (appState.payload && appState.payload.meta) || {};
     const generatedAt = text(meta.generatedAt);
+    const info = ensureServerInfo();
+    const syncDetail = info.syncMessage ? ' | ' + info.syncMessage : '';
+    const savedLine = info.savedAt || info.savedBy
+      ? 'Último guardado central: ' + [formatIsoDisplay(info.savedAt), text(info.savedBy)].filter(Boolean).join(' | ')
+      : '';
+    const backupLine = info.lastBackupAt
+      ? 'Último backup Drive: ' + [formatIsoDisplay(info.lastBackupAt), text(info.lastBackupFile)].filter(Boolean).join(' | ')
+      : '';
     statusHost.innerHTML = [
       '<strong>Estado de la fuente</strong>',
       '<span class="source-badge">' + escapeHtml(sourceModeLabel()) + '</span>',
       '<p>' + escapeHtml(text(meta.sourceFile) || 'Fuente integrada del visor') + '</p>',
-      '<p>' + escapeHtml('Registros operativos: ' + appState.raw.length + (generatedAt ? ' | Actualizado: ' + generatedAt.replace('T',' ') : '')) + '</p>'
+      '<p>' + escapeHtml('Registros operativos: ' + appState.raw.length + (generatedAt ? ' | Actualizado: ' + generatedAt.replace('T',' ') : '')) + '</p>',
+      '<p>' + escapeHtml('Modo: ' + backendModeLabel() + ' | Sincronización: ' + syncStateLabel() + syncDetail) + '</p>',
+      savedLine ? '<p>' + escapeHtml(savedLine) + '</p>' : '',
+      backupLine ? '<p>' + escapeHtml(backupLine) + '</p>' : '',
+      info.lastError ? '<p>' + escapeHtml('Fallback local activo: ' + info.lastError) + '</p>' : ''
     ].join('');
   }
   const feedbackHost = document.getElementById('importFeedback');
@@ -5525,7 +5735,7 @@ function bindEvents(){
   document.getElementById('closeDrawerBtn').addEventListener('click', closeDrawer);
   document.getElementById('editHeroBtn').addEventListener('click', openHeroModal);
   const adminBtn = document.getElementById('openAdminBtn');
-  if(appState.adminEnabled && adminBtn) adminBtn.style.display = '';
+  renderAdminAccess();
   if(adminBtn) adminBtn.addEventListener('click', openAdminModal);
   document.getElementById('closeHeroBtn').addEventListener('click', closeHeroModal);
   document.getElementById('saveHeroBtn').addEventListener('click', saveHeroModal);
@@ -5609,11 +5819,11 @@ function initFilters(){
 function init(){
   if(SERVER_BOOTSTRAP && SERVER_BOOTSTRAP.state){
     applySharedStateBundle(SERVER_BOOTSTRAP.state, {skipRenderHero:true});
-    appState.serverInfo = {
-      savedAt: text(SERVER_BOOTSTRAP.savedAt || (SERVER_BOOTSTRAP.state && SERVER_BOOTSTRAP.state.savedAt)),
-      savedBy: text(SERVER_BOOTSTRAP.actor || (SERVER_BOOTSTRAP.state && SERVER_BOOTSTRAP.state.savedBy))
-    };
+    updateServerInfoFromEnvelope(SERVER_BOOTSTRAP);
+    setSharedSyncState('synced', 'Estado compartido cargado desde Apps Script.');
   }else{
+    ensureServerInfo();
+    setSharedSyncState('local', 'Modo local: los cambios se guardan en este navegador.');
     hydrateData();
   }
   renderHero();

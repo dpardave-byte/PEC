@@ -241,7 +241,7 @@ tbody tr:hover td{background:#f8fbfe}
     <div class="filters">
       <div class="field">
         <label for="searchInput">Busqueda</label>
-        <input id="searchInput" list="searchSuggestions" type="search" placeholder="Actividad, EDT, responsable, seguimiento o contacto">
+        <input id="searchInput" list="searchSuggestions" type="search" placeholder="Bloque, fase, hito, EDT o caso">
         <datalist id="searchSuggestions"></datalist>
       </div>
       <div class="field">
@@ -2101,6 +2101,7 @@ const BASE_PEOPLE = [
   'Marjorie Mellet'
 ];
 const BASE_ENTITIES = [
+  'DGPPCS',
   'PNSU',
   'PASLC',
   'BM',
@@ -2108,6 +2109,19 @@ const BASE_ENTITIES = [
   'OGAJ',
   'SG',
   'OGPP'
+];
+const INTRINSIC_NOTE_PATTERNS = [
+  /^nota\b/i,
+  /^comentario\b/i,
+  /^observaci[oó]n\b/i,
+  /considerad[ao].*en lugar de/i
+];
+const HIERARCHY_ACTIVITY_OVERRIDES = [
+  {
+    childActivityPattern: /evaluaci[oó]n de los tdr del head hunter/i,
+    parentActivityPattern: /gesti[oó]n de la donaci[oó]n/i,
+    reason: 'Mantener esta actividad dentro de la rama operativa de Gestión de la Donación.'
+  }
 ];
 const DEFAULT_TITLE_BY_EDT = {
   '3.2': 'Creación del Equipo Técnico de Gestión del Programa - Programa de Economía Circular (ETGP-PEC)',
@@ -2371,13 +2385,44 @@ function splitPeople(value){
     .filter(Boolean);
 }
 
+function splitEntityFragment(value){
+  const cleaned = cleanEntityName(value);
+  if(!cleaned) return [];
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+  const isUpperToken = token => /^[A-ZÁÉÍÓÚÑ0-9]{2,}$/.test(token);
+  if(parts.length > 1 && parts.every(isUpperToken)) return parts;
+  return [cleaned];
+}
+
 function splitEntities(value){
   const normalized = text(value)
-    .replace(/([A-ZÁÉÍÓÚÑ]{2,})-([A-ZÁÉÍÓÚÑ]{2,})/g, '$1/$2');
+    .replace(/([A-ZÁÉÍÓÚÑ]{2,})-([A-ZÁÉÍÓÚÑ]{2,})/g, '$1/$2')
+    .replace(/\s+y\s+/gi,'/');
   return normalized
-    .split(/[\/,;]+/g)
+    .split(/[\/,;|]+/g)
+    .flatMap(splitEntityFragment)
     .map(canonicalEntityName)
     .filter(Boolean);
+}
+
+function normalizeSeguimientoValue(value){
+  return uniquePeople(Array.isArray(value) ? value : [value]).join(' / ');
+}
+
+function normalizeResponsibleValue(value){
+  return uniqueEntities(Array.isArray(value) ? value : [value]).join('; ');
+}
+
+function normalizeCatalogFields(record){
+  return {
+    ...record,
+    responsable: normalizeResponsibleValue(record.responsable),
+    seguimiento_dgppcs: normalizeSeguimientoValue(record.seguimiento_dgppcs),
+    contacto: text(record.contacto),
+    intrinsic_notes: Array.isArray(record.intrinsic_notes)
+      ? uniqueSorted(record.intrinsic_notes.map(item => text(item)).filter(Boolean))
+      : []
+  };
 }
 
 function uniquePeople(values){
@@ -2414,6 +2459,7 @@ function getAssignableEntities(){
     []
       .concat(BASE_ENTITIES)
       .concat(appState.customEntities || [])
+      .concat(appState.raw.map(r => r.responsable || ''))
   );
 }
 
@@ -2574,7 +2620,7 @@ function startSharedStatePolling(){
 }
 
 function getGroupRecords(records){
-  return sortBySourceOrder(records || appState.raw).filter(record => Number(record.nivel || deriveLevel(record.edt) || 1) === 1 && text(record.edt));
+  return sortBySourceOrder(records || appState.raw).filter(record => visualHierarchyLevel(record) === 1 && text(record.edt));
 }
 
 function getGroupOptionList(records){
@@ -2652,6 +2698,11 @@ function getMergedRecord(record){
   merged.nivel = normalizedLevelValue(merged.edt, toNumber(merged.nivel) || toNumber(record.nivel));
   if(isTopLevelEdt(merged.edt)) merged.parent_edt = '';
   merged.grupo = text(merged.grupo) || deriveGroup(merged.edt) || text(record.grupo) || 'Sin grupo';
+  merged.responsable = normalizeResponsibleValue(merged.responsable);
+  merged.seguimiento_dgppcs = normalizeSeguimientoValue(merged.seguimiento_dgppcs);
+  merged.intrinsic_notes = Array.isArray(merged.intrinsic_notes)
+    ? uniqueSorted(merged.intrinsic_notes.map(item => text(item)).filter(Boolean))
+    : [];
   merged.avance_estimado = deriveProgress(merged.estado);
   merged.dias_restantes = deriveRemaining(merged.final, merged.estado);
   merged.alerta = deriveAlert(merged.inicio, merged.final, merged.estado);
@@ -2672,22 +2723,48 @@ function isExcludedRecord(record){
   return isSystemTrackingBlock(record);
 }
 
-function isCommentOnlyRecord(record){
+function isIntrinsicNoteRecord(record){
   const edt = text(record.edt);
   const actividad = text(record.actividad);
-  if(!edt) return true;
   if(edt === '*') return true;
-  if(/sandra torres es considerada en lugar de rolando carpio/i.test(actividad)) return true;
+  if(!actividad) return true;
+  if(!edt && INTRINSIC_NOTE_PATTERNS.some(pattern => pattern.test(actividad))) return true;
   return false;
+}
+
+function isCommentOnlyRecord(record){
+  return isIntrinsicNoteRecord(record);
+}
+
+function getIntrinsicNoteText(record){
+  const actividad = text(record.actividad);
+  const resumen = text(record.resumen)
+    .replace(/^EDT\s*\*\s*\|\s*/i,'')
+    .replace(/\|\s*Sin estado$/i,'')
+    .trim();
+  return uniqueSorted([actividad, resumen].filter(Boolean)).join(' | ');
+}
+
+function attachIntrinsicNote(record, noteText){
+  if(!record || !noteText) return;
+  const notes = Array.isArray(record.intrinsic_notes) ? record.intrinsic_notes : [];
+  record.intrinsic_notes = uniqueSorted(notes.concat(noteText));
 }
 
 function normalizeRecords(records){
   const ordered = sortBySourceOrder(records.map(record => ({...record})));
   const out = [];
+  let lastActionableRecord = null;
   ordered.forEach(record => {
     if(isExcludedRecord(record)) return;
-    if(isCommentOnlyRecord(record)) return;
-    out.push(record);
+    const normalizedRecord = normalizeCatalogFields(record);
+    if(isIntrinsicNoteRecord(normalizedRecord)){
+      const noteText = getIntrinsicNoteText(normalizedRecord);
+      if(noteText && lastActionableRecord) attachIntrinsicNote(lastActionableRecord, noteText);
+      return;
+    }
+    out.push(normalizedRecord);
+    lastActionableRecord = normalizedRecord;
   });
   return reconcileHierarchyRecords(out);
 }
@@ -2713,22 +2790,48 @@ function registerAssignedEdt(assignedEdt, parentEdtValue, usedEdtsByParent, used
   }
 }
 
+function resolveHierarchyOverride(record, assignedRecords){
+  const actividad = text(record.actividad);
+  if(!actividad) return null;
+  for(const override of HIERARCHY_ACTIVITY_OVERRIDES){
+    if(!override.childActivityPattern.test(actividad)) continue;
+    for(let idx = assignedRecords.length - 1; idx >= 0; idx -= 1){
+      const candidate = assignedRecords[idx];
+      if(override.parentActivityPattern.test(text(candidate.actividad))) return candidate;
+    }
+  }
+  return null;
+}
+
 function reconcileHierarchyRecords(records){
   const ordered = sortBySourceOrder(records.map(record => ({...record})));
   const stack = [];
+  const assignedRecords = [];
   const usedEdtsByParent = new Map();
   const usedDirectChildNumbers = new Map();
 
   ordered.forEach(record => {
     let level = Math.max(1, Number(record.nivel || deriveLevel(record.edt) || 1));
+    const rawEdt = normalizeProgramEdt(text(record.edt), text(record.actividad));
+    if(rawEdt && isTopLevelEdt(rawEdt)){
+      level = 1;
+      stack.length = 0;
+    }
     while(stack.length && stack[stack.length - 1].level >= level) stack.pop();
     if(!stack.length) level = 1;
     if(stack.length && level > stack[stack.length - 1].level + 1){
       level = stack[stack.length - 1].level + 1;
     }
 
-    const rawEdt = normalizeProgramEdt(text(record.edt), text(record.actividad));
-    const parentNode = level > 1 ? stack[stack.length - 1] : null;
+    const overrideParent = resolveHierarchyOverride(record, assignedRecords);
+    if(overrideParent){
+      while(stack.length && stack[stack.length - 1].level >= overrideParent.level) stack.pop();
+      if(!stack.length || stack[stack.length - 1].id !== overrideParent.id){
+        stack.push({id: overrideParent.id, edt: overrideParent.edt, level: overrideParent.level});
+      }
+      level = overrideParent.level + 1;
+    }
+    const parentNode = overrideParent || (level > 1 ? stack[stack.length - 1] : null);
     const parentEdtValue = parentNode ? parentNode.edt : '';
     const parentKey = parentEdtValue || '__root__';
     const usedSiblings = usedEdtsByParent.get(parentKey) || new Set();
@@ -2768,6 +2871,7 @@ function reconcileHierarchyRecords(records){
     }
     registerAssignedEdt(edt, parentEdtValue, usedEdtsByParent, usedDirectChildNumbers);
     stack.push({id: record.id, edt, level});
+    assignedRecords.push({id: record.id, edt, level, actividad: record.actividad});
   });
 
   return ordered;
@@ -2861,13 +2965,21 @@ function updateAlertFilterSummary(){
 
 function initSearchSuggestions(){
   const datalist = document.getElementById('searchSuggestions');
-  const items = uniqueSorted(
-    getGroupRecords(appState.raw).flatMap(r => {
-      const values = [];
-      if(text(r.edt) || text(r.actividad)) values.push(displayTitle(r));
-      return values;
-    }).filter(value => text(value).length > 3)
-  ).slice(0, 180);
+  const suggestionRecords = sortBySourceOrder(appState.raw)
+    .filter(record => text(record.edt) && text(record.actividad));
+  const seen = new Set();
+  const items = suggestionRecords
+    .sort((a,b) => visualHierarchyLevel(a) - visualHierarchyLevel(b) || (Number(a.source_order) || 0) - (Number(b.source_order) || 0))
+    .map(record => displayTitle(record))
+    .filter(value => {
+      const cleaned = text(value);
+      if(!cleaned || cleaned.length <= 2) return false;
+      if(/^\d+(?:\.\d+)*$/.test(cleaned)) return false;
+      if(seen.has(cleaned)) return false;
+      seen.add(cleaned);
+      return true;
+    })
+    .slice(0, 180);
   datalist.innerHTML = items.map(item => '<option value="' + escapeHtml(item) + '"></option>').join('');
 }
 
@@ -2880,6 +2992,37 @@ function escapeHtml(value){
     .replace(/'/g,'&#39;');
 }
 
+function isEdtScopedQuery(query){
+  return /^\d+(?:\.\d+)*$/.test(text(query));
+}
+
+function buildSearchHierarchyTerms(record){
+  const edt = text(record.edt);
+  if(!edt) return [];
+  const level = visualHierarchyLevel(record);
+  const terms = [edt];
+  if(level === 1){
+    terms.push('bloque ' + edt);
+  }else if(level === 2){
+    terms.push('fase ' + edt);
+  }else{
+    terms.push('hito ' + edt, 'caso ' + edt);
+  }
+  return terms;
+}
+
+function buildSearchHaystack(record){
+  return [
+    ...buildSearchHierarchyTerms(record),
+    text(record.grupo),
+    displayTitle(record),
+    text(record.actividad),
+    intrinsicLine(record),
+    text(record.local_note),
+    text(record.local_action)
+  ].join(' ').toLowerCase();
+}
+
 function applyFilters(){
   const q = text(document.getElementById('searchInput').value).toLowerCase();
   const statuses = getSelectedStatusValues();
@@ -2889,11 +3032,14 @@ function applyFilters(){
   const owner = text(document.getElementById('ownerFilter').value);
 
   const matched = appState.raw.filter(record => {
-    const haystack = [
-      record.edt, record.actividad, displayTitle(record), record.responsable, record.seguimiento_dgppcs,
-      record.contacto, record.local_note, record.local_action
-    ].join(' ').toLowerCase();
-    if(q && !haystack.includes(q)) return false;
+    if(q){
+      if(isEdtScopedQuery(q)){
+        const scopedEdt = text(record.edt);
+        if(scopedEdt !== q && !scopedEdt.startsWith(q + '.')) return false;
+      }else if(!buildSearchHaystack(record).includes(q)){
+        return false;
+      }
+    }
     if(statuses.length && !statuses.includes(record.estado)) return false;
     if(alerts.length && !alerts.includes(record.alerta)) return false;
     if(group && record.grupo !== group) return false;
@@ -3027,6 +3173,10 @@ function normalizedLevelValue(edt, fallback){
   return Math.max(1, Number(fallback || deriveLevel(edt) || 1));
 }
 
+function visualHierarchyLevel(record){
+  return isTopLevelEdt(record && record.edt) ? 1 : normalizedLevelValue(record && record.edt, record && record.nivel);
+}
+
 function deriveGroup(edt){
   const raw = text(edt);
   return raw ? raw.split('.')[0] : 'Sin grupo';
@@ -3058,11 +3208,11 @@ function buildRecordFromExcel(raw, idx){
     actividad = 'Inicio de Efectividad del Préstamo';
   }
   edt = normalizeProgramEdt(edt, actividad);
-  const responsable = text(raw.Responsable);
+  const responsable = normalizeResponsibleValue(raw.Responsable);
   const inicio = toIsoDate(raw.Inicio);
   const final = toIsoDate(raw.Final);
   const estado = text(raw.Estado) || 'Sin estado';
-  const seguimiento = text(raw['Responsable de Seguimiento DGPPCS']);
+  const seguimiento = normalizeSeguimientoValue(raw['Responsable de Seguimiento DGPPCS']);
   const contacto = text(raw.Contacto);
   return {
     id: `case-${String(idx).padStart(3,'0')}`,
@@ -3115,15 +3265,24 @@ function parseWorkbookRecords(workbook){
 }
 
 function buildPayloadFromRecords(records, sourceFile){
+  const normalizedRecords = records.map(record => ({
+    ...record,
+    responsable: normalizeResponsibleValue(record.responsable),
+    seguimiento_dgppcs: normalizeSeguimientoValue(record.seguimiento_dgppcs),
+    contacto: text(record.contacto),
+    intrinsic_notes: Array.isArray(record.intrinsic_notes)
+      ? uniqueSorted(record.intrinsic_notes.map(item => text(item)).filter(Boolean))
+      : []
+  }));
   const summary = {
-    total: records.length,
-    completed: records.filter(r => r.estado === 'Completado').length,
-    inProgress: records.filter(r => r.estado === 'En Proceso').length,
-    pending: records.filter(r => r.estado === 'Pendiente de Iniciar').length,
-    withoutStatus: records.filter(r => r.estado === 'Sin estado').length,
-    critical: records.filter(r => r.alerta === 'critico').length,
-    overdue: records.filter(r => r.alerta === 'vencido').length,
-    attention: records.filter(r => r.alerta === 'atencion').length
+    total: normalizedRecords.length,
+    completed: normalizedRecords.filter(r => r.estado === 'Completado').length,
+    inProgress: normalizedRecords.filter(r => r.estado === 'En Proceso').length,
+    pending: normalizedRecords.filter(r => r.estado === 'Pendiente de Iniciar').length,
+    withoutStatus: normalizedRecords.filter(r => r.estado === 'Sin estado').length,
+    critical: normalizedRecords.filter(r => r.alerta === 'critico').length,
+    overdue: normalizedRecords.filter(r => r.alerta === 'vencido').length,
+    attention: normalizedRecords.filter(r => r.alerta === 'atencion').length
   };
   return {
     meta: {
@@ -3131,10 +3290,10 @@ function buildPayloadFromRecords(records, sourceFile){
       sheetName: SHEET_NAME,
       generatedAt: new Date().toISOString().slice(0,19),
       referenceDate: todayIso(),
-      recordCount: records.length
+      recordCount: normalizedRecords.length
     },
     summary,
-    records
+    records: normalizedRecords
   };
 }
 
@@ -3211,14 +3370,14 @@ function normalizeStructureRow(raw, idx){
     edt: text(raw.edt),
     parent_edt: text(raw.parent_edt),
     actividad: text(raw.actividad),
-    responsable: text(raw.responsable),
+    responsable: normalizeResponsibleValue(raw.responsable),
     inicio,
     final,
     duracion_cal: toNumber(raw.duracion_cal),
     dias_habiles: toNumber(raw.dias_habiles),
     dias_restantes: deriveRemaining(final, estado),
     estado,
-    seguimiento_dgppcs: text(raw.seguimiento_dgppcs),
+    seguimiento_dgppcs: normalizeSeguimientoValue(raw.seguimiento_dgppcs),
     contacto: text(raw.contacto),
     nivel: Math.max(1, toNumber(raw.nivel) || deriveLevel(raw.edt) || 1),
     grupo: text(raw.grupo) || deriveGroup(raw.edt),
@@ -3460,7 +3619,7 @@ function buildHierarchyMaps(records){
   });
   const stack = [];
   ordered.forEach(record => {
-    const level = normalizedLevelValue(record.edt, record.nivel);
+    const level = visualHierarchyLevel(record);
     while(stack.length && stack[stack.length - 1].level >= level) stack.pop();
     let parent = '__root__';
     const explicitParentEdt = text(record.parent_edt);
@@ -3577,7 +3736,7 @@ function getMoveTargetOptions(record){
   });
   ordered.forEach(item => {
     if(blocked.has(item.id)) return;
-    const level = Math.max(1, Number(item.nivel || deriveLevel(item.edt) || 1));
+    const level = visualHierarchyLevel(item);
     const prefix = '· '.repeat(Math.max(0, level - 1));
     options.push({
       value: item.id,
@@ -3699,11 +3858,12 @@ function makePendingState(value){
 function getVisibleHierarchy(records){
   const {ordered, childrenMap} = buildHierarchyMaps(records);
   const visible = [];
+  const searchActive = Boolean(text(document.getElementById('searchInput')?.value));
   function walk(parentKey){
     const items = childrenMap.get(parentKey) || [];
     items.forEach(record => {
       visible.push(record);
-      if(appState.expanded[record.id]) walk(record.id);
+      if(searchActive || appState.expanded[record.id]) walk(record.id);
     });
   }
   walk('__root__');
@@ -3886,7 +4046,7 @@ function renderGantt(){
     const r = item.record;
     const kids = childrenMap.get(r.id) || [];
     const hasChildren = kids.length > 0;
-    const level = normalizedLevelValue(r.edt, r.nivel);
+    const level = visualHierarchyLevel(r);
     const indent = (level - 1) * 18;
     const start = item.range.start;
     const end = item.range.end;
@@ -4187,6 +4347,12 @@ function saveCurrentCase(){
     saveCustomEntities();
     appendAudit('catalogo_responsable', 'Se agregaron: ' + newEntities.join(', '));
   }
+  const selectedPeople = getSelectedValues('seguimiento', 'person');
+  const selectedEntities = getSelectedValues('responsable', 'entity');
+  appState.customPeople = uniquePeople([].concat(appState.customPeople || []).concat(selectedPeople));
+  appState.customEntities = uniqueEntities([].concat(appState.customEntities || []).concat(selectedEntities));
+  saveCustomPeople();
+  saveCustomEntities();
   const currentGroup = text(currentRecord.grupo) || deriveGroup(currentRecord.edt);
   const selectedGroup = text(document.getElementById('editGrupo')?.value) || currentGroup;
   const manualEdt = text(document.getElementById('editEdt')?.value);
@@ -4230,8 +4396,8 @@ function saveCurrentCase(){
       parent_edt: nextParentEdt,
       nivel: String(normalizedLevelValue(nextEdt, text(document.getElementById('editNivel').value))),
       grupo: nextGroup,
-    responsable: getSelectedValues('responsable', 'entity').join('; '),
-    seguimiento_dgppcs: getSelectedValues('seguimiento', 'person').join(' / '),
+    responsable: normalizeResponsibleValue(selectedEntities),
+    seguimiento_dgppcs: normalizeSeguimientoValue(selectedPeople),
     contacto: text(document.getElementById('editContacto').value),
     estado: text(document.getElementById('editEstado').value),
     inicio: text(document.getElementById('editInicio').value),
@@ -4297,6 +4463,19 @@ function buildExecutiveReport(){
   const records = appState.matched.slice();
   const total = records.length;
   const hero = appState.hero || DEFAULT_HERO;
+  const q = text(document.getElementById('searchInput')?.value);
+  const statuses = getSelectedStatusValues();
+  const alerts = getSelectedAlertValues();
+  const group = text(document.getElementById('groupFilter')?.value);
+  const responsible = text(document.getElementById('responsibleFilter')?.value);
+  const owner = text(document.getElementById('ownerFilter')?.value);
+  const activeFilters = [];
+  if(q) activeFilters.push('Búsqueda: ' + q);
+  if(group) activeFilters.push('Grupo EDT: ' + group);
+  if(responsible) activeFilters.push('Responsable: ' + responsible);
+  if(owner) activeFilters.push('Seguimiento DGPPCS: ' + owner);
+  if(statuses.length) activeFilters.push('Estado: ' + statuses.join(', '));
+  if(alerts.length) activeFilters.push('Alerta: ' + alerts.map(alertLabel).join(', '));
   const completed = records.filter(r => r.estado === 'Completado').length;
   const inProgress = records.filter(r => r.estado === 'En Proceso').length;
   const pending = records.filter(r => r.estado === 'Pendiente de Iniciar').length;
@@ -4333,6 +4512,7 @@ function buildExecutiveReport(){
   lines.push('');
   lines.push('Fecha de corte: ' + fmtDateLong(todayIso()));
   lines.push('Registros analizados: ' + total);
+  lines.push('Filtros activos: ' + (activeFilters.length ? activeFilters.join(' | ') : 'Vista completa'));
   lines.push('');
   lines.push('1. Resumen directivo');
   lines.push('- Completados: ' + completed);
@@ -4392,6 +4572,7 @@ function buildExecutiveReport(){
     ${text(hero.subtitle) ? '<p><strong>Marco:</strong> ' + escapeHtml(hero.subtitle) + '</p>' : ''}
     <p><strong>Fecha de corte:</strong> ${escapeHtml(fmtDateLong(todayIso()))}</p>
     <p><strong>Registros analizados:</strong> ${total}</p>
+    <p><strong>Filtros activos:</strong> ${escapeHtml(activeFilters.length ? activeFilters.join(' | ') : 'Vista completa')}</p>
     <h2>1. Resumen directivo</h2>
     <ul>
       <li>Completados: ${completed}</li>

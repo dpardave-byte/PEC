@@ -1,80 +1,433 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <base target="_top">
-  <meta charset="utf-8">
-  <style>
-    body { margin: 0; font-family: Arial, sans-serif; background: #f6f7f9; color: #1f2937; }
-    .wrap { max-width: 1040px; margin: 24px auto; background: white; border: 1px solid #d8dde6; border-radius: 10px; overflow: hidden; }
-    header { background: #1a3a5c; color: white; padding: 18px 22px; }
-    main { padding: 18px 22px; display: grid; gap: 14px; }
-    button { border: 0; border-radius: 8px; background: #185fa5; color: white; padding: 10px 14px; cursor: pointer; font-weight: 700; }
-    button.secondary { background: #3b6d11; }
-    .card { border: 1px solid #d8dde6; border-radius: 8px; padding: 14px; background: #f8fafc; }
-    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-    .label { color: #667085; font-size: 12px; text-transform: uppercase; letter-spacing: .4px; }
-    .value { font-size: 14px; overflow-wrap: anywhere; margin-top: 4px; }
-    .status { font-size: 13px; color: #667085; }
-    a { color: #185fa5; font-weight: 700; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Panel PEC - Drive + Sheets</title>
+<style>
+:root{--bg:#f6f7f9;--ink:#1f2937;--muted:#667085;--line:#d8dde6;--brand:#1a3a5c;--blue:#185fa5;--green:#3b6d11;--amber:#854f0b;--red:#a32d2d;--gray:#5f5e5a;--soft:#f0f3f7;--violet:#6b4aa0;--teal:#0f766e}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Arial,Helvetica,sans-serif}.wrap{max-width:1320px;margin:24px auto;background:white;border:1px solid var(--line);border-radius:10px;overflow:hidden}header{background:linear-gradient(120deg,#1a3a5c,#255f5c);color:white;padding:18px 22px;display:flex;justify-content:space-between;gap:16px}.title{font-size:20px;font-weight:800}.subtitle{font-size:13px;opacity:.9;margin-top:5px}.kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;padding:14px}.kpi{background:var(--soft);border-radius:8px;text-align:center;padding:14px}.kpi span{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}.kpi b{display:block;font-size:27px;margin-top:4px}.tools{display:flex;gap:8px;flex-wrap:wrap;padding:8px 14px}.tools input,.tools select{height:32px;border:1px solid #cfd6df;border-radius:8px;padding:0 9px;background:white;min-width:150px}.tools input[type=url]{width:min(560px,100%)}button{height:32px;border:0;border-radius:8px;background:var(--blue);color:white;padding:0 12px;cursor:pointer}.source{font-size:12px;color:var(--muted);align-self:center}.tabs{display:flex;gap:8px;flex-wrap:wrap;padding:12px 14px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:#fbfcfe}.tab{background:white;color:var(--ink);border:1px solid var(--line)}.tab.active{background:#255f5c;color:white;border-color:#255f5c}.screen{display:none;padding:14px}.screen.active{display:block}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.panel{border:1px solid var(--line);border-radius:8px;background:#fff;padding:14px}.panel h3{margin:0 0 10px;font-size:14px;color:var(--brand);text-transform:uppercase;letter-spacing:.4px}.metric-list{display:grid;gap:10px}.metric-row,.role-row{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;border-bottom:1px solid #edf0f5;padding-bottom:8px}.metric-row:last-child,.role-row:last-child{border-bottom:0;padding-bottom:0}.chart-bars{display:grid;gap:9px}.chart-row{display:grid;grid-template-columns:minmax(110px,1.2fr) minmax(120px,2fr) 42px;gap:8px;align-items:center}.chart-track{height:13px;border-radius:8px;background:#e9eef5;overflow:hidden}.chart-fill{height:100%;border-radius:8px;background:#185fa5}.chart-fill.alt{background:#0f766e}.chart-fill.warnfill{background:#854f0b}.gantt{display:grid;gap:9px}.gantt-row{display:grid;grid-template-columns:minmax(190px,1.1fr) minmax(260px,2fr) 72px;gap:10px;align-items:center}.gantt-track{height:18px;border-radius:8px;background:#eef2f7;position:relative;overflow:hidden}.gantt-bar{position:absolute;top:3px;height:12px;border-radius:8px;background:#0f766e}.gantt-bar.hist{background:#9aa4b2}.gantt-bar.riskbar{background:#a32d2d}.gantt-bar.warnfill{background:#854f0b}.timeline{display:grid;gap:10px}.milestone{display:grid;grid-template-columns:105px 1fr;gap:12px;border-left:4px solid var(--teal);padding:10px;background:#fbfcfe;border-radius:8px}.milestone.phase2{border-left-color:var(--violet)}.milestone b{display:block}.milestone .date{font-weight:800;color:var(--brand)}.action-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.action{border:1px solid var(--line);border-radius:8px;padding:10px;background:#fbfcfe}.layout{display:grid;grid-template-columns:280px 1fr;gap:14px;padding:14px}.side{background:var(--soft);border-radius:8px;padding:12px}.side h3{font-size:13px;color:var(--muted);margin:0 0 10px;text-transform:uppercase;letter-spacing:.4px}.summary{display:grid;gap:8px;margin-bottom:18px}.summary-row{display:flex;justify-content:space-between;align-items:center;gap:8px}.box{overflow:auto;border:1px solid var(--line);border-radius:8px;margin-bottom:14px}table{width:100%;min-width:1180px;border-collapse:collapse;font-size:12px}th,td{padding:9px 10px;border-bottom:1px solid #e5e8ef;text-align:left;vertical-align:top}th{background:var(--soft);color:var(--muted);font-size:11px;text-transform:uppercase;position:sticky;top:0}tbody tr:hover td{background:#f8fafc}.tag{display:inline-flex;border-radius:999px;padding:3px 8px;font-size:11px;font-weight:700;white-space:nowrap}.ok{background:#eaf3de;color:var(--green)}.proc,.time{background:#e6f1fb;color:var(--blue)}.pend{background:#f1efe8;color:var(--gray)}.risk{background:#fcebeb;color:var(--red)}.warn{background:#faeeda;color:var(--amber)}.hito{background:#fbeaf0;color:#993556}.small{font-size:11px;color:var(--muted)}.bar{width:90px;height:8px;background:#e5e8ef;border-radius:8px;overflow:hidden;margin-bottom:3px}.bar i{display:block;height:100%;background:var(--blue)}a{color:var(--blue);font-weight:700;text-decoration:none}.empty{padding:28px;text-align:center;color:var(--muted)}.tech-title{font-weight:800;margin-bottom:3px}.drawer{position:fixed;inset:0;background:rgba(15,23,42,.35);display:none;z-index:9}.drawer.open{display:block}.drawer-card{margin-left:auto;height:100%;width:min(520px,100%);background:white;padding:18px;overflow:auto}.drawer-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.drawer-head button{background:#64748b}@media(max-width:920px){.wrap{margin:0;border-radius:0}.kpis,.layout,.grid,.action-grid,.chart-row,.gantt-row{grid-template-columns:1fr}header{display:block}table{min-width:980px}}
+</style>
+<style>
+.prompt-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.prompt-card{border:1px solid var(--line);border-radius:8px;padding:10px;background:#fbfcfe}.prompt-card h4{margin:0 0 6px;color:var(--brand)}textarea{width:100%;min-height:110px;border:1px solid var(--line);border-radius:8px;padding:10px;font:13px Arial,Helvetica,sans-serif}.output{white-space:pre-wrap;background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:12px;min-height:160px}.doc-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;align-items:center}.doc-actions button{min-width:128px}.doc-actions-break{flex-basis:100%;height:0}.doc-actions-secondary{background:#475569}.powerbi-frame{width:100%;height:min(76vh,820px);min-height:560px;border:1px solid var(--line);border-radius:8px;background:#f8fafc}.powerbi-gantt{display:grid;gap:10px}.powerbi-gantt-row{display:grid;grid-template-columns:minmax(220px,1.3fr) minmax(280px,2fr) 86px;gap:10px;align-items:center}.powerbi-doc-link{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.powerbi-note{border-left:4px solid var(--teal);padding-left:10px}details.collapsible{border:1px dashed #cfd6df;border-radius:8px;padding:10px;background:#fcfdff}details.collapsible summary{cursor:pointer;font-weight:700;color:var(--brand)}@media(max-width:920px){.prompt-grid{grid-template-columns:1fr}.doc-actions button{min-width:100%}.powerbi-frame{min-height:520px}.powerbi-gantt-row{grid-template-columns:1fr}}
+</style>
+<style>
+.link-button{height:auto;background:transparent;color:var(--blue);font-weight:700;padding:0;text-align:left}
+.evidence-modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:11;padding:18px}
+.evidence-modal.open{display:flex}
+.evidence-card{width:min(760px,100%);max-height:min(82vh,760px);background:#fff;border-radius:8px;border:1px solid var(--line);box-shadow:0 18px 48px rgba(15,23,42,.22);overflow:auto}
+.evidence-head{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--line);padding:14px 16px;display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
+.evidence-head h2{margin:0;color:var(--brand);font-size:18px}
+.evidence-body{padding:14px 16px;display:grid;gap:10px}
+.evidence-item{border:1px solid var(--line);border-radius:8px;padding:10px;background:#fbfcfe}
+.evidence-item a{display:block;margin-top:6px}
+.solution3d{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;perspective:900px}
+.solution-card{min-height:170px;border:1px solid #cfd6df;border-radius:8px;padding:14px;background:linear-gradient(160deg,#f8fafc,#eaf2ef);box-shadow:10px 12px 0 rgba(26,58,92,.12);transform:rotateX(4deg) rotateY(-5deg);position:relative;overflow:hidden}
+.solution-card:before{content:"";position:absolute;inset:auto 12px 12px auto;width:78px;height:78px;border:2px solid rgba(15,118,110,.36);border-radius:18px;transform:rotate(45deg);background:rgba(15,118,110,.06)}
+.solution-card h4{margin:0 0 8px;color:var(--brand)}
+.solution-card b{display:block;font-size:24px;margin-top:8px;color:#0f766e}
+.solution-flow{display:flex;align-items:center;gap:8px;margin-top:12px;color:var(--muted);font-size:12px}
+.solution-flow span{height:2px;flex:1;background:#9db4af}
+.tech-visual-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.tech-visual-card{border:1px solid var(--line);border-radius:8px;background:#fff;overflow:hidden}
+.tech-visual-head{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.tech-visual-head h4{margin:0;color:var(--brand)}
+.tech-visual-body{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px}
+.tech-photo,.tech-engineering{min-height:220px;border:1px solid #d8dde6;border-radius:8px;overflow:hidden;background:#edf2f7}
+.tech-photo img{width:100%;height:220px;object-fit:cover;display:block}
+.tech-photo .small{display:block;padding:7px 9px;background:#fff}
+.engineer3d{height:220px;background:linear-gradient(155deg,#172a36,#263d4a);position:relative;overflow:hidden;color:white}
+.engineer3d:before{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.08) 1px,transparent 1px);background-size:24px 24px}
+.unit3d{position:absolute;border:2px solid rgba(255,255,255,.78);background:rgba(15,118,110,.42);box-shadow:12px 12px 0 rgba(0,0,0,.22);transform:skewY(-8deg);border-radius:8px}
+.unit3d.a{left:10%;top:38%;width:26%;height:32%}.unit3d.b{left:42%;top:28%;width:22%;height:42%;background:rgba(24,95,165,.44)}.unit3d.c{right:9%;top:42%;width:21%;height:28%;background:rgba(133,79,11,.42)}
+.pipe3d{position:absolute;height:4px;background:#d9edf2;box-shadow:0 0 10px rgba(255,255,255,.6);transform:rotate(-6deg);left:30%;right:29%;top:52%}
+.engineer3d-label{position:absolute;left:10px;right:10px;bottom:10px;font-size:11px;line-height:1.35;background:rgba(15,23,42,.58);border:1px solid rgba(255,255,255,.28);border-radius:8px;padding:8px}
+.component-list{padding:0 12px 12px;display:grid;gap:7px}
+.component-list div{border-left:3px solid var(--teal);padding-left:8px;font-size:12px}
+@media(max-width:920px){.solution3d{grid-template-columns:1fr}.solution-card{transform:none}}
+@media(max-width:920px){.tech-visual-grid,.tech-visual-body{grid-template-columns:1fr}.tech-photo img,.engineer3d{height:210px}}
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <h2>PEC Drive Loader</h2>
-      <div>Crear carpetas, escanear Drive y publicar datos para el panel GitHub Pages.</div>
-    </header>
-    <main>
-      <div>
-        <button onclick="setup()">Crear estructura Drive + Sheet</button>
-        <button class="secondary" onclick="scan()">Escanear Drive y actualizar indice</button>
-        <button onclick="refresh()">Actualizar estado</button>
+<div class="wrap">
+<header><div><div class="title">Panel PEC - Drive + Google Sheets</div><div class="subtitle">Repositorio documental en Drive, indice maestro en Sheets y visor publico en GitHub Pages</div></div><div class="subtitle">DGPPCS - Programa de Economia Circular</div></header>
+<section class="kpis" id="kpis"></section>
+<section class="tools" aria-label="Filtros"><input id="q" type="search" placeholder="Buscar actividad, tecnologia, tags"><select id="macro"><option value="">Macroactividad</option></select><select id="territorio"><option value="">Territorio</option></select><select id="categoria"><option value="">Categoria</option></select><select id="tecnologia"><option value="">Tecnologia</option></select><select id="proveedor"><option value="">Proveedor</option></select><select id="tipo"><option value="">Tipo documento</option></select><select id="estado"><option value="">Estado</option><option>Completado</option><option>En Proceso</option><option>Pendiente de Iniciar</option></select></section>
+<section class="tools" aria-label="Fuente de datos"><span class="source"><b>Indice:</b></span><input id="file" type="file" accept=".csv,.json" title="Cargar indice CSV o JSON"><input id="url" type="url" placeholder="URL publica CSV/JSON de Google Sheets o Drive"><button id="load">Actualizar desde URL</button><button id="reset">Datos internos</button><span class="source" id="status">Datos internos cargados</span></section>
+<section class="tools" aria-label="Evidencia local"><span class="source"><b>Evidencia:</b></span><input id="evidenceFile" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.gif,.dwg,.bak,.ctb" title="Cargar documentos o imagenes como evidencia local de esta sesion"><button id="clearLocalEvidence">Limpiar evidencia local</button><span class="source" id="evidenceStatus">Carga documentos e imagenes para revisarlos en esta sesion. Para conservarlos, subelos a Drive y registra el enlace.</span></section>
+<nav class="tabs" aria-label="Vistas del panel"><button class="tab active" data-view="overview">Overview ejecutivo</button><button class="tab" data-view="timeline">Linea de tiempo</button><button class="tab" data-view="roles">Roles y actividades</button><button class="tab" data-view="tech">Tecnologias</button><button class="tab" data-view="intel">Inteligencia PEC</button><button class="tab" data-view="docs">Documentos Drive</button><button class="tab" data-view="powerbi">Power BI</button></nav>
+<section id="view-overview" class="screen active"><div class="grid"><div class="panel"><h3>Foco ejecutivo</h3><div id="executiveFocus" class="metric-list"></div></div><div class="panel"><h3>Documentacion</h3><div id="docMetrics" class="metric-list"></div></div><div class="panel"><h3>Macroactividades</h3><div id="macroMetrics" class="metric-list"></div></div></div><div class="grid" style="margin-top:14px"><div class="panel"><h3>Estado del programa</h3><div id="statusChart" class="chart-bars"></div></div><div class="panel"><h3>Actividades por rol</h3><div id="roleChart" class="chart-bars"></div></div><div class="panel"><h3>Tipos de evidencia</h3><div id="typeChart" class="chart-bars"></div></div></div><div class="panel" style="margin-top:14px"><h3>Acciones inmediatas</h3><div id="actionPlan" class="action-grid"></div></div></section>
+<section id="view-timeline" class="screen"><div class="grid"><div class="panel" style="grid-column:span 2"><h3>Hasta 28 de julio de 2026</h3><div id="timelineA" class="timeline"></div></div><div class="panel"><h3>Lectura de fase</h3><div id="phaseBrief" class="metric-list"></div></div></div><div class="panel" style="margin-top:14px"><h3>Linea de tiempo por actividades</h3><div id="activityTimeline" class="gantt"></div></div><div class="panel" style="margin-top:14px"><h3>Segunda ruta hasta culminar la fase</h3><div id="timelineB" class="timeline"></div></div></section>
+<section id="view-roles" class="screen"><div class="grid" id="roleGrid"></div></section>
+<section id="view-tech" class="screen"><div class="panel"><h3>Comparacion de tecnologias</h3><div class="box"><table><thead><tr><th>Tecnologia</th><th>Proveedor</th><th>Criterio</th><th>Puntaje</th><th>Territorio</th><th>Evidencia</th><th>Resumen</th></tr></thead><tbody id="techBody"></tbody></table><div id="techEmpty" class="empty" hidden>No hay registros de tecnologia para comparar.</div></div></div><div class="panel" style="margin-top:14px"><h3>Mapa visual de soluciones</h3><div id="solutionVisual" class="solution3d"></div><p class="small">Base visual inspirada en la logica de biofabrica circular de las PPTX: problema, tratamiento, recuperacion y decision. La galeria completa de imagenes debe publicarse como activos optimizados o enlaces Drive.</p></div></section>
+<section id="view-intel" class="screen">
+  <div class="grid">
+    <div class="panel">
+      <h3>Solicitud de analisis</h3>
+      <select id="briefType">
+        <option value="gerencial">Informe gerencial</option>
+        <option value="tecnico">Informe tecnico</option>
+        <option value="contratacion">Documento para contratacion</option>
+        <option value="comparativo">Analisis comparativo tecnologico</option>
+      </select>
+      <textarea id="intelQuestion" placeholder="Formula la decision: ejemplo, comparar MBR, SBR, lagunas y lodos activados para Puno y Lima con CAPEX, OPEX, energia, O&M, permisos, riesgo social y plazo."></textarea>
+      <div class="doc-actions">
+        <button id="generateBrief">Generar borrador</button>
+        <button id="exportBrief">Exportar TXT</button>
+        <button id="exportBriefDocx">Exportar DOCX</button>
       </div>
-      <div id="status" class="status">Listo para iniciar.</div>
-      <div class="grid" id="cards"></div>
-      <div class="card">
-        <div class="label">Siguiente paso</div>
-        <div class="value">Copia la URL JSON o CSV del despliegue web y pegala en el panel: https://dpardave-byte.github.io/PEC/</div>
-      </div>
-    </main>
+    </div>
+    <div class="panel" style="grid-column:span 2">
+      <h3>Borrador exportable</h3>
+      <div id="briefOutput" class="output">Escribe la pregunta de decision y genera el análisis.</div>
+    </div>
   </div>
-  <script>
-    function setStatus(text) {
-      document.getElementById('status').textContent = text;
+  <details class="collapsible" style="margin-top:14px">
+    <summary>Ver contexto tecnico (variables, especialidades y fuentes)</summary>
+    <div class="grid" style="margin-top:10px">
+      <div class="panel"><h3>Variables de analisis mundial</h3><div id="globalVariables" class="metric-list"></div></div>
+      <div class="panel"><h3>Especialidades requeridas</h3><div id="specialtyList" class="metric-list"></div></div>
+      <div class="panel"><h3>Fuentes y consulta global</h3><div id="globalSources" class="metric-list"></div></div>
+    </div>
+  </details>
+  <details class="collapsible" style="margin-top:14px">
+    <summary>Ver biblioteca de prompts</summary>
+    <div class="panel" style="margin-top:10px">
+      <h3>Prompts por producto</h3>
+      <div id="promptLibrary" class="prompt-grid"></div>
+    </div>
+  </details>
+</section>
+<section id="view-docs" class="screen">
+  <div class="grid">
+    <div class="panel"><h3>Resumen por alerta</h3><div id="alertSummary" class="summary"></div></div>
+    <div class="panel"><h3>Resumen por macroactividad</h3><div id="macroSummary" class="summary"></div></div>
+    <div class="panel"><h3>Como alimentar</h3><p class="small">Sube carpetas a Drive, registra cada documento o tecnologia en la Sheet <b>PEC_indice_maestro</b>, y usa el endpoint JSON de Apps Script como fuente.</p></div>
+  </div>
+  <details class="collapsible" style="margin-top:14px">
+    <summary>Ver listado detallado de registros y documentos</summary>
+    <div class="box" style="margin-top:10px">
+      <table><thead><tr><th>ID</th><th>EDT</th><th>Actividad</th><th>Macroactividad</th><th>Territorio</th><th>Categoria</th><th>Responsable</th><th>Fechas</th><th>Avance</th><th>Estado</th><th>Alerta</th><th>Documento Drive</th><th>Resumen / Tags</th></tr></thead><tbody id="tbody"></tbody></table>
+      <div id="empty" class="empty" hidden>No se encontraron registros con los filtros seleccionados.</div>
+    </div>
+  </details>
+</section>
+<section id="view-powerbi" class="screen">
+  <div class="grid">
+    <div class="panel"><h3>Lectura ejecutiva</h3><div id="powerbiSummary" class="metric-list"></div></div>
+    <div class="panel"><h3>Hitos criticos</h3><div id="powerbiCritical" class="metric-list"></div></div>
+    <div class="panel"><h3>Documentos de soporte</h3><div id="powerbiDocs" class="metric-list"></div></div>
+  </div>
+  <div class="panel" style="margin-top:14px">
+    <h3>Gantt ejecutivo para cumplimiento</h3>
+    <div id="powerbiGantt" class="powerbi-gantt"></div>
+  </div>
+  <div class="panel" style="margin-top:14px">
+    <h3>Panel Power BI - Seguimiento PEC</h3>
+    <p class="small">Reporte Power BI embebido. Para reducir graficos innecesarios dentro del reporte, se debe editar el PBIX o el reporte en Power BI Service; esta vista agrega encima los hitos y documentos accionables del indice PEC.</p>
+    <p><a href="https://app.powerbi.com/view?r=eyJrIjoiNDc1Y2Q4YmEtY2MzYy00ZWMyLTgxMzUtYTk4MzlmZDljZTJmIiwidCI6ImViMTliMzRjLWNkMGEtNDRlZS04ZDlkLWM1OTNkNDM5MDU0ZCIsImMiOjl9" target="_blank" rel="noopener">Abrir panel en Power BI</a></p>
+    <iframe class="powerbi-frame" title="PANEL SEGUIMIENTO_PEC_DGPPCS" src="https://app.powerbi.com/view?r=eyJrIjoiNDc1Y2Q4YmEtY2MzYy00ZWMyLTgxMzUtYTk4MzlmZDljZTJmIiwidCI6ImViMTliMzRjLWNkMGEtNDRlZS04ZDlkLWM1OTNkNDM5MDU0ZCIsImMiOjl9" frameborder="0" allowfullscreen="true"></iframe>
+  </div>
+</section>
+<div id="drawer" class="drawer"><div class="drawer-card"><div class="drawer-head"><h2 id="drawerTitle">Detalle</h2><button id="drawerClose">Cerrar</button></div><div id="drawerBody"></div></div></div>
+<div id="evidenceModal" class="evidence-modal"><div class="evidence-card"><div class="evidence-head"><div><h2 id="evidenceModalTitle">Documentos relacionados</h2><div id="evidenceModalMeta" class="small"></div></div><button id="evidenceModalClose">Cerrar</button></div><div id="evidenceModalBody" class="evidence-body"></div></div></div>
+</div>
+<script>
+const DEFAULT_DATA=[
+{id:'D0',edt:'0',actividad:'Donacion / fase preparatoria previa al prestamo',macro_actividad:'Donacion preparatoria',territorio:'Puno y Lima',categoria:'Gobernanza',responsable:'DGPPCS/BM/PNSU/PASLC',inicio:'2026-03-07',final:'2026-06-17',duracion:'103',estado:'En Proceso',alerta:'',tipo_documento:'Carpeta Drive',tecnologia:'',proveedor:'',criterio_comparacion:'',puntaje:'',url_drive:'',resumen:'Condicion habilitante para iniciar el prestamo y el programa.',tags:'donacion; preparacion; BM'},
+{id:'P1',edt:'1',actividad:'DS de aprobacion de endeudamiento',macro_actividad:'Efectividad del prestamo',territorio:'Nacional',categoria:'Legal',responsable:'DGPPCS/MEF',inicio:'2026-03-07',final:'2026-03-07',duracion:'1',estado:'Completado',alerta:'',tipo_documento:'Norma',tecnologia:'',proveedor:'',criterio_comparacion:'',puntaje:'',url_drive:'',resumen:'Aprobacion de endeudamiento.',tags:'prestamo; legal'},
+{id:'P2',edt:'2',actividad:'Cumplimiento de condiciones de efectividad del prestamo',macro_actividad:'Efectividad del prestamo',territorio:'Puno y Lima',categoria:'Gestion',responsable:'Sandra Torres / Cesar Fabian',inicio:'2026-03-20',final:'2026-06-17',duracion:'90',estado:'En Proceso',alerta:'',tipo_documento:'Seguimiento',tecnologia:'',proveedor:'',criterio_comparacion:'',puntaje:'',url_drive:'',resumen:'Seguimiento del MOP, convenios, equipos y UGP-PEC.',tags:'efectividad; prestamo'},
+{id:'PU1',edt:'2.4',actividad:'Evaluacion de la intervencion en las lagunas de la PTAR Puno',macro_actividad:'Donacion preparatoria',territorio:'Puno',categoria:'Tecnica',responsable:'Teresa Arana',inicio:'2026-04-13',final:'2026-04-22',duracion:'10',estado:'En Proceso',alerta:'',tipo_documento:'Informe tecnico',tecnologia:'Lagunas / PTAR',proveedor:'',criterio_comparacion:'aplicabilidad en Puno/Lima',puntaje:'4',url_drive:'',resumen:'Evaluacion tecnica, ambiental y predial de la PTAR Puno.',tags:'Puno; PTAR; lagunas'},
+{id:'L1',edt:'2.2.2',actividad:'Convenio Lima (PASLC)',macro_actividad:'Efectividad del prestamo',territorio:'Lima',categoria:'Convenios',responsable:'PASLC',inicio:'2026-03-09',final:'2026-05-20',duracion:'73',estado:'En Proceso',alerta:'',tipo_documento:'Convenio',tecnologia:'',proveedor:'',criterio_comparacion:'',puntaje:'',url_drive:'',resumen:'Convenio interinstitucional para Lima.',tags:'Lima; PASLC'},
+{id:'MOP2026',edt:'MOP',actividad:'Manual de Operaciones del Programa de Economia Circular (MOP 2026)',macro_actividad:'Programa Economia Circular 2026',territorio:'Puno y Lima',categoria:'Gobernanza',responsable:'DGPPCS',inicio:'2026-04-09',final:'2026-04-12',duracion:'4',estado:'En Proceso',alerta:'',tipo_documento:'Word / Doc',tecnologia:'',proveedor:'',criterio_comparacion:'documento rector 2026',puntaje:'',url_drive:'',resumen:'MOP de este ano; documento nuevo del Programa de Economia Circular, no parte del repositorio historico Titicaca.',tags:'nuevo_2026;mop;programa;prestamo;gobernanza'},
+{id:'T1',edt:'4.1',actividad:'Comparacion tecnologia MBR',macro_actividad:'Comparacion tecnologias',territorio:'Puno y Lima',categoria:'Tecnologia',responsable:'Equipo tecnico',inicio:'2026-04-01',final:'2026-04-30',duracion:'30',estado:'En Proceso',alerta:'',tipo_documento:'Ficha tecnica',tecnologia:'MBR',proveedor:'Referencial',criterio_comparacion:'costo',puntaje:'3',url_drive:'',resumen:'Alta calidad de efluente, mayor costo y O&M especializado.',tags:'MBR; costo; O&M'},
+{id:'T2',edt:'4.2',actividad:'Comparacion tecnologia SBR',macro_actividad:'Comparacion tecnologias',territorio:'Puno y Lima',categoria:'Tecnologia',responsable:'Equipo tecnico',inicio:'2026-04-01',final:'2026-04-30',duracion:'30',estado:'En Proceso',alerta:'',tipo_documento:'Ficha tecnica',tecnologia:'SBR',proveedor:'Referencial',criterio_comparacion:'madurez',puntaje:'4',url_drive:'',resumen:'Tecnologia madura con operacion secuencial y flexibilidad.',tags:'SBR; madurez'}
+];
+const PROGRAM_MILESTONES=[
+{phase:'pre28',date:'2026-04-20',title:'Ordenamiento documental APP Titicaca',role:'PNSU / Equipo documental',macro:'Donacion preparatoria',deliverable:'Indice validado con enlaces Drive y lectura por tipo documental.'},
+{phase:'pre28',date:'2026-05-05',title:'Matriz de responsabilidades donacion-prestamo',role:'DGPPCS',macro:'Donacion preparatoria',deliverable:'Responsables por actividad, evidencia requerida y estado de cumplimiento.'},
+{phase:'pre28',date:'2026-05-20',title:'Revision tecnica PTAR Puno y tecnologias',role:'Equipo tecnico / PNSU',macro:'Comparacion tecnologias',deliverable:'Criterios de costo, O&M, energia, madurez, riesgo y aplicabilidad.'},
+{phase:'pre28',date:'2026-06-10',title:'Condiciones previas del prestamo',role:'DGPPCS / MEF / Banco Mundial',macro:'Efectividad del prestamo',deliverable:'Lista de condiciones, brechas y decisiones pendientes.'},
+{phase:'pre28',date:'2026-06-28',title:'Paquete de cierre de donacion preparatoria',role:'DGPPCS / Banco Mundial',macro:'Donacion preparatoria',deliverable:'Informe de avance, anexos, riesgos y acuerdos para iniciar prestamo.'},
+{phase:'pre28',date:'2026-07-28',title:'Hito 28 de julio: decision de arranque formal',role:'DGPPCS / PNSU / PASLC',macro:'Efectividad del prestamo',deliverable:'Ruta aprobada para iniciar formalmente el Programa de Economia Circular en Puno y Lima.'},
+{phase:'post28',date:'2026-08-15',title:'Activacion UGP-PEC y circuito de reportes',role:'DGPPCS',macro:'Inicio formal del programa',deliverable:'Roles operativos, tablero mensual, repositorio Drive y calendario de reportes.'},
+{phase:'post28',date:'2026-09-15',title:'Convenios Puno y Lima operativos',role:'PNSU / PASLC',macro:'Inicio formal del programa',deliverable:'Convenios, responsables tecnicos y evidencias compartidas por territorio.'},
+{phase:'post28',date:'2026-10-15',title:'Plan de adquisiciones y contratos priorizados',role:'DGPPCS / Equipo legal / MEF',macro:'Contrato de prestamo',deliverable:'Actividades de contratacion, riesgos legales y ruta de aprobacion.'},
+{phase:'post28',date:'2026-11-15',title:'Paquete tecnico y salvaguardas alineado',role:'Equipo tecnico / Banco Mundial',macro:'Contrato de prestamo',deliverable:'Tecnologias, salvaguardas, costos y criterios de seguimiento consolidados.'},
+{phase:'post28',date:'2026-12-15',title:'Cierre de fase preparatoria y handoff a ejecucion',role:'DGPPCS / PNSU / PASLC / BM',macro:'Culminacion de fase',deliverable:'Expediente de cierre, pendientes trazables y base para ejecucion regular.'}
+];
+const ROLE_PLAN=[
+{role:'DGPPCS',focus:'Gobernanza del programa',activities:['Aprobar matriz de roles y responsabilidades.','Consolidar condiciones de donacion y efectividad del prestamo.','Reportar a Banco Mundial y destrabar decisiones interinstitucionales.']},
+{role:'PNSU',focus:'Puno / APP Titicaca',activities:['Validar documentos tecnicos historicos.','Definir brechas de PTAR, colectores, costos, permisos y riesgos.','Cargar evidencias y actualizar estado de actividades Puno.']},
+{role:'PASLC',focus:'Lima',activities:['Alinear convenio y compromisos para Lima.','Identificar actividades comparables con Puno.','Cargar documentos territoriales y alertas de cumplimiento.']},
+{role:'MEF',focus:'Prestamo y efectividad',activities:['Revisar condiciones de endeudamiento.','Acompanar hitos de efectividad y desembolso.','Validar restricciones presupuestales y contractuales.']},
+{role:'Banco Mundial',focus:'Donacion, salvaguardas y prestamo',activities:['Revisar paquete de donacion preparatoria.','Emitir comentarios sobre salvaguardas, MOP y condiciones de efectividad.','Alinear criterios de tecnologia, adquisiciones y reporte.']},
+{role:'Equipo tecnico',focus:'Tecnologias y costos',activities:['Comparar tecnologias PTAR con evidencia documental.','Completar criterios de costo, energia, O&M, madurez y riesgos.','Proponer ruta tecnica para Puno y Lima.']},
+{role:'Equipo legal',focus:'Convenios, permisos y contratos',activities:['Identificar permisos, licencias y requisitos normativos.','Ordenar riesgos contractuales del prestamo.','Vincular evidencia legal en Drive.']}
+];
+const INTEL_VARIABLES=['CAPEX y OPEX','Consumo energetico','Complejidad de O&M','Disponibilidad de repuestos','Calidad del efluente','Reuso y economia circular','Gestion de lodos','Huella de carbono','Riesgo social y predial','Permisos y salvaguardas','Madurez tecnologica','Escalabilidad Puno/Lima','Plazo de implementacion','Riesgo contractual'];
+const SPECIALTIES=['Ingenieria sanitaria y PTAR','Economia circular y reuso','Estructuras y geotecnia','Electromecanica y energia','Ambiental y salvaguardas','Social y predial','Legal y contrataciones','Finanzas publicas y MEF','Adquisiciones Banco Mundial','Operacion y mantenimiento','Gestion documental y datos'];
+const GLOBAL_SOURCES=['Banco Mundial: salvaguardas, adquisiciones y experiencias comparables','IWA / literatura tecnica: desempeno de tecnologias de tratamiento','EPA / guias tecnicas: criterios de operacion y cumplimiento','BID / CAF / organismos multilaterales: modelos de financiamiento','Casos regionales: PTAR altoandinas, reuso, lodos y energia'];
+const PROMPT_LIBRARY=[
+{title:'Comparativo tecnologico',prompt:'Compara tecnologias PTAR para Puno y Lima usando CAPEX, OPEX, energia, O&M, calidad de efluente, lodos, resiliencia climatica, permisos, riesgo social, madurez y plazo. Separa informacion historica Titicaca de decision Programa 2026.'},
+{title:'Informe gerencial',prompt:'Prepara un resumen ejecutivo para DGPPCS con estado de donacion, prestamo, MOP 2026, principales riesgos, decisiones requeridas y acciones hasta el 28 de julio.'},
+{title:'Terminos de referencia',prompt:'Genera una estructura de TdR para contratar consultoria tecnica del Programa de Economia Circular, incluyendo perfiles, productos, cronograma, criterios de evaluacion y matriz de entregables.'},
+{title:'Revision Notebook',prompt:'Resume los documentos cargados como si fueran un cuaderno de trabajo: hechos, decisiones, dudas, brechas, citas por documento y preguntas para la siguiente reunion.'}
+];
+const TECH_GUIDE={
+  MBR:{capex:'alto',opex:'alto',energia:'alta',om:'alta especializacion',fortaleza:'calidad alta de efluente y menor huella de area',riesgo:'dependencia electrica, membranas y repuestos'},
+  SBR:{capex:'medio',opex:'medio',energia:'media',om:'media con disciplina operativa',fortaleza:'flexibilidad operativa y madurez tecnologica',riesgo:'control de ciclos y automatizacion consistente'},
+  'Lagunas / PTAR':{capex:'bajo a medio',opex:'bajo',energia:'baja',om:'baja a media',fortaleza:'simplicidad operativa y resiliencia donde hay menor capacidad tecnica',riesgo:'mayor requerimiento de area y control de olores'},
+  'Humedales construidos':{capex:'bajo a medio',opex:'bajo',energia:'muy baja',om:'baja a media',fortaleza:'pulimiento natural, reuso y valor paisajistico',riesgo:'area requerida, colmatacion y control hidraulico'},
+  MBBR:{capex:'medio',opex:'medio',energia:'media',om:'media',fortaleza:'biofilm robusto, modularidad y tolerancia a cargas variables',riesgo:'control de aireacion, retencion de carriers y repuestos'},
+  'Lodos Activados':{capex:'medio',opex:'medio a alto',energia:'media a alta',om:'media a alta',fortaleza:'tecnologia ampliamente conocida con buena remocion organica',riesgo:'sensibilidad operativa y mayor carga de manejo de lodos'}
+};
+const TECH_DISPLAY_ORDER=['MBR','SBR','Lagunas / PTAR','Humedales construidos','MBBR','Lodos Activados'];
+const TECH_VISUALS={
+  MBR:{photo:'https://commons.wikimedia.org/wiki/Special:FilePath/Membrane%20bioreactor%20%28MBR%29%20%285729650689%29.jpg?width=760',source:'https://commons.wikimedia.org/wiki/Category:Membrane_bioreactors',components:['Tamiz y desarenador: protegen las membranas de fibras, arenas y grasas.','Reactor biologico aireado: remueve materia organica y nutrientes segun configuracion.','Modulo de membranas: separa solidos finos y produce efluente de alta calidad.','Sopladores y retrolavado: sostienen flujo, limpieza y continuidad operativa.']},
+  SBR:{photo:'https://commons.wikimedia.org/wiki/Special:FilePath/RD-Westmoreland%20-Fayette%20Municipal%20Sewage%20Authority%20Plant%20%2820210903-RD-LSC-0256%29.jpg?width=760',source:'https://commons.wikimedia.org/wiki/File:RD-Westmoreland_-Fayette_Municipal_Sewage_Authority_Plant_(20210903-RD-LSC-0256).jpg',components:['Tanque batch: concentra llenado, reaccion, sedimentacion y descarga en un mismo volumen.','Aireacion y mezcla: controlan oxidacion biologica, nitrificacion y homogeneidad.','Decantador superficial: extrae efluente clarificado sin arrastrar lodos.','PLC y valvulas: gobiernan ciclos y evitan fallas por secuencia operacional.']},
+  'Lagunas / PTAR':{photo:'https://commons.wikimedia.org/wiki/Special:FilePath/Stabilization%20Reservoir.JPG?width=760',source:'https://commons.wikimedia.org/wiki/Category:Waste_stabilization_ponds',components:['Laguna anaerobia/facultativa: reduce carga organica con baja energia.','Laguna de maduracion: mejora remocion microbiologica por tiempo de retencion.','Bordos e impermeabilizacion: controlan infiltracion, estabilidad y nivel hidraulico.','Canales y by-pass: permiten operacion, mantenimiento y respuesta a sobrecargas.']},
+  'Humedales construidos':{photo:'https://commons.wikimedia.org/wiki/Special:FilePath/Constructed_wetland_%285546614511%29.jpg?width=760',source:'https://commons.wikimedia.org/wiki/File:Constructed_wetland_(5546614511).jpg',components:['Lecho filtrante: grava/arena que distribuye flujo y retiene solidos finos.','Macrofitas: aportan rizosfera, oxigenacion local y soporte biologico.','Entrada y salida regulada: evita cortocircuitos hidraulicos y zonas muertas.','Camara de control: facilita limpieza, muestreo y mantenimiento preventivo.']},
+  MBBR:{photo:'https://commons.wikimedia.org/wiki/Special:FilePath/K1_BioChip.JPG?width=760',source:'https://commons.wikimedia.org/wiki/Category:Moving_bed_biofilm_reactor',components:['Carriers plasticos: superficie movil donde crece el biofilm.','Tanque aireado: mantiene mezcla y transferencia de oxigeno.','Malla de retencion: evita perdida de carriers hacia clarificacion.','Clarificador/pulimiento: separa biomasa suspendida y ajusta efluente final.']},
+  'Lodos Activados':{photo:'https://commons.wikimedia.org/wiki/Special:FilePath/Secondary%20treatment%20reactors%20-%20Blue%20Plains%20WWTP%20-%202016a.jpg?width=760',source:'https://commons.wikimedia.org/wiki/File:Secondary_treatment_reactors_-_Blue_Plains_WWTP_-_2016a.jpg',components:['Tanque de aireacion: biomasa suspendida remueve materia organica.','Clarificador secundario: separa agua tratada de floculos biologicos.','Recirculacion de lodos: conserva edad de lodo y estabilidad del proceso.','Purga y manejo de lodos: controla concentracion, digestion y disposicion final.']}
+};
+const TODAY=new Date('2026-04-12T00:00:00');const MS_DAY=86400000;const STORAGE_URL='pecDriveSheetCsvUrl';const DEFAULT_REMOTE_URL='https://script.google.com/macros/s/AKfycbwDO41v2ncg7p2rjvEjTCICeu8fJoAySOgSNAPe5arZnkK-gYtCH-FioX-jexhfW0k0/exec?format=json';let activeData=DEFAULT_DATA;let remoteData=[];let localEvidence=[];let localEvidenceUrls=[];
+const $=id=>document.getElementById(id);const fields=['macro','territorio','categoria','tecnologia','proveedor','tipo','estado'];
+function normalize(row){return{id:text(row.id||row.ID),edt:text(row.edt||row.EDT),actividad:text(row.actividad||row.Actividad),macro_actividad:text(row.macro_actividad||row.Macroactividad||row['macro actividad']),territorio:text(row.territorio||row.Territorio),categoria:text(row.categoria||row.Categoria),responsable:text(row.responsable||row.Responsable),inicio:text(row.inicio||row.Inicio),final:text(row.final||row.fin||row.Final||row.Fin),duracion:text(row.duracion||row.Duracion||row['Dur.']),estado:text(row.estado||row.Estado),alerta:text(row.alerta||row.Alerta),tipo_documento:text(row.tipo_documento||row['tipo documento']||row.Tipo),tecnologia:text(row.tecnologia||row.Tecnologia),proveedor:text(row.proveedor||row.Proveedor),criterio_comparacion:text(row.criterio_comparacion||row.Criterio||row['criterio comparacion']),puntaje:text(row.puntaje||row.Puntaje),url_drive:text(row.url_drive||row.url||row.URL||row.Drive),resumen:text(row.resumen||row.Resumen),tags:text(row.tags||row.Tags)}}
+function text(v){return String(v??'').trim()}function esc(v){return text(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+function parseCsv(textValue){const rows=[];let row=[];let value='';let quoted=false;for(let i=0;i<textValue.length;i++){const ch=textValue[i],next=textValue[i+1];if(ch==='"'&&quoted&&next==='"'){value+='"';i++}else if(ch==='"'){quoted=!quoted}else if(ch===','&&!quoted){row.push(value);value=''}else if((ch==='\n'||ch==='\r')&&!quoted){if(value||row.length){row.push(value);rows.push(row);row=[];value=''}if(ch==='\r'&&next==='\n')i++}else value+=ch}if(value||row.length){row.push(value);rows.push(row)}const headers=(rows.shift()||[]).map(h=>h.trim());return rows.filter(r=>r.some(c=>text(c))).map(r=>normalize(Object.fromEntries(headers.map((h,i)=>[h,r[i]||''])))).filter(r=>r.id||r.edt||r.actividad)}
+function parseData(raw){const trimmed=raw.trim();if(trimmed.startsWith('{')){const parsed=JSON.parse(trimmed);return (parsed.records||parsed.data||[]).map(normalize).filter(r=>r.actividad)}return (trimmed.startsWith('[')?JSON.parse(trimmed).map(normalize):parseCsv(trimmed)).filter(r=>r.actividad)}
+function alertFor(row){if(row.alerta)return row.alerta;if(!row.estado)return 'Hito';if(row.estado==='Completado')return 'OK';const fin=new Date(row.final+'T00:00:00');const ini=new Date(row.inicio+'T00:00:00');if(row.estado==='En Proceso'){const diff=(fin-TODAY)/MS_DAY;if(diff<0)return 'Vencido';if(diff<=7)return 'Por vencer';return 'En tiempo'}if(row.estado==='Pendiente de Iniciar')return ((ini-TODAY)/MS_DAY)<0?'Inicio atrasado':'Pendiente';return '-'}
+function progressFor(row){if(!row.estado)return 0;if(row.estado==='Completado')return 100;if(row.estado==='Pendiente de Iniciar')return 0;const ini=new Date(row.inicio+'T00:00:00'),fin=new Date(row.final+'T00:00:00');const pct=Math.round(((TODAY-ini)/(fin-ini))*100);return Math.max(0,Math.min(99,Number.isFinite(pct)?pct:50))}
+function isHistorical(row){return /historico|hist[oó]rico/i.test(row.tags+' '+row.resumen)||/^APP\d+/i.test(row.id)}
+function tagClass(value){return {'OK':'ok','Completado':'ok','En Proceso':'proc','En tiempo':'time','Pendiente de Iniciar':'pend','Pendiente':'pend','Hito':'hito','Por vencer':'warn','Vencido':'risk','Inicio atrasado':'risk'}[value]||'pend'}
+function filteredRows(){const q=$('q').value.toLowerCase();return activeData.filter(r=>{if(q&&!Object.values(r).join(' ').toLowerCase().includes(q))return false;return fields.every(id=>!$(id).value||r[fieldMap(id)]===$(id).value)})}
+function fieldMap(id){return {macro:'macro_actividad',tipo:'tipo_documento'}[id]||id}
+function fillSelects(){fields.forEach(id=>{const select=$(id);const label=select.options[0]?.text||id;const key=fieldMap(id);const current=select.value;const values=[...new Set(activeData.map(r=>r[key]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));select.innerHTML=`<option value="">${label}</option>`+values.map(v=>`<option>${esc(v)}</option>`).join('');select.value=values.includes(current)?current:''})}
+function render(){fillSelects();const rows=filteredRows();$('empty').hidden=rows.length>0;$('tbody').innerHTML=rows.map(r=>{const alert=alertFor(r),pct=progressFor(r);return `<tr data-doc="${esc(r.id)}"><td>${esc(r.id)}</td><td>${esc(r.edt)}</td><td><button class="tab" data-open="${esc(r.id)}">Ver</button> ${esc(r.actividad)}<br><span class="small">${esc(r.tipo_documento)}</span></td><td>${esc(r.macro_actividad)}</td><td>${esc(r.territorio)}</td><td>${esc(r.categoria)}</td><td>${esc(r.responsable)}</td><td>${esc(r.inicio)}<br><span class="small">${esc(r.final)} / ${esc(r.duracion)}d</span></td><td><div class="bar"><i style="width:${pct}%"></i></div><span class="small">${pct}%</span></td><td><span class="tag ${tagClass(r.estado)}">${esc(r.estado||'Hito')}</span></td><td><span class="tag ${tagClass(alert)}">${esc(alert)}</span></td><td>${r.url_drive?`<a href="${esc(r.url_drive)}" target="_blank" rel="noopener">Abrir Drive</a>`:'-'}</td><td>${esc(r.resumen)}<br><span class="small">${esc(r.tags)}</span></td></tr>`}).join('');renderKpis();renderSummaries();renderTech(rows);renderSolutionVisual(rows);renderExecutive(rows);renderCharts(rows);renderTimeline();renderActivityTimeline(rows);renderPowerBi(rows);renderRoles();renderIntelligence(rows);wireDetailButtons(rows);wireEvidenceButtons(rows)}
+function renderKpis(){const total=activeData.length,current=activeData.filter(r=>!isHistorical(r)).length,historical=activeData.filter(isHistorical).length,linked=activeData.filter(r=>r.url_drive).length,don=activeData.filter(r=>!isHistorical(r)&&/Donacion/i.test(r.macro_actividad+' '+r.tags)).length,loan=activeData.filter(r=>!isHistorical(r)&&/prestamo|efectividad/i.test(r.macro_actividad+' '+r.tags)).length;$('kpis').innerHTML=[['Programa 2026',current],['Historico Titicaca',historical],['Registros',total],['Con enlace Drive',linked],['Donacion',don],['Prestamo',loan]].map(([label,val])=>`<div class="kpi"><span>${label}</span><b>${val}</b></div>`).join('')}
+function countBy(key,rows=activeData){const out={};rows.forEach(r=>{const value=key==='alerta'?alertFor(r):r[key];if(value)out[value]=(out[value]||0)+1});return out}function summaryHtml(counts){return Object.entries(counts).map(([k,v])=>`<div class="summary-row"><span class="tag ${tagClass(k)}">${esc(k)}</span><b>${v}</b></div>`).join('')||'<span class="small">Sin datos</span>'}function renderSummaries(){$('alertSummary').innerHTML=summaryHtml(countBy('alerta'));$('macroSummary').innerHTML=summaryHtml(countBy('macro_actividad'))}
+function relatedDocsFor(row,rows=activeData,limit=8){const tech=text(row.tecnologia).toLowerCase();const macro=text(row.macro_actividad).toLowerCase();const territory=text(row.territorio).toLowerCase().split(/\s+y\s+|\s*\/\s*/).filter(Boolean);const tags=text(row.tags).toLowerCase().split(/[;,]\s*/).filter(Boolean);return rows.filter(item=>item.id!==row.id&&item.url_drive).map(item=>{const hay=[item.actividad,item.macro_actividad,item.territorio,item.categoria,item.tecnologia,item.resumen,item.tags,item.tipo_documento].join(' ').toLowerCase();let score=0;if(tech&&hay.includes(tech))score+=20;if(macro&&text(item.macro_actividad).toLowerCase()===macro)score+=8;territory.forEach(t=>{if(t&&hay.includes(t))score+=3});tags.forEach(t=>{if(t&&hay.includes(t))score+=1});if(/comparacion|tecnolog/i.test(macro)&&/comparacion|tecnolog|ptar/i.test(hay))score+=5;return{item,score}}).filter(entry=>entry.score>0).sort((a,b)=>b.score-a.score||a.item.actividad.localeCompare(b.item.actividad,'es')).slice(0,limit).map(entry=>entry.item)}
+function evidenceDocsFor(row,rows=activeData){const docs=[];const sourceRows=row.tech_rows||[row];sourceRows.forEach(sourceRow=>{if(sourceRow.url_drive&&!docs.some(item=>item.url===sourceRow.url_drive))docs.push({title:sourceRow.actividad||'Evidencia principal',url:sourceRow.url_drive,type:sourceRow.tipo_documento||'Documento',summary:sourceRow.resumen||'Enlace registrado en la fila de tecnologia.',source:'Evidencia principal'})});relatedDocsFor(row,rows).forEach(doc=>{if(doc.url_drive&&!docs.some(item=>item.url===doc.url_drive))docs.push({title:doc.actividad||'Documento relacionado',url:doc.url_drive,type:doc.tipo_documento||'Documento',summary:doc.resumen||'',source:doc.macro_actividad||'Relacionado'})});return docs}
+function evidenceLinksHtml(row,rows){const docs=evidenceDocsFor(row,rows);if(!docs.length)return'<span class="small">Sin enlace registrado</span>';return`<button class="link-button" data-evidence="${esc(row.id)}">Ver documentos (${docs.length})</button>`}
+function techNameFor(row){const value=text(row.tecnologia||row.actividad);if(/humedal/i.test(value))return'Humedales construidos';if(/mbbr/i.test(value))return'MBBR';if(/mbr/i.test(value))return'MBR';if(/sbr/i.test(value))return'SBR';if(/laguna|ptar/i.test(value))return'Lagunas / PTAR';if(/lodos activados|lodo activado/i.test(value))return'Lodos Activados';return value||'Sin tecnologia'}
+function aggregateTechRows(rows){const groups={};rows.filter(r=>r.tecnologia||r.criterio_comparacion||r.puntaje).forEach(row=>{const key=techNameFor(row);if(!groups[key])groups[key]=[];groups[key].push(row)});return Object.keys(groups).sort((a,b)=>TECH_DISPLAY_ORDER.indexOf(a)-TECH_DISPLAY_ORDER.indexOf(b)||a.localeCompare(b,'es')).map(name=>{const list=groups[name],first=list[0];return Object.assign({},first,{id:'TECH_'+name.replace(/[^a-z0-9]+/gi,'_'),tecnologia:name,tech_rows:list,proveedor:[...new Set(list.map(r=>r.proveedor).filter(Boolean))].join(' / '),criterio_comparacion:[...new Set(list.map(r=>r.criterio_comparacion).filter(Boolean))].join(' / '),puntaje:[...new Set(list.map(r=>r.puntaje).filter(Boolean))].join(' / '),territorio:[...new Set(list.map(r=>r.territorio).filter(Boolean))].join(' / '),resumen:[...new Set(list.map(r=>r.resumen).filter(Boolean))].join(' ')})})}
+function renderTech(rows){const tech=aggregateTechRows(rows);$('techEmpty').hidden=tech.length>0;$('techBody').innerHTML=tech.map(r=>`<tr><td><div class="tech-title">${esc(r.tecnologia||'-')}</div><span class="small">${r.tech_rows.length} registro(s) consolidados</span></td><td>${esc(r.proveedor||'-')}</td><td>${esc(r.criterio_comparacion||'-')}</td><td>${esc(r.puntaje||'-')}</td><td>${esc(r.territorio)}</td><td>${evidenceLinksHtml(r,activeData)}</td><td>${esc(r.resumen)}</td></tr>`).join('')}
+function engineeringDiagram(name){return`<div class="engineer3d"><div class="unit3d a"></div><div class="unit3d b"></div><div class="unit3d c"></div><div class="pipe3d"></div><div class="engineer3d-label">${esc(name)}: entrada, reactor, separacion/pulimiento y salida de efluente bajo control operativo.</div></div>`}
+function renderSolutionVisual(rows){if(!$('solutionVisual'))return;const activeTechs=[...new Set(rows.map(r=>techNameFor(r)).filter(Boolean))];const names=[...new Set(TECH_DISPLAY_ORDER.concat(activeTechs))].filter(name=>TECH_VISUALS[name]);$('solutionVisual').className='tech-visual-grid';$('solutionVisual').innerHTML=names.map(name=>{const meta=TECH_GUIDE[name]||{};const visual=TECH_VISUALS[name];const rowsForTech=rows.filter(r=>techNameFor(r)===name);return`<article class="tech-visual-card"><div class="tech-visual-head"><div><h4>${esc(name)}</h4><span class="small">CAPEX ${esc(meta.capex||'-')} | OPEX ${esc(meta.opex||'-')} | energia ${esc(meta.energia||'-')}</span></div><span class="tag ${rowsForTech.length?'ok':'pend'}">${rowsForTech.length?rowsForTech.length+' registro(s)':'referencial'}</span></div><div class="tech-visual-body"><div class="tech-photo"><img src="${esc(visual.photo)}" loading="lazy" alt="Foto referencial ${esc(name)}"><span class="small">Imagen real referencial. <a href="${esc(visual.source)}" target="_blank" rel="noopener">Fuente</a></span></div><div class="tech-engineering">${engineeringDiagram(name)}</div></div><div class="component-list">${visual.components.map(component=>`<div>${esc(component)}</div>`).join('')}</div></article>`}).join('')}
+function topCounts(rows,key,limit=5){return Object.entries(countBy(key,rows)).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'es')).slice(0,limit)}
+function metricRow(label,value,detail=''){return `<div class="metric-row"><span>${esc(label)}${detail?`<br><span class="small">${esc(detail)}</span>`:''}</span><b>${esc(value)}</b></div>`}
+function chartRows(counts,mode=''){const entries=Object.entries(counts).filter(([k])=>k).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'es')).slice(0,7);const max=Math.max(1,...entries.map(([,v])=>v));return entries.map(([label,value],i)=>`<div class="chart-row"><span>${esc(label)}</span><div class="chart-track"><div class="chart-fill ${mode|| (i%2?'alt':'')}" style="width:${Math.max(4,Math.round(value/max*100))}%"></div></div><b>${value}</b></div>`).join('')||'<span class="small">Sin datos para graficar.</span>'}
+function renderCharts(rows){const current=rows.filter(r=>!isHistorical(r));const base=current.length?current:rows;$('statusChart').innerHTML=chartRows(countBy('estado',base),'');$('roleChart').innerHTML=chartRows(countBy('responsable',base),'alt');$('typeChart').innerHTML=chartRows(countBy('tipo_documento',rows),'warnfill')}
+function phaseFor(dateText){const days=Math.ceil((new Date(dateText+'T00:00:00')-TODAY)/MS_DAY);if(days<0)return{label:'Validar cierre',cls:'ok',days};if(days<=14)return{label:'Proximo',cls:'warn',days};return{label:'Programado',cls:'time',days}}
+function fmtDate(dateText){return new Date(dateText+'T00:00:00').toLocaleDateString('es-PE',{day:'2-digit',month:'short',year:'numeric'})}
+function renderExecutive(rows){const currentRows=rows.filter(r=>!isHistorical(r));const historicalRows=rows.filter(isHistorical);const linked=rows.filter(r=>r.url_drive).length;const docs=rows.filter(r=>r.tipo_documento).length;const donation=currentRows.filter(r=>/donacion/i.test(r.macro_actividad+' '+r.tags)).length;const loan=currentRows.filter(r=>/prestamo|efectividad/i.test(r.macro_actividad+' '+r.tags)).length;$('executiveFocus').innerHTML=[metricRow('Programa 2026',currentRows.length,'MOP, donacion, prestamo y gestion actual'),metricRow('Titicaca historico',historicalRows.length,'Informacion anterior a 2020, solo referencial'),metricRow('Donacion preparatoria',donation,'Actividades y documentos habilitantes nuevos'),metricRow('Prestamo / efectividad',loan,'Condiciones, convenios y ruta de arranque')].join('');$('docMetrics').innerHTML=[metricRow('Evidencias con enlace',linked,`${rows.length?Math.round(linked/rows.length*100):0}% de la vista actual`),metricRow('Documentos clasificados',docs,'Registros con tipo documental'),...topCounts(rows,'tipo_documento',3).map(([label,value])=>metricRow(label,value))].join('');$('macroMetrics').innerHTML=topCounts(currentRows,'macro_actividad',6).map(([label,value])=>metricRow(label,value)).join('')||'<span class="small">Sin macroactividades actuales para la vista.</span>';$('actionPlan').innerHTML=PROGRAM_MILESTONES.filter(m=>m.phase==='pre28').slice(0,4).map(m=>{const state=phaseFor(m.date);return `<div class="action"><span class="tag ${state.cls}">${esc(state.label)}</span><h4>${esc(m.title)}</h4><p class="small">${esc(fmtDate(m.date))} - ${esc(m.role)}</p><p>${esc(m.deliverable)}</p></div>`}).join('')}
+function renderTimeline(){const pre=PROGRAM_MILESTONES.filter(m=>m.phase==='pre28'),post=PROGRAM_MILESTONES.filter(m=>m.phase==='post28');const renderItem=(m,cls='')=>{const state=phaseFor(m.date);const days=state.days>=0?`${state.days} dias`:'cerrar evidencia';return `<div class="milestone ${cls}"><div><div class="date">${esc(fmtDate(m.date))}</div><span class="tag ${state.cls}">${esc(days)}</span></div><div><b>${esc(m.title)}</b><span class="small">${esc(m.role)} - ${esc(m.macro)}</span><p>${esc(m.deliverable)}</p></div></div>`};$('timelineA').innerHTML=pre.map(m=>renderItem(m)).join('');$('timelineB').innerHTML=post.map(m=>renderItem(m,'phase2')).join('');$('phaseBrief').innerHTML=[metricRow('Meta 28 de julio','Decision de arranque formal','Cerrar donacion preparatoria, condiciones y brechas'),metricRow('Despues del 28 de julio','Culminar fase preparatoria','UGP-PEC, convenios, adquisiciones, salvaguardas y handoff'),metricRow('Riesgo a vigilar','Evidencia sin responsable','Cada actividad debe tener rol, documento y decision asociada')].join('')}
+function renderActivityTimeline(rows){const dated=rows.filter(r=>!isHistorical(r)&&r.inicio&&r.final).sort((a,b)=>new Date(a.inicio)-new Date(b.inicio));if(!dated.length){$('activityTimeline').innerHTML='<span class="small">Aun no hay actividades actuales con fecha de inicio y final.</span>';return}const start=new Date(Math.min(...dated.map(r=>new Date(r.inicio+'T00:00:00'))));const end=new Date(Math.max(...dated.map(r=>new Date(r.final+'T00:00:00'))));const span=Math.max(1,(end-start)/MS_DAY);$('activityTimeline').innerHTML=dated.slice(0,18).map(r=>{const left=Math.max(0,Math.round(((new Date(r.inicio+'T00:00:00')-start)/MS_DAY)/span*100));const width=Math.max(5,Math.round(((new Date(r.final+'T00:00:00')-new Date(r.inicio+'T00:00:00'))/MS_DAY+1)/span*100));const cls=alertFor(r).includes('Vencido')?'riskbar':'';return `<div class="gantt-row"><div><b>${esc(r.actividad)}</b><br><span class="small">${esc(r.responsable||'Sin responsable')} - ${esc(r.macro_actividad)}</span></div><div class="gantt-track" title="${esc(r.inicio)} - ${esc(r.final)}"><div class="gantt-bar ${cls}" style="left:${left}%;width:${Math.min(width,100-left)}%"></div></div><span class="small">${esc(r.final)}</span></div>`}).join('')}
+function renderPowerBi(rows){if(!$('powerbiSummary'))return;const current=rows.filter(r=>!isHistorical(r));const dated=current.filter(r=>r.inicio&&r.final).sort((a,b)=>new Date(a.final)-new Date(b.final));const critical=dated.filter(r=>/Vencido|Por vencer|Inicio atrasado/.test(alertFor(r))||(/En Proceso/.test(r.estado)&&((new Date(r.final+'T00:00:00')-TODAY)/MS_DAY)<=21)).slice(0,6);const docs=rows.filter(r=>r.url_drive).sort((a,b)=>Number(isHistorical(a))-Number(isHistorical(b))).slice(0,7);const linked=current.filter(r=>r.url_drive).length;$('powerbiSummary').innerHTML=[metricRow('Vista recomendada','Gestion por excepcion','Mantener pocos KPIs: vencidos, proximos, responsables y evidencia'),metricRow('Registros actuales',current.length,'Programa 2026 y gestion vigente'),metricRow('Evidencia enlazada',linked,`${current.length?Math.round(linked/current.length*100):0}% de registros actuales`),metricRow('Lectura del reporte','Depurar visuales','Priorizar Gantt, matriz de responsables, documentos e hitos criticos')].join('');$('powerbiCritical').innerHTML=(critical.length?critical:dated.slice(0,6)).map(r=>`<div class="powerbi-note"><b>${esc(r.actividad)}</b><br><span class="tag ${tagClass(alertFor(r))}">${esc(alertFor(r))}</span> <span class="small">${esc(r.final||'sin fecha')} - ${esc(r.responsable||'sin responsable')}</span>${r.url_drive?`<br><a href="${esc(r.url_drive)}" target="_blank" rel="noopener">Abrir documento</a>`:''}</div>`).join('')||'<span class="small">Sin hitos criticos detectados con los filtros actuales.</span>';$('powerbiDocs').innerHTML=docs.map(r=>`<div class="powerbi-doc-link"><span><b>${esc(r.actividad)}</b><br><span class="small">${esc(r.tipo_documento||'Documento')} - ${esc(r.macro_actividad||'')}</span></span><a href="${esc(r.url_drive)}" target="_blank" rel="noopener">Abrir</a></div>`).join('')||'<span class="small">No hay documentos Drive enlazados en la vista actual.</span>';renderPowerBiGantt_(dated)}
+function renderPowerBiGantt_(dated){if(!$('powerbiGantt'))return;if(!dated.length){$('powerbiGantt').innerHTML='<span class="small">Sin actividades con fechas completas para Gantt.</span>';return}const sample=dated.slice(0,14);const start=new Date(Math.min(...sample.map(r=>new Date(r.inicio+'T00:00:00'))));const end=new Date(Math.max(...sample.map(r=>new Date(r.final+'T00:00:00'))));const span=Math.max(1,(end-start)/MS_DAY);$('powerbiGantt').innerHTML=sample.map(r=>{const left=Math.max(0,Math.round(((new Date(r.inicio+'T00:00:00')-start)/MS_DAY)/span*100));const width=Math.max(5,Math.round(((new Date(r.final+'T00:00:00')-new Date(r.inicio+'T00:00:00'))/MS_DAY+1)/span*100));const alert=alertFor(r);const cls=/Vencido|Inicio atrasado/.test(alert)?'riskbar':/Por vencer/.test(alert)?'warnfill':'';return `<div class="powerbi-gantt-row"><div><b>${esc(r.actividad)}</b><br><span class="small">${esc(r.responsable||'Sin responsable')} - ${esc(r.territorio||'')}</span></div><div class="gantt-track" title="${esc(r.inicio)} - ${esc(r.final)}"><div class="gantt-bar ${cls}" style="left:${left}%;width:${Math.min(width,100-left)}%"></div></div><span class="tag ${tagClass(alert)}">${esc(alert)}</span></div>`}).join('')}
+function renderRoles(){$('roleGrid').innerHTML=ROLE_PLAN.map(item=>`<div class="panel"><h3>${esc(item.role)}</h3><p><b>${esc(item.focus)}</b></p><div class="metric-list">${item.activities.map(activity=>`<div class="role-row"><span>${esc(activity)}</span></div>`).join('')}</div></div>`).join('')}
+function renderIntelligence(rows){$('globalVariables').innerHTML=INTEL_VARIABLES.map(v=>metricRow(v,'variable')).join('');$('specialtyList').innerHTML=SPECIALTIES.map(v=>metricRow(v,'perfil')).join('');$('globalSources').innerHTML=GLOBAL_SOURCES.map(v=>metricRow(v,'fuente')).join('');$('promptLibrary').innerHTML=PROMPT_LIBRARY.map(p=>`<div class="prompt-card"><h4>${esc(p.title)}</h4><p class="small">${esc(p.prompt)}</p><button data-prompt="${esc(p.prompt)}">Usar prompt</button></div>`).join('');document.querySelectorAll('[data-prompt]').forEach(button=>button.addEventListener('click',()=>{$('intelQuestion').value=button.dataset.prompt;generateBrief()}))}
+function extractTechFromQuestion(question){const q=(question||'').toLowerCase();const out=[];if(/mbr/.test(q))out.push('MBR');if(/sbr/.test(q))out.push('SBR');if(/laguna/.test(q))out.push('Lagunas / PTAR');if(/lodos activados|lodo activado/.test(q))out.push('Lodos Activados');return out}
+function detectTerritoryContext(question,rows){const q=(question||'').toLowerCase();const t=[...new Set(rows.map(r=>r.territorio).filter(Boolean))].join(' | ');if(/puno/.test(q)&&/lima/.test(q))return'Puno y Lima';if(/puno/.test(q))return'Puno';if(/lima/.test(q))return'Lima';return t||'Puno y Lima'}
+function buildTechMatrixLines(techs){return techs.map(name=>{const ref=TECH_GUIDE[name]||TECH_GUIDE['Lodos Activados'];return`- ${name}: CAPEX ${ref.capex}; OPEX ${ref.opex}; energia ${ref.energia}; O&M ${ref.om}; fortaleza ${ref.fortaleza}; riesgo ${ref.riesgo}.`}).join('\n')}
+function buildSpecialtyAnalysis(question,current,techs){
+  const q=(question||'').toLowerCase();
+  const territory=detectTerritoryContext(question,current);
+  const waterNeed=/contamin|dbo|dqo|nutrient|efluente|agua/.test(q)
+    ?'La consulta exige contrastar la tecnologia con caracterizacion de aguas (DBO, DQO, SST, nutrientes, variacion estacional y temperatura).'
+    :'Debe validarse la caracterizacion real de aguas antes de cerrar seleccion tecnologica.';
+  const energyNeed=techs.includes('MBR')
+    ?'MBR exige revisar energia firme, respaldo y costo unitario para evitar riesgo de continuidad.'
+    :'Aun sin MBR, se debe comparar consumo especifico de energia y resiliencia ante fallas electricas.';
+  return [
+    `- Ingenieria sanitaria/PTAR: para ${territory}, priorizar desempeno de remocion y estabilidad del proceso segun carga organica real. ${waterNeed}`,
+    `- Operacion y mantenimiento: definir capacidad operativa local por turno, stock de repuestos y plan de mantenimiento preventivo/correctivo por alternativa.`,
+    `- Ambiental y salvaguardas: evaluar manejo de lodos, control de olores, cumplimiento de vertimiento/reuso y trazabilidad de permisos.`,
+    `- Social y predial: contrastar disponibilidad de area, interferencias urbanas y aceptacion social; lagunas tienden a mayor presion predial.`,
+    `- Legal y contrataciones: traducir riesgos tecnicos a clausulas de desempeno, SLAs, garantias y distribucion de riesgos del contrato.`,
+    `- Financiera/MEF: comparar CAPEX+OPEX en horizonte de 10-15 anos con sensibilidad de energia, reposicion y costo de incumplimiento ambiental.`,
+    `- Electromecanica y energia: ${energyNeed}`
+  ].join('\n');
+}
+function generateBrief(){
+  const rows=filteredRows();
+  const current=rows.filter(r=>!isHistorical(r));
+  const historical=rows.filter(isHistorical);
+  const type=$('briefType').value;
+  const question=$('intelQuestion').value.trim()||'Analizar siguientes pasos del Programa de Economia Circular.';
+  const techFromRows=[...new Set(rows.map(r=>r.tecnologia).filter(Boolean))];
+  const tech=[...new Set(extractTechFromQuestion(question).concat(techFromRows))].slice(0,6);
+  const risks=current.filter(r=>/Vencido|Por vencer|Inicio atrasado|Evidencia local/.test(alertFor(r))).slice(0,6);
+  const next=current.filter(r=>r.final).sort((a,b)=>new Date(a.final)-new Date(b.final)).slice(0,6);
+  const territory=detectTerritoryContext(question,current);
+  $('briefOutput').textContent=`${type.toUpperCase()} - BORRADOR DE TRABAJO\n\nPregunta / decision:\n${question}\n\nRespuesta directa:\n- En ${territory}, la seleccion tecnologica no debe cerrarse por nombre de proceso: debe cerrarse por costo total, robustez operativa, cumplimiento ambiental y riesgo social-predial.\n- Con la evidencia actual, la decision preliminar debe mantenerse condicionada a la caracterizacion de aguas y al analisis economico comparativo por escenario.\n\nMatriz comparativa preliminar:\n${tech.length?buildTechMatrixLines(tech):'- Sin tecnologias detectadas en la vista actual.'}\n\nAnalisis por especialidad (desarrollado):\n${buildSpecialtyAnalysis(question,current,tech)}\n\nRiesgos y brechas visibles:\n${risks.length?risks.map(r=>'- '+r.actividad+' | '+alertFor(r)+' | '+(r.responsable||'sin responsable')).join('\n'):'- No hay alertas visibles con los filtros actuales.'}\n\nSiguientes pasos recomendados:\n${next.length?next.map(r=>'- '+r.final+' | '+r.actividad+' | responsable: '+(r.responsable||'sin responsable')).join('\n'):'- Falta registrar fechas para construir cronograma operativo.'}\n\nAlcance de datos usados:\n- Programa 2026: ${current.length} registros actuales.\n- Historico Titicaca: ${historical.length} registros referenciales (no decisionales).\n- Tecnologias consideradas: ${tech.join(', ')||'pendiente'}.\n\nDecision para el siguiente corte:\n- Cerrar terna corta de alternativas (max 3) con ponderacion CAPEX/OPEX/energia/O&M/riesgo social.\n- Validar con evidencia tecnica, ambiental, legal y financiera antes de recomendacion final.\n- Emitir documento ${type} con supuestos, brechas y responsables por accion.`
+}
+function exportBrief(){const textValue=$('briefOutput').textContent.trim();downloadBlob_(new Blob([textValue],{type:'text/plain;charset=utf-8'}),'PEC_borrador_'+$('briefType').value+'.txt')}
+function exportBriefDocx(){const textValue=$('briefOutput').textContent.trim();if(!textValue)return;downloadBlob_(buildDocxBlob_(textValue),'PEC_borrador_'+$('briefType').value+'.docx')}
+function downloadBlob_(blob,fileName){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=fileName;a.click();URL.revokeObjectURL(url)}
+function xmlEscape_(value){return String(value).replace(/[<>&'"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;',"'":'&apos;','"':'&quot;'}[c]))}
+function buildDocxBlob_(textValue){const lines=textValue.split(/\r?\n/);const title=lines.find(line=>line.trim())||'Borrador PEC';const date=new Date().toLocaleString('es-PE',{dateStyle:'medium',timeStyle:'short'});let body='';body+=docxParagraph_(title,'title');body+=docxParagraph_('Documento de trabajo exportado desde Inteligencia PEC','subtitle');body+=docxParagraph_('Fecha: '+date,'meta');body+=docxParagraph_('Fuente: Panel PEC - Drive + Google Sheets / Apps Script IA','meta');body+=docxParagraph_('','normal');for(let index=0;index<lines.length;index++){const line=lines[index].trim();if(!line){body+=docxParagraph_('','normal');continue}if(index===0&&line===title)continue;const tableRows=[];let scan=index;while(scan<lines.length){const parsed=parseTechMatrixLine_(lines[scan]);if(!parsed)break;tableRows.push(parsed);scan++}if(tableRows.length>=2){body+=docxTechTable_(tableRows);index=scan-1;continue}if(isDocxHeading_(line))body+=docxParagraph_(line.replace(/:$/,''),'heading');else if(/^- /.test(line))body+=docxParagraph_(line.replace(/^- /,''),'bullet');else body+=docxParagraph_(line,'normal')}const documentXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1080" w:right="1080" w:bottom="1080" w:left="1080"/></w:sectPr></w:body></w:document>`;return zipStoreBlob_({'[Content_Types].xml':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>','_rels/.rels':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>','word/document.xml':documentXml},'application/vnd.openxmlformats-officedocument.wordprocessingml.document')}
+function isDocxHeading_(line){return /:$/.test(line)||/^(respuesta directa|matriz comparativa|analisis por especialidad|riesgos|siguientes pasos|alcance|decision|recomendacion|fuentes|seccion)\b/i.test(line)}
+function docxParagraph_(text,kind){const cfg={title:{size:32,bold:true,color:'1A3A5C',before:0,after:180},subtitle:{size:22,bold:false,color:'475569',before:0,after:160},heading:{size:24,bold:true,color:'1A3A5C',before:260,after:100},meta:{size:18,bold:false,color:'475569',before:0,after:60},bullet:{size:20,bold:false,color:'1F2937',before:40,after:40,bullet:true},normal:{size:20,bold:false,color:'1F2937',before:40,after:40}}[kind]||{};const pPr=`<w:pPr>${cfg.bullet?'<w:ind w:left="360" w:hanging="180"/>':''}<w:spacing w:before="${cfg.before||0}" w:after="${cfg.after||0}" w:line="276" w:lineRule="auto"/></w:pPr>`;const rPr=`<w:rPr><w:rFonts w:ascii="Aptos" w:hAnsi="Aptos"/><w:sz w:val="${cfg.size||20}"/><w:color w:val="${cfg.color||'1F2937'}"/>${cfg.bold?'<w:b/>':''}</w:rPr>`;const bullet=cfg.bullet?'<w:r><w:rPr><w:rFonts w:ascii="Aptos" w:hAnsi="Aptos"/><w:sz w:val="20"/></w:rPr><w:t>- </w:t></w:r>':'';return `<w:p>${pPr}${bullet}<w:r>${rPr}<w:t xml:space="preserve">${xmlEscape_(text)}</w:t></w:r></w:p>`}
+function parseTechMatrixLine_(line){const match=String(line||'').trim().match(/^- ([^:]{2,80}):\s*(.+)$/);if(!match||!/CAPEX|OPEX|energia|O&M|fortaleza|riesgo/i.test(match[2]))return null;const out={tecnologia:match[1].trim(),capex:'',opex:'',energia:'',om:'',fortaleza:'',riesgo:''};match[2].split(';').forEach(part=>{const p=part.trim();const key=p.match(/^(CAPEX|OPEX|energia|O&M|fortaleza|riesgo)\s+(.+)$/i);if(!key)return;const name=key[1].toLowerCase();const value=key[2].replace(/\.$/,'');if(name==='capex')out.capex=value;else if(name==='opex')out.opex=value;else if(name==='energia')out.energia=value;else if(name==='o&m')out.om=value;else if(name==='fortaleza')out.fortaleza=value;else if(name==='riesgo')out.riesgo=value});return out}
+function docxTechTable_(rows){const headers=['Tecnologia','CAPEX','OPEX','Energia','O&M','Fortaleza','Riesgo'];const cell=(value,head)=>`<w:tc><w:tcPr><w:tcW w:w="1800" w:type="dxa"/><w:shd w:fill="${head?'D9EAF7':'FFFFFF'}"/><w:tcMar><w:top w:w="80" w:type="dxa"/><w:left w:w="80" w:type="dxa"/><w:bottom w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tcMar></w:tcPr><w:p><w:pPr><w:spacing w:after="0"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Aptos" w:hAnsi="Aptos"/><w:sz w:val="18"/><w:color w:val="1F2937"/>${head?'<w:b/>':''}</w:rPr><w:t xml:space="preserve">${xmlEscape_(value||'')}</w:t></w:r></w:p></w:tc>`;const headerRow=`<w:tr>${headers.map(h=>cell(h,true)).join('')}</w:tr>`;const dataRows=rows.map(r=>`<w:tr>${[r.tecnologia,r.capex,r.opex,r.energia,r.om,r.fortaleza,r.riesgo].map(v=>cell(v,false)).join('')}</w:tr>`).join('');return `<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders><w:top w:val="single" w:sz="4" w:color="D8DDE6"/><w:left w:val="single" w:sz="4" w:color="D8DDE6"/><w:bottom w:val="single" w:sz="4" w:color="D8DDE6"/><w:right w:val="single" w:sz="4" w:color="D8DDE6"/><w:insideH w:val="single" w:sz="4" w:color="D8DDE6"/><w:insideV w:val="single" w:sz="4" w:color="D8DDE6"/></w:tblBorders></w:tblPr>${headerRow}${dataRows}</w:tbl>`}
+function zipStoreBlob_(files,mimeType){const encoder=new TextEncoder();const parts=[];const central=[];let offset=0;Object.entries(files).forEach(([name,content])=>{const nameBytes=encoder.encode(name);const data=encoder.encode(content);const crc=crc32_(data);const local=zipHeader_(0x04034b50,[20,0x0800,0,0,0,crc,data.length,data.length,nameBytes.length,0],nameBytes);parts.push(local,data);central.push({nameBytes,data,crc,offset});offset+=local.length+data.length});let centralSize=0;central.forEach(entry=>{const header=zipCentralHeader_(entry);parts.push(header);centralSize+=header.length});parts.push(zipEndHeader_(central.length,centralSize,offset));return new Blob(parts,{type:mimeType})}
+function zipHeader_(signature,values,nameBytes){const out=new Uint8Array(30+nameBytes.length);const view=new DataView(out.buffer);view.setUint32(0,signature,true);[4,6,8,10,12].forEach((pos,i)=>view.setUint16(pos,values[i],true));[14,18,22].forEach((pos,i)=>view.setUint32(pos,values[i+5],true));view.setUint16(26,values[8],true);view.setUint16(28,values[9],true);out.set(nameBytes,30);return out}
+function zipCentralHeader_(entry){const out=new Uint8Array(46+entry.nameBytes.length);const view=new DataView(out.buffer);view.setUint32(0,0x02014b50,true);view.setUint16(4,20,true);view.setUint16(6,20,true);view.setUint16(8,0x0800,true);view.setUint16(10,0,true);view.setUint16(12,0,true);view.setUint16(14,0,true);view.setUint32(16,entry.crc,true);view.setUint32(20,entry.data.length,true);view.setUint32(24,entry.data.length,true);view.setUint16(28,entry.nameBytes.length,true);view.setUint16(30,0,true);view.setUint16(32,0,true);view.setUint16(34,0,true);view.setUint16(36,0,true);view.setUint32(38,0,true);view.setUint32(42,entry.offset,true);out.set(entry.nameBytes,46);return out}
+function zipEndHeader_(count,centralSize,centralOffset){const out=new Uint8Array(22);const view=new DataView(out.buffer);view.setUint32(0,0x06054b50,true);view.setUint16(4,0,true);view.setUint16(6,0,true);view.setUint16(8,count,true);view.setUint16(10,count,true);view.setUint32(12,centralSize,true);view.setUint32(16,centralOffset,true);view.setUint16(20,0,true);return out}
+function crc32_(data){let crc=-1;for(let i=0;i<data.length;i++){crc=(crc>>>8)^CRC_TABLE_[(crc^data[i])&255]}return(crc^-1)>>>0}
+const CRC_TABLE_=(()=>{const table=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xedb88320^(c>>>1):c>>>1;table[n]=c>>>0}return table})();
+function showView(view){document.querySelectorAll('.screen').forEach(section=>section.classList.toggle('active',section.id===`view-${view}`));document.querySelectorAll('.tab[data-view]').forEach(button=>button.classList.toggle('active',button.dataset.view===view))}
+function detailRow(label,value){return value?`<div class="metric-row"><span>${esc(label)}</span><b>${esc(value)}</b></div>`:''}
+function openDrawer(row){if(!row)return;const alert=alertFor(row),pct=progressFor(row);$('drawerTitle').textContent=row.actividad||'Detalle';$('drawerBody').innerHTML=`<div class="metric-list">${detailRow('Lectura',isHistorical(row)?'Historico referencial anterior a 2020':'Programa 2026 / gestion actual')}${detailRow('ID',row.id)}${detailRow('EDT',row.edt)}${detailRow('Macroactividad',row.macro_actividad)}${detailRow('Territorio',row.territorio)}${detailRow('Categoria',row.categoria)}${detailRow('Responsable',row.responsable)}${detailRow('Estado',row.estado||'Hito')}${detailRow('Alerta',alert)}${detailRow('Avance',pct+'%')}${detailRow('Inicio',row.inicio)}${detailRow('Final',row.final)}${detailRow('Tipo documento',row.tipo_documento)}${detailRow('Tecnologia',row.tecnologia)}${detailRow('Proveedor',row.proveedor)}${detailRow('Criterio',row.criterio_comparacion)}${detailRow('Puntaje',row.puntaje)}</div><div class="panel" style="margin-top:14px"><h3>Resumen</h3><p>${esc(row.resumen||'Sin resumen registrado.')}</p><p class="small">${esc(row.tags)}</p>${row.url_drive?`<p><a href="${esc(row.url_drive)}" target="_blank" rel="noopener">Abrir evidencia en Drive</a></p>`:'<p class="small">Este registro todavia no tiene enlace de evidencia.</p>'}</div>`;$('drawer').classList.add('open')}
+function openEvidenceModal(row){if(!row)return;const docs=evidenceDocsFor(row,activeData);$('evidenceModalTitle').textContent=`Documentos - ${row.tecnologia||row.actividad||'registro'}`;$('evidenceModalMeta').textContent=[row.territorio,row.criterio_comparacion,row.resumen].filter(Boolean).join(' | ');$('evidenceModalBody').innerHTML=docs.length?docs.map((doc,index)=>`<div class="evidence-item"><span class="tag ${index===0&&row.url_drive?'ok':'time'}">${esc(doc.source)}</span><h4>${esc(doc.title)}</h4><div class="small">${esc(doc.type)}${doc.summary?` - ${esc(doc.summary).slice(0,220)}`:''}</div><a href="${esc(doc.url)}" target="_blank" rel="noopener">Abrir documento</a></div>`).join(''):'<div class="empty">No hay documentos enlazados para este registro.</div>';$('evidenceModal').classList.add('open')}
+function wireDetailButtons(rows){const map=Object.fromEntries(rows.map(r=>[r.id,r]));document.querySelectorAll('[data-open]').forEach(button=>button.addEventListener('click',event=>{event.stopPropagation();openDrawer(map[button.dataset.open])}))}
+function wireEvidenceButtons(rows){const map=Object.fromEntries(activeData.concat(rows).map(r=>[r.id,r]));document.querySelectorAll('[data-evidence]').forEach(button=>button.addEventListener('click',event=>{event.stopPropagation();openEvidenceModal(map[button.dataset.evidence])}))}
+function mergeActiveData(){activeData=[...localEvidence,...DEFAULT_DATA,...remoteData]}
+function useData(data,source){remoteData=source==='datos internos'?[]:data;mergeActiveData();localStorage.setItem('pecLastSource',source);$('status').textContent=`Fuente activa: ${source} (${activeData.length} registros; incluye Programa 2026 + historico referencial)`;render()}
+function typeFromFile(file){const ext=(file.name.split('.').pop()||'').toLowerCase();if(['png','jpg','jpeg','webp','gif'].includes(ext))return 'Imagen';if(ext==='pdf')return 'PDF';if(['doc','docx'].includes(ext))return 'Word / Doc';if(['xls','xlsx'].includes(ext))return 'Excel / Sheet';if(ext==='dwg')return 'Plano DWG';return 'Archivo'}
+function activityFromFile(file){const name=file.name.replace(/\.[^.]+$/,'');return /mop|manual/i.test(name)?`Manual de Operaciones - ${name}`:name}
+function addEvidenceFiles(files){const incoming=[...files];if(!incoming.length)return;incoming.forEach((file,index)=>{const url=URL.createObjectURL(file);localEvidenceUrls.push(url);const isManual=/mop|manual/i.test(file.name);localEvidence.unshift(normalize({id:`LOCAL_${Date.now()}_${index}`,edt:'',actividad:activityFromFile(file),macro_actividad:isManual?'Contrato de prestamo':'Repositorio local',territorio:'Puno y Lima',categoria:isManual?'Gobernanza':'Documento',responsable:isManual?'DGPPCS':'',inicio:'2026-04-12',final:'2026-04-12',duracion:'',estado:'En Proceso',alerta:'Evidencia local',tipo_documento:typeFromFile(file),tecnologia:'',proveedor:'',criterio_comparacion:'',puntaje:'',url_drive:url,resumen:`Evidencia local cargada en esta sesion: ${file.name} | Tamano MB: ${(file.size/1048576).toFixed(2)}`,tags:isManual?'mop;manual;prestamo;evidencia_local':'evidencia_local;archivo'}))});mergeActiveData();$('evidenceStatus').textContent=`${localEvidence.length} evidencia(s) local(es) cargada(s). No quedan permanentes hasta subirlas a Drive y registrar el enlace.`;render()}
+function clearLocalEvidence(){localEvidenceUrls.forEach(url=>URL.revokeObjectURL(url));localEvidenceUrls=[];localEvidence=[];mergeActiveData();$('evidenceStatus').textContent='Evidencia local limpia. Para conservar documentos, subelos a Drive y registra el enlace.';render()}
+function loadJsonp(url){return new Promise((resolve,reject)=>{const callback='pecJsonp_'+Date.now()+'_'+Math.random().toString(36).slice(2);const script=document.createElement('script');let timer;const cleanup=()=>{clearTimeout(timer);delete window[callback];script.remove()};timer=setTimeout(()=>{cleanup();reject(new Error('Tiempo de espera JSONP'))},12000);window[callback]=data=>{cleanup();resolve((data.records||data.data||[]).map(normalize).filter(r=>r.actividad))};script.onerror=()=>{cleanup();reject(new Error('No se pudo cargar JSONP'))};const jsonpUrl=new URL(url);jsonpUrl.searchParams.set('format','json');jsonpUrl.searchParams.set('callback',callback);script.src=jsonpUrl.toString();document.head.appendChild(script)})}
+async function loadUrl(url){try{const response=await fetch(url);if(!response.ok)throw new Error(`HTTP ${response.status}`);useData(parseData(await response.text()),'URL')}catch(error){useData(await loadJsonp(url),'URL JSONP')}localStorage.setItem(STORAGE_URL,url)}
+$('load').addEventListener('click',()=>{const url=$('url').value.trim();if(!url){$('status').textContent='Pega una URL publica CSV/JSON.';return}$('status').textContent='Actualizando desde URL...';loadUrl(url).catch(err=>$('status').textContent='Error al cargar URL: '+err.message)});$('reset').addEventListener('click',()=>{localStorage.removeItem(STORAGE_URL);$('url').value='';useData(DEFAULT_DATA,'datos internos')});$('file').addEventListener('change',event=>{const file=event.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{useData(parseData(reader.result),file.name)}catch(err){$('status').textContent='Error al cargar archivo: '+err.message}};reader.readAsText(file,'utf-8')});$('evidenceFile').addEventListener('change',event=>{addEvidenceFiles(event.target.files);event.target.value=''});$('clearLocalEvidence').addEventListener('click',clearLocalEvidence);$('generateBrief').addEventListener('click',generateBrief);$('exportBrief').addEventListener('click',exportBrief);$('exportBriefDocx').addEventListener('click',exportBriefDocx);['q',...fields].forEach(id=>$(id).addEventListener('input',render));document.querySelectorAll('.tab[data-view]').forEach(button=>button.addEventListener('click',()=>showView(button.dataset.view)));$('drawerClose').addEventListener('click',()=>$('drawer').classList.remove('open'));$('drawer').addEventListener('click',event=>{if(event.target.id==='drawer')$('drawer').classList.remove('open')});$('evidenceModalClose').addEventListener('click',()=>$('evidenceModal').classList.remove('open'));$('evidenceModal').addEventListener('click',event=>{if(event.target.id==='evidenceModal')$('evidenceModal').classList.remove('open')});const savedUrl=localStorage.getItem(STORAGE_URL);const initialUrl=savedUrl||DEFAULT_REMOTE_URL;$('url').value=initialUrl;$('status').textContent='Cargando fuente remota...';loadUrl(initialUrl).catch(()=>{if(!savedUrl)$('url').value='';$('status').textContent='No se pudo cargar la fuente remota; usando datos internos.';useData(DEFAULT_DATA,'datos internos')});
+</script>
+<script>
+(function(){
+const AI_TOKEN_KEY='pecAiToken';
+const generateLocalBrief=window.generateBrief;
+function compactRowsForAi(rows){
+  return rows.slice(0,16).map(r=>({
+    id:r.id,edt:r.edt,actividad:r.actividad,macro_actividad:r.macro_actividad,territorio:r.territorio,
+    categoria:r.categoria,responsable:r.responsable,inicio:r.inicio,final:r.final,estado:r.estado,
+    alerta:alertFor(r),tipo_documento:r.tipo_documento,tecnologia:r.tecnologia,proveedor:r.proveedor,
+    criterio_comparacion:r.criterio_comparacion,puntaje:r.puntaje,resumen:(r.resumen||'').slice(0,520),tags:r.tags
+  }))
+}
+function askAiToken(){
+  let token=localStorage.getItem(AI_TOKEN_KEY)||'';
+  if(!token){
+    token=prompt('Pega el token IA PEC configurado en Apps Script. Se guardara solo en este navegador.')||'';
+    if(token) localStorage.setItem(AI_TOKEN_KEY,token);
+  }
+  return token;
+}
+function aiUrl(payload,token){
+  const url=new URL(DEFAULT_REMOTE_URL);
+  url.searchParams.set('format','json');
+  url.searchParams.set('action','ai');
+  url.searchParams.set('token',token);
+  url.searchParams.set('request',JSON.stringify(payload));
+  return url;
+}
+function requestAi(payload,token){
+  return new Promise((resolve,reject)=>{
+    const callback='pecAi_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+    const script=document.createElement('script');
+    let timer;
+    const cleanup=()=>{clearTimeout(timer);delete window[callback];script.remove()};
+    timer=setTimeout(()=>{cleanup();reject(new Error('Tiempo de espera del analisis IA'))},180000);
+    window[callback]=data=>{cleanup();resolve(data)};
+    script.onerror=()=>{cleanup();reject(new Error('No se pudo cargar el endpoint IA'))};
+    const url=aiUrl(payload,token);
+    url.searchParams.set('callback',callback);
+    script.src=url.toString();
+    document.head.appendChild(script);
+  })
+}
+function aiPayload(){
+  const rows=filteredRows();
+  return {
+    type:$('briefType').value,
+    question:$('intelQuestion').value.trim()||'Analizar siguientes pasos del Programa de Economia Circular.',
+    filters:{
+      q:$('q').value,
+      macro:$('macro').value,
+      territorio:$('territorio').value,
+      categoria:$('categoria').value,
+      tecnologia:$('tecnologia').value,
+      proveedor:$('proveedor').value,
+      tipo:$('tipo').value,
+      estado:$('estado').value
+    },
+    counts:{
+      current:rows.filter(r=>!isHistorical(r)).length,
+      historical:rows.filter(isHistorical).length,
+      linked:rows.filter(r=>r.url_drive).length,
+      technologies:[...new Set(rows.map(r=>r.tecnologia).filter(Boolean))]
     }
-    function render(data) {
-      const cards = [
-        ['Carpeta raiz', data.rootFolderUrl ? `<a href="${data.rootFolderUrl}" target="_blank">Abrir Drive</a>` : 'No creada'],
-        ['Sheet indice', data.spreadsheetUrl ? `<a href="${data.spreadsheetUrl}" target="_blank">Abrir Sheet</a>` : 'No creada'],
-        ['Registros', data.records || 0],
-        ['Endpoint JSON', data.webJsonHint || 'Despliega como Web App'],
-        ['Endpoint CSV', data.webCsvHint || 'Despliega como Web App'],
-        ['Archivos importados', data.importedFiles == null ? '-' : data.importedFiles]
-      ];
-      document.getElementById('cards').innerHTML = cards.map(([label, value]) => `
-        <div class="card"><div class="label">${label}</div><div class="value">${value}</div></div>
-      `).join('');
-    }
-    function handleSuccess(data) {
-      setStatus('Operacion completada.');
-      render(data);
-    }
-    function handleFailure(error) {
-      setStatus('Error: ' + error.message);
-    }
-    function setup() {
-      setStatus('Creando carpetas y Sheet...');
-      google.script.run.withSuccessHandler(handleSuccess).withFailureHandler(handleFailure).setupEnvironment();
-    }
-    function scan() {
-      setStatus('Escaneando Drive...');
-      google.script.run.withSuccessHandler(handleSuccess).withFailureHandler(handleFailure).scanDriveToIndex();
-    }
-    function refresh() {
-      setStatus('Actualizando estado...');
-      google.script.run.withSuccessHandler(handleSuccess).withFailureHandler(handleFailure).getEnvironmentStatus();
-    }
-    refresh();
-  </script>
+  }
+}
+function renderAiResult(data){
+  const sources=(data.sources||[]).map((s,i)=>`${i+1}. ${s.title||s.url}\n   ${s.url}`).join('\n');
+  $('briefOutput').textContent=(data.output||'Sin texto devuelto por IA.')+(sources?`\n\nFuentes consultadas:\n${sources}`:'');
+}
+async function generateBriefWithAi(event){
+  if(event){event.preventDefault();event.stopImmediatePropagation()}
+  const token=askAiToken();
+  if(!token){
+    generateLocalBrief();
+    $('briefOutput').textContent+='\n\n[IA no ejecutada] Falta token local. Usa Configurar token IA cuando este creado en Apps Script.';
+    return;
+  }
+  $('briefOutput').textContent='Generando analisis con IA segura desde Apps Script...';
+  try{
+    const data=await requestAi(aiPayload(),token);
+    if(!data.ok) throw new Error(data.message||data.code||'El endpoint IA no devolvio una respuesta valida.');
+    renderAiResult(data);
+  }catch(error){
+    generateLocalBrief();
+    $('briefOutput').textContent+=`\n\n[Fallback local] No se pudo ejecutar IA: ${error.message}\n\nRevisa: 1) que el token se haya pegado en Configurar token IA, no en el cuadro de pregunta; 2) que Apps Script este implementado como nueva version; 3) que el acceso del Web App permita cargar desde GitHub Pages.`;
+  }
+}
+function configureAiToken(event){
+  if(event){event.preventDefault();event.stopImmediatePropagation()}
+  const current=localStorage.getItem(AI_TOKEN_KEY)||'';
+  const token=prompt('Token IA PEC configurado en Apps Script:',current)||'';
+  if(token){
+    localStorage.setItem(AI_TOKEN_KEY,token);
+    $('briefOutput').textContent='Token IA guardado localmente en este navegador. Ahora puedes generar analisis con IA.';
+  }
+}
+function renderFunctionalityCheck(event){
+  if(event){event.preventDefault();event.stopImmediatePropagation()}
+  const rows=filteredRows();
+  const current=rows.filter(r=>!isHistorical(r));
+  const historical=rows.filter(isHistorical);
+  const missingOwner=current.filter(r=>!r.responsable).length;
+  const missingDates=current.filter(r=>!r.inicio||!r.final).length;
+  const noSummary=rows.filter(r=>!r.resumen).length;
+  const noDrive=rows.filter(r=>!r.url_drive).length;
+  const tech=[...new Set(rows.map(r=>r.tecnologia).filter(Boolean))];
+  $('briefOutput').textContent=`DIAGNOSTICO DE FUNCIONALIDADES PEC\n\nYa cubierto en esta version:\n- Capa IA segura prevista con Apps Script + Script Properties + token local.\n- Separacion de Programa 2026 vs historico Titicaca referencial.\n- Pestañas de detalle, KPIs, lineas de tiempo, roles, tecnologias y documentos.\n- Borradores exportables y prompts por producto.\n\nLectura de datos actuales:\n- Registros Programa 2026 en vista: ${current.length}\n- Registros historicos Titicaca en vista: ${historical.length}\n- Tecnologias detectadas: ${tech.join(', ')||'pendiente'}\n- Registros sin responsable: ${missingOwner}\n- Registros sin fechas completas: ${missingDates}\n- Registros sin resumen: ${noSummary}\n- Registros sin enlace Drive: ${noDrive}\n\nFuncionalidades recomendadas para la siguiente fase:\n- Extraccion persistente de texto y resumen por documento Drive, guardando resumen, riesgos y citas en Sheets.\n- Base mundial de tecnologias por variable: CAPEX, OPEX, energia, O&M, calidad de efluente, lodos, carbono, permisos y madurez.\n- Matriz de decision ponderada para comparar MBR, SBR, lagunas y otras alternativas con evidencia trazable.\n- Vista tipo NotebookLM por expediente: pregunta-respuesta, resumen por fuente, citas, decisiones y brechas.\n- Generador de documentos DOCX/PDF: informe gerencial, informe tecnico, TdR, matriz de contratacion y ayuda memoria.\n- Flujo por especialidades: sanitaria/PTAR, ambiental, social, legal, adquisiciones BM, financiera, O&M, energia y datos.\n- Registro de decisiones: responsable, fecha, evidencia usada, supuesto y siguiente accion hasta 28 de julio y cierre de fase.\n- Carga real a Drive desde el panel para documentos e imagenes, no solo carga temporal del navegador.`;
+}
+function installAiButtons(){
+  const actions=document.querySelector('.doc-actions');
+  if(!actions||$('configureAiToken')) return;
+  $('generateBrief').textContent='Generar con IA';
+  const tokenButton=document.createElement('button');
+  tokenButton.id='configureAiToken';
+  tokenButton.type='button';
+  tokenButton.className='doc-actions-secondary';
+  tokenButton.textContent='Configurar token IA';
+  const checkButton=document.createElement('button');
+  checkButton.id='functionalityCheck';
+  checkButton.type='button';
+  checkButton.className='doc-actions-secondary';
+  checkButton.textContent='Diagnostico';
+  const breakLine=document.createElement('span');
+  breakLine.className='doc-actions-break';
+  actions.appendChild(breakLine);
+  actions.appendChild(tokenButton);
+  actions.appendChild(checkButton);
+  $('generateBrief').addEventListener('click',generateBriefWithAi,true);
+  tokenButton.addEventListener('click',configureAiToken);
+  checkButton.addEventListener('click',renderFunctionalityCheck);
+}
+window.generateBrief=generateBriefWithAi;
+installAiButtons();
+})();
+</script>
 </body>
 </html>

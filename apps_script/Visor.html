@@ -71,8 +71,9 @@ button{
 button.secondary{background:#41586f}
 button.ghost{background:#edf4ff;color:var(--blue)}
 button.soft{background:#e8f5f1;color:#0e615a}
-.layout{display:grid;grid-template-columns:1.6fr .9fr;gap:16px}
-.stack{display:grid;gap:16px}
+button.danger{background:#fff1f2;color:#9f2232;box-shadow:none;border:1px solid #efc6cc}
+.layout{display:grid;grid-template-columns:1.6fr .9fr;gap:16px;align-items:start}
+.stack{display:grid;gap:16px;align-content:start}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
 .card{background:linear-gradient(180deg,#ffffff 0,#f8fbff 100%);border:1px solid var(--line);border-radius:16px;padding:16px 16px 14px;box-shadow:var(--shadow-soft);display:grid;gap:8px}
 .card span{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700}
@@ -460,6 +461,8 @@ tbody tr:hover td{background:#f8fbfe}
           <button id="openReportBtn" class="ghost">Ver reporte</button>
           <button id="openAnalyticsBtn" class="ghost">Ver analítica</button>
           <button id="printReportBtn" class="soft">Imprimir reporte</button>
+          <button id="exportReportWordBtn" class="soft">Exportar reporte Word</button>
+          <button id="exportReportPdfBtn" class="soft">Exportar reporte PDF</button>
           <button id="editHeroBtn" class="secondary">Editar portada</button>
         </div>
         <button id="openAdminBtn" class="secondary" style="display:none">Panel admin</button>
@@ -514,6 +517,7 @@ tbody tr:hover td{background:#f8fbfe}
       </div>
       <div class="toolbar-actions">
         <button id="addChildBtn" class="soft">Agregar subactividad</button>
+        <button id="deleteNodeBtn" class="danger" type="button">Eliminar actividad</button>
         <button id="saveCaseNoteBtn">Guardar informacion</button>
         <button id="clearCaseNoteBtn" class="secondary">Limpiar informacion local</button>
       </div>
@@ -2255,7 +2259,9 @@ const PERSON_CANONICAL_ALIASES = [
   ['TERESA ARANA', 'Teresa Arana'],
   ['Darwin Pardave', 'Darwin Pardavé'],
   ['Betsabe Araindia', 'Betsabé Araindia'],
-  ['Fredy Ruiz', 'Freddy Ruiz']
+  ['Fredy Ruiz', 'Freddy Ruiz'],
+  ['Oriana Pérez', 'Oriana Perez'],
+  ['ORIANA PEREZ', 'Oriana Perez']
 ];
 const BASE_ENTITIES = [
   'DGPPCS',
@@ -2599,10 +2605,17 @@ function isLikelyPersonName(name){
 }
 
 function splitPeople(value){
-  return text(value)
+  const out = new Map();
+  text(value)
     .split(/[\/,;]+/g)
     .map(canonicalPersonName)
-    .filter(name => name && isLikelyPersonName(name));
+    .filter(name => name && isLikelyPersonName(name))
+    .forEach(name => {
+      const key = personKey(name);
+      if(!key || out.has(key)) return;
+      out.set(key, name);
+    });
+  return Array.from(out.values());
 }
 
 function splitEntityFragment(value){
@@ -2656,15 +2669,13 @@ function uniquePeople(values){
 }
 
 function getGlobalPeopleCatalog(){
-  const payloadRecords = appState.payload && Array.isArray(appState.payload.records) ? appState.payload.records : [];
   const auditActors = Array.isArray(appState.audit) ? appState.audit.map(item => item && item.actor) : [];
   return uniquePeople(
     []
       .concat(BASE_PEOPLE)
       .concat(appState.customPeople || [])
-      .concat(payloadRecords.map(record => record && record.seguimiento_dgppcs || ''))
       .concat(appState.raw.map(record => record && record.seguimiento_dgppcs || ''))
-      .concat(Object.values(appState.edits || {}).map(edit => edit && edit.seguimiento_dgppcs || ''))
+      .concat(Object.values(appState.edits || {}).filter(edit => edit && !edit.__deleted).map(edit => edit && edit.seguimiento_dgppcs || ''))
       .concat(text(appState.serverInfo && appState.serverInfo.savedBy))
       .concat(text(getClientActorName()))
       .concat(auditActors)
@@ -3066,6 +3077,13 @@ function diffDays(end, start){
 function getMergedRecord(record){
   const note = appState.notes[record.id] || {};
   const edit = appState.edits[record.id] || {};
+  if(edit && edit.__deleted){
+    return {
+      ...record,
+      __deleted:true,
+      source_order:Number(record.source_order || String(record.id || '').replace(/\D+/g,'')) || 0
+    };
+  }
   const merged = {
     ...record,
     ...edit,
@@ -3278,7 +3296,7 @@ function hydrateData(payloadOverride){
   const payload = payloadOverride || appState.payload || window.PEC_TRACKING_DATA || {meta:{},summary:{},records:[]};
   appState.payload = payload;
   const sourceRecords = (payload.records || []).concat(appState.customRecords || []);
-  appState.raw = normalizeRecords(sourceRecords.map(getMergedRecord));
+  appState.raw = normalizeRecords(sourceRecords.map(getMergedRecord).filter(record => record && !record.__deleted));
   updateMeta(payload.meta);
   resetExpandedState();
 }
@@ -3481,6 +3499,9 @@ function applyFilters(){
   appState.filtered = withAncestors(matched, appState.raw);
 
   renderAll();
+  buildExecutiveReport();
+  if(isModalOpen('analyticsModal')) renderAnalytics();
+  renderOperationsStatus();
 }
 
 function parentEdt(edt){
@@ -4075,6 +4096,7 @@ function applyImportedStructure(rows, options){
   appState.sourceMode = 'structure';
   saveCurrentPayload();
   hydrateData(appState.payload);
+  renderHero();
   initFilters();
   applyFilters();
   setImportFeedback(
@@ -5140,6 +5162,15 @@ function openDrawer(recordId){
   document.getElementById('newChildEnd').value = record.final || '';
   document.getElementById('addChildBtn').dataset.parentId = record.id;
   document.getElementById('addChildBtn').dataset.nextEdt = nextChildEdt(record, childrenMap);
+  const deleteBtn = document.getElementById('deleteNodeBtn');
+  if(deleteBtn){
+    const protectedRoot = isRootBlockEdt(record.edt) || normalizedLevelValue(record.edt, record.nivel) === 1;
+    const hasChildren = Boolean((childrenMap.get(record.id) || []).length);
+    deleteBtn.dataset.recordId = record.id;
+    deleteBtn.disabled = protectedRoot;
+    deleteBtn.title = protectedRoot ? 'No se permite eliminar las raíces principales 1, 2, 3 o 4.' : '';
+    deleteBtn.textContent = hasChildren ? 'Eliminar subárbol' : 'Eliminar actividad';
+  }
   document.getElementById('drawer').classList.add('open');
 }
 
@@ -5209,41 +5240,79 @@ function closeHeroModal(){
   document.getElementById('heroModal').classList.remove('open');
 }
 
+function isModalOpen(modalId){
+  const modal = document.getElementById(modalId);
+  return Boolean(modal && modal.classList.contains('open'));
+}
+
+function refreshDerivedViews(options){
+  const settings = options || {};
+  if(settings.renderHero) renderHero();
+  if(settings.rebuildFilters) initFilters();
+  if(settings.reapplyFilters){
+    applyFilters();
+  }else{
+    buildExecutiveReport();
+    if(settings.renderAnalytics || isModalOpen('analyticsModal')) renderAnalytics();
+    renderOperationsStatus();
+  }
+  if(settings.drawerRecordId) openDrawer(settings.drawerRecordId);
+}
+
+function collectSubtreeRecords(rootId){
+  const rootRecord = appState.raw.find(record => record.id === rootId);
+  if(!rootRecord) return [];
+  const rootEdt = text(rootRecord.edt);
+  const rootLevel = normalizedLevelValue(rootRecord.edt, rootRecord.nivel);
+  return sortBySourceOrder(appState.raw).filter(record => {
+    if(record.id === rootId) return true;
+    const edt = text(record.edt);
+    return Boolean(rootEdt && edt && edt.startsWith(rootEdt + '.') && normalizedLevelValue(record.edt, record.nivel) > rootLevel);
+  });
+}
+
 function saveHeroModal(){
   const extras = text(document.getElementById('heroEditMetaExtra').value)
     .split('|')
     .map(value => value.trim())
     .filter(Boolean);
-  appState.hero = {
+  appState.hero = normalizeHeroState({
     title: document.getElementById('heroEditTitle').value,
     subtitle: document.getElementById('heroEditSubtitle').value,
     meta1: document.getElementById('heroEditMeta1').value,
     meta2: document.getElementById('heroEditMeta2').value,
     meta3: document.getElementById('heroEditMeta3').value,
     extras
-  };
+  });
   saveHeroConfig();
   appendAudit('editar_portada', appState.hero.title);
   ensureDailyBackup();
-  renderHero();
   closeHeroModal();
-  buildExecutiveReport();
+  setImportFeedback('Portada actualizada', 'El encabezado ejecutivo se actualizó y quedó disponible para reportes y exportaciones.', 'success');
+  refreshDerivedViews({renderHero:true, renderAnalytics:true});
   scheduleSharedSync('editar_portada');
 }
 
 function resetHeroModal(){
   appState.hero = {...DEFAULT_HERO};
   saveHeroConfig();
-  renderHero();
   openHeroModal();
-  buildExecutiveReport();
+  setImportFeedback('Portada restablecida', 'Se restauró la portada base del visor y se recalcularon los artefactos derivados.', 'info');
+  refreshDerivedViews({renderHero:true, renderAnalytics:true});
   scheduleSharedSync('restablecer_portada');
 }
 
 function addLocalChildRecord(){
-  if(!appState.selectedId) return;
-  const parent = appState.raw.find(r => r.id === appState.selectedId);
-  if(!parent) return;
+  const parentId = text(document.getElementById('addChildBtn')?.dataset.parentId) || appState.selectedId;
+  if(!parentId){
+    alert('Selecciona primero una actividad padre para agregar la subactividad.');
+    return;
+  }
+  const parent = appState.raw.find(r => r.id === parentId);
+  if(!parent){
+    alert('No se encontró la actividad padre actual. Vuelve a abrir la ficha e intenta otra vez.');
+    return;
+  }
   const title = text(document.getElementById('newChildTitle').value);
   if(!title){
     alert('Ingresa la descripcion de la subactividad.');
@@ -5262,9 +5331,13 @@ function addLocalChildRecord(){
       }
   }
   const edt = nextChildEdt(parent, childrenMap) || '';
+  if(!edt){
+    alert('No se pudo calcular el EDT de la nueva subactividad. Revisa la jerarquía del nodo padre e intenta otra vez.');
+    return;
+  }
   const start = text(document.getElementById('newChildStart').value);
   const end = text(document.getElementById('newChildEnd').value);
-  const state = text(document.getElementById('newChildState').value) || 'Pendiente de Iniciar';
+  const state = normalizeStateValue(document.getElementById('newChildState').value) || 'Pendiente de Iniciar';
   const child = {
     id: 'local-' + Date.now(),
     source_order: insertAfter + 0.001,
@@ -5288,14 +5361,68 @@ function addLocalChildRecord(){
   };
   appState.customRecords = sortBySourceOrder([].concat(appState.customRecords || []).concat(child));
   saveCustomRecords();
+  saveCurrentPayload();
   appendAudit('agregar_subactividad', child.edt + ' | ' + child.actividad);
   ensureDailyBackup();
-  hydrateData(appState.payload);
   if(parent.id) appState.expanded[parent.id] = true;
-  initFilters();
-  applyFilters();
-  openDrawer(child.id);
+  hydrateData(appState.payload);
+  setImportFeedback('Subactividad agregada', 'Se creó ' + child.edt + ' - ' + child.actividad + ' y el visor recalculó Gantt, KPIs, analítica y reporte.', 'success');
+  refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:child.id});
   scheduleSharedSync('agregar_subactividad');
+}
+
+function deleteCurrentSubactivity(){
+  if(!appState.selectedId) return;
+  const record = appState.raw.find(item => item.id === appState.selectedId);
+  if(!record){
+    alert('No se encontró la actividad seleccionada para eliminar.');
+    return;
+  }
+  if(isRootBlockEdt(record.edt) || normalizedLevelValue(record.edt, record.nivel) === 1){
+    alert('No se permite eliminar las raíces principales 1, 2, 3 o 4.');
+    return;
+  }
+  const {childrenMap} = buildHierarchyMaps(appState.raw);
+  const subtree = collectSubtreeRecords(record.id);
+  const hasChildren = Boolean((childrenMap.get(record.id) || []).length);
+  const message = hasChildren
+    ? 'Esta actividad tiene subactividades dependientes. ¿Deseas eliminar todo el subárbol?'
+    : '¿Seguro que deseas eliminar esta subactividad?';
+  if(!window.confirm(message)) return;
+  const deletedIds = new Set(subtree.map(item => item.id));
+  const customIds = new Set((appState.customRecords || []).map(item => item.id));
+  appState.customRecords = (appState.customRecords || []).filter(item => !deletedIds.has(item.id));
+  deletedIds.forEach(id => {
+    if(customIds.has(id)){
+      delete appState.edits[id];
+    }else{
+      appState.edits[id] = {
+        ...(appState.edits[id] || {}),
+        __deleted:true
+      };
+    }
+    delete appState.notes[id];
+    delete appState.aliases[id];
+  });
+  saveEdits();
+  saveNotes();
+  saveAliases();
+  saveCustomRecords();
+  saveCurrentPayload();
+  appendAudit(hasChildren ? 'eliminar_subarbol' : 'eliminar_subactividad', [record.edt, record.actividad, record.parent_edt || 'Raiz'].filter(Boolean).join(' | '));
+  ensureDailyBackup();
+  hydrateData(appState.payload);
+  const parentRecord = record.parent_edt ? appState.raw.find(item => item.edt === record.parent_edt) : null;
+  if(parentRecord && parentRecord.id) appState.expanded[parentRecord.id] = true;
+  setImportFeedback(
+    hasChildren ? 'Subárbol eliminado' : 'Subactividad eliminada',
+    (hasChildren ? subtree.length : 1) + ' registro(s) fueron retirados del visor. Gantt, KPIs, analítica, filtros y reporte ya fueron recalculados.',
+    'info'
+  );
+  closeDrawer();
+  appState.selectedId = '';
+  refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId: parentRecord && parentRecord.id ? parentRecord.id : ''});
+  scheduleSharedSync(hasChildren ? 'eliminar_subarbol' : 'eliminar_subactividad');
 }
 
 function saveCurrentCase(){
@@ -5400,10 +5527,8 @@ function saveCurrentCase(){
   appendAudit('guardar_ficha', nextEdt + ' | ' + (text(document.getElementById('editAlias')?.value) || text(currentRecord.actividad)));
   ensureDailyBackup();
   hydrateData(appState.payload);
-  initFilters();
-  applyFilters();
   closeDrawer();
-  buildExecutiveReport();
+  refreshDerivedViews({rebuildFilters:true, reapplyFilters:true});
   scheduleSharedSync('guardar_ficha');
 }
 
@@ -5419,10 +5544,7 @@ function clearCurrentCase(){
   saveCurrentPayload();
   ensureDailyBackup();
   hydrateData(appState.payload);
-  initFilters();
-  applyFilters();
-  openDrawer(appState.selectedId);
-  buildExecutiveReport();
+  refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:appState.selectedId});
   scheduleSharedSync('limpiar_ficha');
 }
 
@@ -5775,6 +5897,35 @@ function downloadBlob(filename, type, content){
   URL.revokeObjectURL(url);
 }
 
+function buildReportDocumentShell(){
+  buildExecutiveReport();
+  return '<!doctype html><html xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:w=\"urn:schemas-microsoft-com:office:word\"><head><meta charset=\"utf-8\"><title>Reporte PEC</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:28px;line-height:1.55;color:#102132}h1,h2{color:#103958}ul{padding-left:20px}p,li{font-size:13px}strong{color:#0f2d46}</style></head><body>' + appState.reportHtml + '</body></html>';
+}
+
+function openPrintableReportWindow(printNow){
+  const w = window.open('', '_blank');
+  if(!w) return null;
+  w.document.write(buildReportDocumentShell());
+  w.document.close();
+  w.focus();
+  if(printNow) w.print();
+  return w;
+}
+
+function exportReportWord(){
+  downloadBlob('reporte_ejecutivo_pec.doc', 'application/msword;charset=utf-8', buildReportDocumentShell());
+  setImportFeedback('Reporte Word listo', 'Se descargó una versión compatible con Word usando la portada y los filtros vigentes.', 'success');
+}
+
+function exportReportPdf(){
+  const printable = openPrintableReportWindow(true);
+  if(!printable){
+    alert('El navegador bloqueó la ventana de impresión. Permite la apertura de ventanas emergentes e intenta otra vez.');
+    return;
+  }
+  setImportFeedback('Vista PDF preparada', 'Se abrió la versión imprimible del reporte actual. Usa “Guardar como PDF” en el diálogo del navegador.', 'info');
+}
+
 function exportTxt(){
   buildExecutiveReport();
   downloadBlob('reporte_seguimiento_pec.txt', 'text/plain;charset=utf-8', appState.reportText);
@@ -5785,13 +5936,7 @@ function exportJson(){
 }
 
 function printReport(){
-  buildExecutiveReport();
-  const w = window.open('', '_blank');
-  if(!w) return;
-  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Reporte PEC</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:28px;line-height:1.55;color:#102132}h1,h2{color:#103958}ul{padding-left:20px}</style></head><body>' + appState.reportHtml + '</body></html>');
-  w.document.close();
-  w.focus();
-  w.print();
+  openPrintableReportWindow(true);
 }
 
 function bindEvents(){
@@ -5829,6 +5974,7 @@ function bindEvents(){
   document.getElementById('exportAuditBtn').addEventListener('click', exportAuditLog);
   document.getElementById('exportBackupBtn').addEventListener('click', exportLatestBackup);
   document.getElementById('addChildBtn').addEventListener('click', addLocalChildRecord);
+  document.getElementById('deleteNodeBtn').addEventListener('click', deleteCurrentSubactivity);
   document.getElementById('saveCaseNoteBtn').addEventListener('click', saveCurrentCase);
   document.getElementById('clearCaseNoteBtn').addEventListener('click', clearCurrentCase);
   document.getElementById('buildReportBtn').addEventListener('click', () => {
@@ -5845,6 +5991,8 @@ function bindEvents(){
   };
   document.getElementById('openReportBtn').addEventListener('click', openReport);
   document.getElementById('openAnalyticsBtn').addEventListener('click', openAnalytics);
+  document.getElementById('exportReportWordBtn').addEventListener('click', exportReportWord);
+  document.getElementById('exportReportPdfBtn').addEventListener('click', exportReportPdf);
   document.getElementById('closeReportBtn').addEventListener('click', () => {
     document.getElementById('reportModal').classList.remove('open');
   });

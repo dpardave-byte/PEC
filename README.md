@@ -57,6 +57,49 @@ El endpoint JSON devuelve una forma compatible con el panel:
 { "updatedAt": "2026-04-12T00:00:00.000Z", "records": [] }
 ```
 
+## Visor PEC local y compartido
+
+El repositorio mantiene dos modos de uso para el visor de seguimiento:
+
+- Local standalone:
+  - abrir [visor_seguimiento_pec.html](/C:/Users/Dpard/OneDrive/Escritorio/EC/PEC_repo_limpio/visor_seguimiento_pec.html)
+  - usa almacenamiento local del navegador;
+  - sirve para pruebas, preparacion de estructura y trabajo individual.
+
+- Compartido por Apps Script:
+  - desplegar `apps_script/Code.gs` como Web App;
+  - abrir la misma URL con `?view=visor`;
+  - usa un estado centralizado JSON en Drive;
+  - conserva auditoria y backup diario.
+
+### Diferencias operativas
+
+- El modo local no ofrece seguridad centralizada; cualquier “modo admin” local es solo una ayuda operativa del navegador actual.
+- El modo compartido usa el correo del usuario activo de Apps Script cuando esta disponible y permite definir administradores con `PEC_VISOR_ADMIN_EMAILS`.
+- El refresco del visor compartido es periodico cada 30 segundos; no es colaboracion en tiempo real real.
+
+### Estado compartido, auditoria y backup
+
+En Apps Script se crea una carpeta de backend `\_VisorSeguimientoPEC` con:
+
+- `shared_tracking_state.json`
+- `shared_tracking_audit.json`
+- carpeta `backups/` con `shared_tracking_backup_YYYYMMDD.json`
+
+Si el estado compartido se daña:
+
+1. exporta una copia del estado actual;
+2. revisa la auditoria;
+3. compara con el ultimo backup diario;
+4. restaura manualmente solo despues de validar el contenido.
+
+### Estructura e importacion
+
+- `Leer Excel o CSV` carga cronograma operativo.
+- `Leer estructura` carga una estructura exportada por el propio visor.
+- `Exportar estructura JSON/XLSX` permite mover la estructura entre visores.
+- Despues de importar, el visor recalcula Gantt, KPIs, analitica, filtros, reporte y catalogos.
+
 ## Notas de seguridad
 
 - Los documentos sensibles deben quedar protegidos por permisos de Drive.

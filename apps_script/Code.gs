@@ -803,48 +803,86 @@ function renderSharedVisor_() {
 
 function getSharedTrackingState() {
   const state = loadSharedTrackingState_();
-  return {
-    ok: true,
-    mode: 'apps_script',
-    actor: getSharedTrackingActor_(),
-    admin: isSharedTrackingAdmin_(),
-    savedAt: state.savedAt || '',
-    revision: Number(state.revision || 0),
-    state: state
-  };
+  return buildSharedTrackingEnvelope_(state);
 }
 
 function saveSharedTrackingState(bundle, actorName, action) {
   const previous = loadSharedTrackingState_();
+  const requestedRevision = Number(bundle && bundle.revision || 0);
+  if (requestedRevision < Number(previous.revision || 0)) {
+    const conflictActor = String(actorName || getSharedTrackingActor_() || 'usuario_web').trim();
+    appendSharedTrackingAudit_({
+      at: new Date().toISOString(),
+      actor: conflictActor,
+      action: 'conflicto_guardado',
+      origin: String(action || 'guardar_estado_compartido'),
+      revision: Number(previous.revision || 0),
+      requestedRevision: requestedRevision,
+      message: 'Se detectó una versión más reciente del estado compartido y no se sobrescribieron los cambios.',
+      sourceMode: previous.sourceMode || '',
+      records: previous.payload && Array.isArray(previous.payload.records) ? previous.payload.records.length : 0
+    });
+    return buildSharedTrackingEnvelope_(previous, {
+      ok: false,
+      conflict: true,
+      message: 'El estado compartido cambió desde tu última sincronización. Revisa la versión más reciente antes de volver a guardar.',
+      requestedRevision: requestedRevision,
+      currentRevision: Number(previous.revision || 0)
+    });
+  }
   const next = normalizeSharedTrackingStateBundle_(bundle, previous);
   next.revision = Number(previous.revision || 0) + 1;
   next.savedAt = new Date().toISOString();
   next.savedBy = String(actorName || getSharedTrackingActor_() || 'usuario_web').trim();
   writeSharedTrackingState_(next);
-  appendSharedTrackingAudit_({
-    at: next.savedAt,
-    actor: next.savedBy,
-    action: String(action || 'guardar_estado_compartido'),
-    revision: next.revision,
-    sourceMode: next.sourceMode || '',
-    records: next.payload && Array.isArray(next.payload.records) ? next.payload.records.length : 0
-  });
+  appendSharedTrackingAudit_(buildSharedTrackingAuditEntry_(previous, next, next.savedBy, action, requestedRevision));
   writeSharedTrackingBackup_(next);
-  return {
-    ok: true,
-    actor: getSharedTrackingActor_(),
-    admin: isSharedTrackingAdmin_(),
-    revision: next.revision,
-    savedAt: next.savedAt,
-    state: next
-  };
+  return buildSharedTrackingEnvelope_(next);
 }
 
 function getSharedTrackingAudit(limit) {
   return {
     ok: true,
+    actor: getSharedTrackingActor_(),
+    admin: isSharedTrackingAdmin_(),
     items: loadSharedTrackingAudit_().slice(0, Math.max(1, Number(limit || 100)))
   };
+}
+
+function getSharedTrackingLatestBackup() {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para exportar el backup compartido.'
+    };
+  }
+  const state = loadSharedTrackingState_();
+  const backup = writeSharedTrackingBackup_(state);
+  return {
+    ok: true,
+    actor: getSharedTrackingActor_(),
+    admin: true,
+    backup: backup,
+    backend: getSharedTrackingBackendMeta_()
+  };
+}
+
+function buildSharedTrackingEnvelope_(state, extra) {
+  const safeState = normalizeSharedTrackingStateBundle_(state, buildDefaultSharedTrackingState_());
+  const meta = getSharedTrackingBackendMeta_();
+  const payload = {
+    ok: true,
+    mode: 'apps_script',
+    actor: meta.actor,
+    admin: meta.admin,
+    savedAt: safeState.savedAt || '',
+    revision: Number(safeState.revision || 0),
+    state: safeState,
+    backend: meta
+  };
+  return Object.assign(payload, extra || {});
 }
 
 function normalizeSharedTrackingStateBundle_(bundle, fallback) {
@@ -852,9 +890,9 @@ function normalizeSharedTrackingStateBundle_(bundle, fallback) {
   const base = fallback && typeof fallback === 'object' ? fallback : {};
   return {
     format: 'pec-shared-state-v1',
-    revision: Number(base.revision || 0),
-    savedAt: String(base.savedAt || ''),
-    savedBy: String(base.savedBy || ''),
+    revision: Number(data.revision != null ? data.revision : (base.revision || 0)),
+    savedAt: String(data.savedAt != null ? data.savedAt : (base.savedAt || '')),
+    savedBy: String(data.savedBy != null ? data.savedBy : (base.savedBy || '')),
     sourceMode: String(data.sourceMode || base.sourceMode || 'embedded'),
     hero: normalizeHeroState_(data.hero || base.hero || {}),
     customPeople: normalizeStringArray_(data.customPeople || base.customPeople || []),
@@ -963,11 +1001,19 @@ function writeSharedTrackingBackup_(state) {
   const fileName = 'shared_tracking_backup_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd') + '.json';
   const files = folder.getFilesByName(fileName);
   const content = JSON.stringify(state, null, 2);
+  let file = null;
   if (files.hasNext()) {
-    files.next().setContent(content);
-    return;
+    file = files.next();
+    file.setContent(content);
+  } else {
+    file = folder.createFile(fileName, content, MimeType.PLAIN_TEXT);
   }
-  folder.createFile(fileName, content, MimeType.PLAIN_TEXT);
+  return {
+    fileId: file.getId(),
+    fileName: file.getName(),
+    updatedAt: file.getLastUpdated().toISOString(),
+    content: content
+  };
 }
 
 function getOrCreateBackendRootFolder_() {
@@ -998,6 +1044,27 @@ function getOrCreateBackendBackupFolder_() {
   const folder = folders.hasNext() ? folders.next() : root.createFolder('backups');
   props.setProperty('PEC_VISOR_BACKUP_FOLDER_ID', folder.getId());
   return folder;
+}
+
+function getLatestSharedTrackingBackupMeta_() {
+  const folder = getOrCreateBackendBackupFolder_();
+  const files = folder.getFiles();
+  let latest = null;
+  while (files.hasNext()) {
+    const file = files.next();
+    const updatedAt = file.getLastUpdated();
+    if (!latest || updatedAt.getTime() > latest._date.getTime()) {
+      latest = {
+        fileId: file.getId(),
+        fileName: file.getName(),
+        updatedAt: updatedAt.toISOString(),
+        _date: updatedAt
+      };
+    }
+  }
+  if (!latest) return null;
+  delete latest._date;
+  return latest;
 }
 
 function getOrCreateBackendFile_(propertyKey, fileName, defaultContent) {
@@ -1042,4 +1109,188 @@ function isSharedTrackingAdmin_() {
     .map(function(item) { return item.trim().toLowerCase(); })
     .filter(Boolean);
   return configured.indexOf(actor) >= 0;
+}
+
+function getSharedTrackingBackendMeta_() {
+  const latestBackup = getLatestSharedTrackingBackupMeta_() || {};
+  return {
+    mode: 'apps_script',
+    storage: 'drive_json',
+    actor: getSharedTrackingActor_(),
+    admin: isSharedTrackingAdmin_(),
+    pollIntervalSeconds: 30,
+    backendFolder: '_VisorSeguimientoPEC',
+    backupFolder: 'backups',
+    lastBackupAt: String(latestBackup.updatedAt || ''),
+    lastBackupFile: String(latestBackup.fileName || ''),
+    lastBackupId: String(latestBackup.fileId || '')
+  };
+}
+
+function buildSharedTrackingAuditEntry_(previous, next, actor, action, requestedRevision) {
+  const changes = collectSharedTrackingAuditChanges_(previous, next);
+  return {
+    at: next.savedAt,
+    actor: actor,
+    action: String(action || 'guardar_estado_compartido'),
+    origin: String(action || 'guardar_estado_compartido'),
+    revision: Number(next.revision || 0),
+    requestedRevision: Number(requestedRevision || 0),
+    sourceMode: next.sourceMode || '',
+    records: next.payload && Array.isArray(next.payload.records) ? next.payload.records.length : 0,
+    changeCount: changes.length,
+    summary: summarizeSharedTrackingAuditChanges_(changes),
+    changes: changes.slice(0, 120)
+  };
+}
+
+function collectSharedTrackingAuditChanges_(previous, next) {
+  const out = [];
+  pushAuditDiff_(out, 'state', '', 'sourceMode', previous && previous.sourceMode, next && next.sourceMode);
+  collectAuditRecordDiffs_('hero', mapAuditFields_((previous && previous.hero) || {}, ['title', 'subtitle', 'meta1', 'meta2', 'meta3', 'extras']), mapAuditFields_((next && next.hero) || {}, ['title', 'subtitle', 'meta1', 'meta2', 'meta3', 'extras']), out);
+  collectAuditRecordDiffs_('customPeople', mapAuditList_((previous && previous.customPeople) || []), mapAuditList_((next && next.customPeople) || []), out);
+  collectAuditRecordDiffs_('customEntities', mapAuditList_((previous && previous.customEntities) || []), mapAuditList_((next && next.customEntities) || []), out);
+  collectAuditRecordDiffs_('aliases', mapAuditObjectValues_((previous && previous.aliases) || {}), mapAuditObjectValues_((next && next.aliases) || {}), out);
+  collectAuditRecordDiffs_('notes', mapAuditObjectValues_((previous && previous.notes) || {}), mapAuditObjectValues_((next && next.notes) || {}), out);
+  collectAuditRecordDiffs_('edits', normalizeAuditRecordMap_((previous && previous.edits) || {}), normalizeAuditRecordMap_((next && next.edits) || {}), out);
+  collectAuditRecordDiffs_('customRecords', normalizeAuditArrayRecordMap_((previous && previous.customRecords) || []), normalizeAuditArrayRecordMap_((next && next.customRecords) || []), out);
+  collectAuditRecordDiffs_('payload', normalizeAuditPayloadRecords_(previous && previous.payload), normalizeAuditPayloadRecords_(next && next.payload), out);
+  return out;
+}
+
+function summarizeSharedTrackingAuditChanges_(changes) {
+  const buckets = {};
+  changes.forEach(function(change) {
+    buckets[change.section] = (buckets[change.section] || 0) + 1;
+  });
+  return {
+    total: changes.length,
+    bySection: buckets,
+    touchedRecords: Object.keys(changes.reduce(function(acc, change) {
+      if (change.id) acc[change.id] = true;
+      return acc;
+    }, {})).slice(0, 40)
+  };
+}
+
+function collectAuditRecordDiffs_(section, beforeMap, afterMap, out) {
+  const keys = {};
+  Object.keys(beforeMap || {}).forEach(function(key) { keys[key] = true; });
+  Object.keys(afterMap || {}).forEach(function(key) { keys[key] = true; });
+  Object.keys(keys).forEach(function(key) {
+    const beforeRecord = beforeMap && beforeMap[key] ? beforeMap[key] : {};
+    const afterRecord = afterMap && afterMap[key] ? afterMap[key] : {};
+    const fields = {};
+    Object.keys(beforeRecord).forEach(function(field) { fields[field] = true; });
+    Object.keys(afterRecord).forEach(function(field) { fields[field] = true; });
+    Object.keys(fields).forEach(function(field) {
+      pushAuditDiff_(out, section, key, field, beforeRecord[field], afterRecord[field]);
+    });
+  });
+}
+
+function pushAuditDiff_(out, section, id, field, beforeValue, afterValue) {
+  const beforeText = normalizeAuditValue_(beforeValue);
+  const afterText = normalizeAuditValue_(afterValue);
+  if (beforeText === afterText) return;
+  out.push({
+    section: section,
+    id: String(id || ''),
+    field: String(field || ''),
+    before: beforeText,
+    after: afterText
+  });
+}
+
+function normalizeAuditValue_(value) {
+  if (value == null) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  try {
+    return JSON.stringify(value);
+  } catch (error) {
+    return String(value);
+  }
+}
+
+function mapAuditFields_(source, fields) {
+  return {
+    bundle: fields.reduce(function(acc, field) {
+      acc[field] = source && source[field] != null ? source[field] : '';
+      return acc;
+    }, {})
+  };
+}
+
+function mapAuditList_(values) {
+  const map = {};
+  (Array.isArray(values) ? values : []).forEach(function(value) {
+    const text = String(value == null ? '' : value).trim();
+    if (text) map[text] = { value: text };
+  });
+  return map;
+}
+
+function mapAuditObjectValues_(source) {
+  const map = {};
+  Object.keys(source || {}).forEach(function(key) {
+    map[key] = { value: source[key] };
+  });
+  return map;
+}
+
+function normalizeAuditRecordMap_(source) {
+  const map = {};
+  Object.keys(source || {}).forEach(function(key) {
+    const record = source[key];
+    map[key] = record && typeof record === 'object' && !Array.isArray(record)
+      ? record
+      : { value: record };
+  });
+  return map;
+}
+
+function normalizeAuditArrayRecordMap_(rows) {
+  const map = {};
+  (Array.isArray(rows) ? rows : []).forEach(function(record, index) {
+    const key = String(record && (record.id || record.edt) || ('custom_' + index));
+    map[key] = record && typeof record === 'object' && !Array.isArray(record)
+      ? {
+          edt: record.edt || '',
+          parent_edt: record.parent_edt || '',
+          actividad: record.actividad || '',
+          responsable: record.responsable || '',
+          seguimiento_dgppcs: record.seguimiento_dgppcs || '',
+          inicio: record.inicio || '',
+          final: record.final || '',
+          estado: record.estado || '',
+          alerta: record.alerta || '',
+          resumen: record.resumen || ''
+        }
+      : { value: record };
+  });
+  return map;
+}
+
+function normalizeAuditPayloadRecords_(payload) {
+  const map = {};
+  const records = payload && Array.isArray(payload.records) ? payload.records : [];
+  records.forEach(function(record, index) {
+    const key = String(record && (record.id || record.edt || record.actividad) || ('payload_' + index));
+    map[key] = {
+      edt: record && record.edt || '',
+      parent_edt: record && record.parent_edt || '',
+      nivel: record && record.nivel || '',
+      grupo: record && record.grupo || '',
+      actividad: record && record.actividad || '',
+      responsable: record && record.responsable || '',
+      seguimiento_dgppcs: record && record.seguimiento_dgppcs || '',
+      inicio: record && record.inicio || '',
+      final: record && record.final || '',
+      estado: record && record.estado || '',
+      alerta: record && record.alerta || '',
+      resumen: record && record.resumen || ''
+    };
+  });
+  return map;
 }

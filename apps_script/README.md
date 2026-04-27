@@ -52,6 +52,78 @@ Este proyecto crea el entorno pesado para trabajar con Google Drive como reposit
    - bitacora compartida de cambios
    - backup diario JSON en Drive
 
+## Visor compartido PEC
+
+El visor compartido usa la misma Web App, pero en la vista:
+
+```text
+.../exec?view=visor
+```
+
+En ese modo:
+
+- la fuente visual sigue siendo el mismo visor PEC;
+- los cambios se guardan en un estado central JSON en Drive;
+- la auditoria compartida se guarda en un archivo separado;
+- el backup diario se guarda en la carpeta `backups`;
+- el refresco es periodico, no tiempo real real.
+
+### Donde se guarda cada cosa
+
+Dentro de la carpeta de backend `\_VisorSeguimientoPEC` se crean o reutilizan:
+
+- `shared_tracking_state.json`: ultimo estado compartido del visor
+- `shared_tracking_audit.json`: bitacora compartida de cambios
+- `backups/shared_tracking_backup_YYYYMMDD.json`: backup diario
+
+### Modo local vs modo compartido
+
+- `file:///.../visor_seguimiento_pec.html`
+  - funciona solo con almacenamiento local del navegador;
+  - sirve para pruebas, preparacion y trabajo individual;
+  - el modo admin local no es seguridad real.
+
+- `.../exec?view=visor`
+  - usa Apps Script y Drive como backend compartido;
+  - muestra estado de sincronizacion, ultimo guardado central y ultimo backup;
+  - refresca el estado compartido cada 30 segundos cuando el backend responde.
+
+### Administradores
+
+Para habilitar privilegios administrativos reales en Apps Script, define en `Script Properties`:
+
+```text
+PEC_VISOR_ADMIN_EMAILS=darwin@dominio.com;otro@dominio.com
+```
+
+Los administradores pueden:
+
+- ver la auditoria compartida;
+- exportar la auditoria cargada en el panel admin;
+- descargar el backup mas reciente del estado compartido;
+- ver quien guardo y cuando se actualizo el backend.
+
+### Si se danan los datos compartidos
+
+1. Abre el folder `\_VisorSeguimientoPEC` en Drive.
+2. Revisa `shared_tracking_state.json`.
+3. Contrasta con el ultimo archivo en `backups/`.
+4. Exporta primero una copia manual antes de restaurar cualquier contenido.
+5. Si vas a reponer el estado, hazlo de forma guiada y nunca sobrescribas sin respaldo.
+
+### Importacion y estructura
+
+- `Leer Excel o CSV` actualiza el payload operativo.
+- `Leer estructura` aplica una estructura exportada por el visor.
+- Ambos flujos recalculan Gantt, KPIs, analitica, filtros, reporte ejecutivo y catalogos globales.
+- Si faltan columnas obligatorias o el formato no corresponde, el visor muestra un mensaje claro al usuario.
+
+### Limitaciones
+
+- Apps Script no ofrece colaboracion en tiempo real real en este visor; se usa polling de 30 segundos.
+- Si dos usuarios editan al mismo tiempo, el backend detecta conflicto basico por revision y evita sobrescribir silenciosamente la version mas reciente.
+- Si el backend no responde, el visor mantiene fallback local y lo informa en el estado de la fuente.
+
 ## Flujo de trabajo recomendado
 
 1. Sube carpetas y documentos a `PEC - Programa Economia Circular`.

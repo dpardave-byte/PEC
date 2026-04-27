@@ -424,8 +424,8 @@ tbody tr:hover td{background:#f8fbfe}
         <div class="operations-stack">
           <div class="field">
             <label for="xlsxInput">Cronograma operativo</label>
-            <input id="xlsxInput" type="file" accept=".xlsx,.xls,.xlsm,.xlsb,.csv">
-            <p class="field-help">Formatos admitidos: XLSX, XLS y CSV con hoja o estructura tipo <strong>CRONOGRAMA</strong>.</p>
+            <input id="xlsxInput" type="file" accept=".xlsx,.xls,.xlsm,.xlsb,.csv,.json">
+            <p class="field-help">Formatos admitidos: XLSX, XLS, CSV y JSON operativo con hoja o estructura tipo <strong>CRONOGRAMA</strong>.</p>
           </div>
           <div class="field">
             <label for="structureInput">Estructura editable</label>
@@ -619,8 +619,10 @@ tbody tr:hover td{background:#f8fbfe}
       <div>
         <h3>Panel administrador</h3>
         <div class="hero-meta">
-          <div><b>Actor:</b> Darwin Pardavé</div>
-          <div><b>Modo:</b> Auditoría local</div>
+          <div><b>Actor:</b> <span id="adminActorValue">Sin identificar</span></div>
+          <div><b>Modo:</b> <span id="adminModeValue">Auditoría local</span></div>
+          <div><b>Sincronización:</b> <span id="adminSyncValue">Solo local</span></div>
+          <div><b>Último backup:</b> <span id="adminBackupValue">Sin registro</span></div>
         </div>
       </div>
       <button id="closeAdminBtn" class="secondary">Cerrar</button>
@@ -2182,8 +2184,6 @@ window.PEC_TRACKING_DATA = {
 </script>
 <script>
 window.PEC_SERVER_BOOTSTRAP = <?!= visorBootstrapJson ?>;
-</script>
-<script>
 const STORAGE_KEY = 'pec_tracking_notes_v1';
 const EDIT_STORAGE_KEY = 'pec_tracking_edits_v1';
 const PEOPLE_STORAGE_KEY = 'pec_tracking_people_v1';
@@ -2202,6 +2202,41 @@ const STRUCTURE_ENTITY_SHEET = 'CATALOGO_ENTIDADES';
 const HEADER_ROW = 7;
 const SHEET_NAME = 'CRONOGRAMA';
 const SELECTED_COLUMNS = [1, 2, 3, 4, 5, 6, 7, 8, 248, 249, 250];
+const REQUIRED_OPERATIONAL_IMPORT_FIELDS = ['edt', 'actividad'];
+const IMPORT_FIELD_LABELS = {
+  edt: 'EDT',
+  actividad: 'Actividad',
+  responsable: 'Responsable',
+  seguimiento_dgppcs: 'Seguimiento DGPPCS',
+  inicio: 'Fecha inicio',
+  final: 'Fecha fin',
+  estado: 'Estado',
+  alerta: 'Alerta',
+  resumen: 'Resumen',
+  grupo: 'Grupo EDT',
+  nivel: 'Nivel',
+  parent_edt: 'EDT padre',
+  contacto: 'Contacto',
+  duracion_cal: 'Duración calendario',
+  dias_habiles: 'Días hábiles'
+};
+const IMPORT_FIELD_ALIASES = {
+  edt: ['edt', 'wbs', 'codigo edt', 'código edt'],
+  actividad: ['actividad', 'tarea', 'descripcion', 'descripción', 'detalle', 'hito'],
+  responsable: ['responsable', 'unidad responsable', 'responsable entidad', 'entidad responsable', 'responsable unidad', 'unidad'],
+  seguimiento_dgppcs: ['responsable de seguimiento dgppcs', 'seguimiento dgppcs', 'seguimiento dgpccs', 'seguimiento', 'persona seguimiento', 'persona de seguimiento', 'responsable seguimiento'],
+  inicio: ['inicio', 'fecha inicio', 'fecha de inicio'],
+  final: ['final', 'fecha fin', 'fecha final', 'fecha de fin', 'vencimiento', 'fecha vencimiento'],
+  estado: ['estado', 'situacion', 'situación'],
+  alerta: ['alerta', 'riesgo', 'semaforo', 'semáforo'],
+  resumen: ['resumen', 'sumilla', 'comentario resumen'],
+  grupo: ['grupo', 'grupo edt', 'bloque', 'bloque raiz', 'bloque raíz'],
+  nivel: ['nivel', 'nivel edt', 'jerarquia', 'jerarquía'],
+  parent_edt: ['parent_edt', 'parent edt', 'padre', 'edt padre', 'parent', 'actividad padre'],
+  contacto: ['contacto', 'punto focal'],
+  duracion_cal: ['duracion (dias calendario)', 'duración (días calendario)', 'duracion dias calendario', 'duracion_cal'],
+  dias_habiles: ['dias habiles', 'días hábiles', 'dias_habiles', 'días habiless']
+};
 const BASE_PEOPLE = [
   'Alain Sanchez',
   'Betsabé Araindia',
@@ -2617,6 +2652,135 @@ function getClientActorName(){
   return '';
 }
 
+function getDefaultServerInfo(){
+  return {
+    mode: isSharedBackendMode() ? 'apps_script' : 'local',
+    actor: '',
+    admin: false,
+    pollIntervalSeconds: 30,
+    savedAt: '',
+    savedBy: '',
+    lastBackupAt: '',
+    lastBackupFile: '',
+    syncState: isSharedBackendMode() ? 'ready' : 'local',
+    syncMessage: isSharedBackendMode()
+      ? 'Visor compartido preparado para sincronizar con Apps Script.'
+      : 'Modo local: los cambios se guardan en este navegador.',
+    lastError: ''
+  };
+}
+
+function ensureServerInfo(){
+  if(!appState.serverInfo || typeof appState.serverInfo !== 'object'){
+    appState.serverInfo = getDefaultServerInfo();
+  }
+  return appState.serverInfo;
+}
+
+function renderAdminAccess(){
+  const adminBtn = document.getElementById('openAdminBtn');
+  if(adminBtn) adminBtn.style.display = appState.adminEnabled ? '' : 'none';
+}
+
+function updateServerInfoFromEnvelope(result){
+  const info = ensureServerInfo();
+  const backend = result && result.backend && typeof result.backend === 'object' ? result.backend : {};
+  info.mode = text(backend.mode) || (isSharedBackendMode() ? 'apps_script' : 'local');
+  info.actor = text((result && result.actor) || backend.actor || info.actor);
+  info.admin = Boolean((result && typeof result.admin !== 'undefined' ? result.admin : backend.admin) || info.admin);
+  info.pollIntervalSeconds = Number(backend.pollIntervalSeconds || info.pollIntervalSeconds || 30);
+  info.savedAt = text((result && result.savedAt) || (result && result.state && result.state.savedAt) || info.savedAt);
+  info.savedBy = text((result && result.savedBy) || (result && result.state && result.state.savedBy) || info.savedBy);
+  info.lastBackupAt = text(backend.lastBackupAt || info.lastBackupAt);
+  info.lastBackupFile = text(backend.lastBackupFile || info.lastBackupFile);
+  if(info.admin) appState.adminEnabled = true;
+  renderAdminAccess();
+  return info;
+}
+
+function setSharedSyncState(state, message){
+  const info = ensureServerInfo();
+  info.syncState = text(state) || info.syncState || 'local';
+  if(message) info.syncMessage = text(message);
+  if(state !== 'error' && state !== 'conflict') info.lastError = '';
+  renderOperationsStatus();
+  renderAdminStatus();
+}
+
+function setSharedError(message, state){
+  const info = ensureServerInfo();
+  info.syncState = text(state) || 'error';
+  info.lastError = text(message) || 'Sin detalle.';
+  info.syncMessage = info.lastError;
+  renderOperationsStatus();
+  renderAdminStatus();
+}
+
+function formatIsoDisplay(value){
+  const raw = text(value);
+  if(!raw) return '';
+  const date = new Date(raw);
+  if(Number.isNaN(date.getTime())) return raw.replace('T',' ');
+  return date.toLocaleString('es-PE', {
+    year:'numeric',
+    month:'2-digit',
+    day:'2-digit',
+    hour:'2-digit',
+    minute:'2-digit'
+  });
+}
+
+function backendModeLabel(){
+  const info = ensureServerInfo();
+  return info.mode === 'apps_script' ? 'Compartido Apps Script' : 'Local standalone';
+}
+
+function syncStateLabel(){
+  const info = ensureServerInfo();
+  if(info.syncState === 'syncing') return 'Sincronizando cambios';
+  if(info.syncState === 'conflict') return 'Conflicto de versión';
+  if(info.syncState === 'error') return 'Sin conexión con backend';
+  if(info.syncState === 'synced') return 'Sincronizado';
+  if(info.syncState === 'refreshing') return 'Refrescando estado compartido';
+  return 'Solo local';
+}
+
+function renderAdminStatus(){
+  const info = ensureServerInfo();
+  const actorHost = document.getElementById('adminActorValue');
+  const modeHost = document.getElementById('adminModeValue');
+  const syncHost = document.getElementById('adminSyncValue');
+  const backupHost = document.getElementById('adminBackupValue');
+  if(actorHost) actorHost.textContent = info.actor || info.savedBy || getClientActorName() || 'Sin identificar';
+  if(modeHost){
+    modeHost.textContent = backendModeLabel() + (info.admin ? ' | Admin por correo o modo local' : ' | Usuario estándar');
+  }
+  if(syncHost){
+    const tail = info.syncMessage ? ' | ' + info.syncMessage : '';
+    syncHost.textContent = syncStateLabel() + tail;
+  }
+  if(backupHost){
+    backupHost.textContent = info.lastBackupAt
+      ? formatIsoDisplay(info.lastBackupAt) + (info.lastBackupFile ? ' | ' + info.lastBackupFile : '')
+      : 'Sin registro';
+  }
+}
+
+function describeAuditItem(item){
+  const parts = [
+    text(item && item.actor),
+    formatIsoDisplay(item && item.at),
+    text(item && (item.detail || item.message))
+  ].filter(Boolean);
+  if(item && item.summary && item.summary.total){
+    parts.push('Cambios: ' + item.summary.total);
+  }
+  if(item && item.summary && Array.isArray(item.summary.touchedRecords) && item.summary.touchedRecords.length){
+    parts.push('Registros: ' + item.summary.touchedRecords.slice(0, 4).join(', '));
+  }
+  return parts.join(' | ');
+}
+
 function normalizeSharedStateBundle(bundle){
   const data = bundle && typeof bundle === 'object' ? bundle : {};
   return {
@@ -2699,11 +2863,22 @@ function flushSharedSync(){
   const reason = pendingSharedSyncReason || 'actualizacion';
   pendingSharedSyncReason = '';
   sharedSyncInFlight = true;
+  updateServerInfoFromEnvelope({});
+  setSharedSyncState('syncing', 'Guardando cambios en el estado compartido...');
   const drawerOpen = document.getElementById('drawer')?.classList.contains('open');
   const selectedId = appState.selectedId;
   google.script.run
     .withSuccessHandler(result => {
       sharedSyncInFlight = false;
+      updateServerInfoFromEnvelope(result || {});
+      if(result && result.conflict){
+        const detail = text(result.message) || 'Se detectó una versión más reciente del estado compartido.';
+        setSharedError(detail, 'conflict');
+        setImportFeedback('Conflicto de sincronización', detail + ' Revisa la versión más reciente antes de volver a guardar.', 'warn');
+        renderOperationsStatus();
+        if(pendingSharedSyncReason) flushSharedSync();
+        return;
+      }
       if(result && result.ok && result.state){
         applySharedStateBundle(result.state, {skipRenderHero:true});
         renderHero();
@@ -2711,12 +2886,14 @@ function flushSharedSync(){
         applyFilters();
         buildExecutiveReport();
         if(drawerOpen && selectedId) openDrawer(selectedId);
+        setSharedSyncState('synced', 'Estado compartido guardado en Apps Script.');
       }
       if(pendingSharedSyncReason) flushSharedSync();
     })
     .withFailureHandler(error => {
       sharedSyncInFlight = false;
       console.error('No se pudo sincronizar el estado compartido.', error);
+      setSharedError('No se pudo sincronizar con Apps Script. Se mantiene la copia local.', 'error');
       if(pendingSharedSyncReason) flushSharedSync();
     })
     .saveSharedTrackingState(buildSharedStateBundle(reason), getClientActorName(), reason);
@@ -2724,11 +2901,13 @@ function flushSharedSync(){
 
 function refreshSharedState(force){
   if(!isSharedBackendMode()) return;
+  if(force) setSharedSyncState('refreshing', 'Refrescando estado compartido...');
   const drawerOpen = document.getElementById('drawer')?.classList.contains('open');
   const selectedId = appState.selectedId;
   google.script.run
     .withSuccessHandler(result => {
       if(!result || !result.ok || !result.state) return;
+      updateServerInfoFromEnvelope(result);
       const incomingRevision = Number(result.state.revision || 0);
       if(!force && incomingRevision <= Number(appState.remoteRevision || 0)) return;
       applySharedStateBundle(result.state, {skipRenderHero:true});
@@ -2737,16 +2916,20 @@ function refreshSharedState(force){
       applyFilters();
       buildExecutiveReport();
       if(drawerOpen && selectedId) openDrawer(selectedId);
+      setSharedSyncState('synced', 'Estado compartido actualizado.');
     })
     .withFailureHandler(error => {
       console.error('No se pudo refrescar el estado compartido.', error);
+      setSharedError('No se pudo refrescar Apps Script. Se mantiene el último estado local.', 'error');
     })
     .getSharedTrackingState();
 }
 
 function startSharedStatePolling(){
   if(!isSharedBackendMode() || sharedPollHandle) return;
-  sharedPollHandle = setInterval(() => refreshSharedState(false), 30000);
+  const info = ensureServerInfo();
+  const pollMs = Math.max(10000, Number(info.pollIntervalSeconds || 30) * 1000);
+  sharedPollHandle = setInterval(() => refreshSharedState(false), pollMs);
 }
 
 function getGroupRecords(records){
@@ -3257,6 +3440,135 @@ function normalizeHeader(value, idx){
   return cleaned || ('col_' + idx);
 }
 
+function normalizeImportHeaderKey(value){
+  return text(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/\u00a0/g,' ')
+    .toLowerCase()
+    .replace(/[_\-]+/g,' ')
+    .replace(/[^\w\s]/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+function getImportFieldName(header){
+  const key = normalizeImportHeaderKey(header);
+  if(!key) return '';
+  for(const [field, aliases] of Object.entries(IMPORT_FIELD_ALIASES)){
+    if(aliases.some(alias => normalizeImportHeaderKey(alias) === key)) return field;
+  }
+  return '';
+}
+
+function buildImportKeyMap(raw){
+  const map = new Map();
+  Object.keys(raw || {}).forEach(key => {
+    const normalized = normalizeImportHeaderKey(key);
+    if(normalized && !map.has(normalized)) map.set(normalized, raw[key]);
+  });
+  return map;
+}
+
+function readImportField(raw, field){
+  const direct = raw && raw[field];
+  if(direct !== undefined && direct !== null && text(direct)) return direct;
+  const keyMap = buildImportKeyMap(raw || {});
+  const aliases = IMPORT_FIELD_ALIASES[field] || [field];
+  for(const alias of aliases){
+    const value = keyMap.get(normalizeImportHeaderKey(alias));
+    if(value !== undefined && value !== null && text(value)) return value;
+  }
+  return '';
+}
+
+function listMissingOperationalFields(fields){
+  return REQUIRED_OPERATIONAL_IMPORT_FIELDS.filter(field => !fields.includes(field));
+}
+
+function detectProvidedOperationalFields(rows){
+  return Object.keys(IMPORT_FIELD_ALIASES).filter(field =>
+    rows.some(row => {
+      const value = readImportField(row, field);
+      return value !== undefined && value !== null && text(value);
+    })
+  );
+}
+
+function importFieldLabel(field){
+  return IMPORT_FIELD_LABELS[field] || field;
+}
+
+function normalizeStateValue(value){
+  const raw = text(value);
+  const key = normalizeImportHeaderKey(raw);
+  if(!key) return 'Sin estado';
+  if(key.includes('complet')) return 'Completado';
+  if(key.includes('proceso') || key.includes('ejecucion') || key.includes('ejecución') || key.includes('curso')) return 'En Proceso';
+  if(key.includes('pendiente')) return 'Pendiente de Iniciar';
+  if(key === normalizeImportHeaderKey('sin estado')) return 'Sin estado';
+  return raw;
+}
+
+function normalizeAlertValue(value, inicio, final, estado){
+  const raw = text(value);
+  const key = normalizeImportHeaderKey(raw);
+  if(!key) return deriveAlert(inicio, final, estado);
+  if(key === 'ok' || key === 'normal' || key === 'vigente') return 'ok';
+  if(key.includes('venc')) return 'vencido';
+  if(key.includes('critic')) return 'critico';
+  if(key.includes('atencion') || key.includes('atención') || key.includes('riesgo')) return 'atencion';
+  if(key.includes('sin fecha')) return 'sin_fecha';
+  return deriveAlert(inicio, final, estado);
+}
+
+function detectOperationalHeaderRow(matrix){
+  let best = null;
+  const limit = Math.min(matrix.length, 25);
+  for(let rowIdx = 0; rowIdx < limit; rowIdx++){
+    const row = Array.isArray(matrix[rowIdx]) ? matrix[rowIdx] : [];
+    const fields = uniqueSorted(row.map(getImportFieldName).filter(Boolean));
+    if(!fields.length) continue;
+    const hasRequired = listMissingOperationalFields(fields).length === 0;
+    const score = fields.length;
+    if(!best || Number(hasRequired) > Number(best.hasRequired) || (hasRequired === best.hasRequired && score > best.score)){
+      best = {index:rowIdx, fields, hasRequired, score};
+    }
+  }
+  if(best && (best.hasRequired || best.score >= 4)) return best;
+  return null;
+}
+
+function extractOperationalRowsFromMatrix(matrix, headerRowIndex){
+  const headerRow = Array.isArray(matrix[headerRowIndex]) ? matrix[headerRowIndex] : [];
+  const columns = headerRow.map((header, idx) => getImportFieldName(header) || normalizeHeader(header, idx + 1));
+  const detectedFields = uniqueSorted(columns.filter(name => Object.prototype.hasOwnProperty.call(IMPORT_FIELD_ALIASES, name)));
+  const rows = [];
+  let blankRows = 0;
+  for(let rowIdx = headerRowIndex + 1; rowIdx < matrix.length; rowIdx++){
+    const row = Array.isArray(matrix[rowIdx]) ? matrix[rowIdx] : [];
+    const raw = {};
+    let hasData = false;
+    columns.forEach((name, colIdx) => {
+      const value = row[colIdx] ?? '';
+      raw[name] = value;
+      if(value !== '' && value != null) hasData = true;
+    });
+    if(!hasData){
+      blankRows += 1;
+      continue;
+    }
+    if(!text(readImportField(raw, 'edt')) && !text(readImportField(raw, 'actividad'))) continue;
+    rows.push(raw);
+  }
+  return {
+    rows,
+    detectedFields,
+    headerRowNumber: headerRowIndex + 1,
+    blankRows
+  };
+}
+
 function toIsoDate(value){
   if(!value && value !== 0) return '';
   if(value instanceof Date && !Number.isNaN(value.getTime())){
@@ -3362,70 +3674,103 @@ function isSystemTrackingBlock(record){
 }
 
 function buildRecordFromExcel(raw, idx){
-  let edt = text(raw.EDT);
-  let actividad = text(raw.Actividad);
+  const row = {
+    edt: readImportField(raw, 'edt'),
+    actividad: readImportField(raw, 'actividad'),
+    responsable: readImportField(raw, 'responsable'),
+    inicio: readImportField(raw, 'inicio'),
+    final: readImportField(raw, 'final'),
+    estado: readImportField(raw, 'estado'),
+    seguimiento_dgppcs: readImportField(raw, 'seguimiento_dgppcs'),
+    contacto: readImportField(raw, 'contacto'),
+    grupo: readImportField(raw, 'grupo'),
+    nivel: readImportField(raw, 'nivel'),
+    parent_edt: readImportField(raw, 'parent_edt'),
+    duracion_cal: readImportField(raw, 'duracion_cal'),
+    dias_habiles: readImportField(raw, 'dias_habiles'),
+    alerta: readImportField(raw, 'alerta'),
+    resumen: readImportField(raw, 'resumen')
+  };
+  let edt = text(row.edt);
+  let actividad = text(row.actividad);
   if(!edt && /inicio de efectividad del pr[eé]stamo/i.test(actividad)){
     edt = '4';
     actividad = 'Inicio de Efectividad del Préstamo';
   }
   edt = normalizeProgramEdt(edt, actividad);
-  const responsable = normalizeResponsibleValue(raw.Responsable);
-  const inicio = toIsoDate(raw.Inicio);
-  const final = toIsoDate(raw.Final);
-  const estado = text(raw.Estado) || 'Sin estado';
-  const seguimiento = normalizeSeguimientoValue(raw['Responsable de Seguimiento DGPPCS']);
-  const contacto = text(raw.Contacto);
+  const responsable = normalizeResponsibleValue(row.responsable);
+  const inicio = toIsoDate(row.inicio);
+  const final = toIsoDate(row.final);
+  const estado = normalizeStateValue(row.estado);
+  const seguimiento = normalizeSeguimientoValue(row.seguimiento_dgppcs);
+  const contacto = text(row.contacto);
+  const alerta = normalizeAlertValue(row.alerta, inicio, final, estado);
   return {
     id: `case-${String(idx).padStart(3,'0')}`,
     source_order: idx,
     edt,
+    parent_edt: text(row.parent_edt) || parentEdt(edt),
     actividad,
     responsable,
     inicio,
     final,
-    duracion_cal: toNumber(raw['Duración (Días Calendario)']),
-    dias_habiles: toNumber(raw['Días Hábiless']),
+    duracion_cal: toNumber(row.duracion_cal),
+    dias_habiles: toNumber(row.dias_habiles),
     dias_restantes: deriveRemaining(final, estado),
     estado,
     seguimiento_dgppcs: seguimiento,
     contacto,
-    nivel: deriveLevel(edt),
-    grupo: deriveGroup(edt),
+    nivel: normalizedLevelValue(edt, row.nivel),
+    grupo: text(row.grupo) || deriveGroup(edt),
     avance_estimado: deriveProgress(estado),
-    alerta: deriveAlert(inicio, final, estado),
-    resumen: [edt ? `EDT ${edt}` : '', seguimiento || responsable, estado].filter(Boolean).join(' | ')
+    alerta,
+    resumen: text(row.resumen) || [edt ? `EDT ${edt}` : '', seguimiento || responsable, estado].filter(Boolean).join(' | ')
   };
 }
 
 function parseWorkbookRecords(workbook){
   const sheet = workbook.Sheets[SHEET_NAME] || workbook.Sheets[workbook.SheetNames[0]];
   if(!sheet) throw new Error('No se encontró ninguna hoja en el archivo.');
-  const records = [];
-  const range = XLSX.utils.decode_range(sheet['!ref']);
-  const headers = {};
-  SELECTED_COLUMNS.forEach(colIdx => {
-    headers[colIdx] = normalizeHeader(sheet[XLSX.utils.encode_cell({r:HEADER_ROW-1,c:colIdx-1})]?.v, colIdx);
-  });
-  for(let rowIdx = HEADER_ROW + 1; rowIdx <= range.e.r + 1; rowIdx++){
-    const raw = {};
-    let hasData = false;
-    SELECTED_COLUMNS.forEach(colIdx => {
-      const addr = XLSX.utils.encode_cell({r:rowIdx-1,c:colIdx-1});
-      const cell = sheet[addr];
-      const value = cell ? cell.v : '';
-      raw[headers[colIdx]] = value;
-      if(value !== '' && value != null) hasData = true;
-    });
-    if(!hasData) continue;
-    if(!text(raw.EDT) && !text(raw.Actividad)) continue;
-    const record = buildRecordFromExcel(raw, records.length + 1);
-    if(isExcludedRecord(record)) continue;
-    records.push(record);
+  const matrix = XLSX.utils.sheet_to_json(sheet, {header:1, defval:'', raw:true, blankrows:false});
+  let extraction = null;
+  const templateHeaders = Array.isArray(matrix[HEADER_ROW - 1]) ? matrix[HEADER_ROW - 1].map(getImportFieldName).filter(Boolean) : [];
+  if(listMissingOperationalFields(templateHeaders).length === 0){
+    extraction = extractOperationalRowsFromMatrix(matrix, HEADER_ROW - 1);
   }
-  return records;
+  if(!extraction || !extraction.rows.length){
+    const detected = detectOperationalHeaderRow(matrix);
+    if(!detected){
+      throw new Error('El archivo no tiene formato compatible. No se identificaron columnas equivalentes a EDT y Actividad.');
+    }
+    extraction = extractOperationalRowsFromMatrix(matrix, detected.index);
+  }
+  const missing = listMissingOperationalFields(extraction.detectedFields);
+  if(missing.length){
+    throw new Error('Faltan columnas obligatorias: ' + missing.map(importFieldLabel).join(', ') + '.');
+  }
+  const records = [];
+  let omittedRows = 0;
+  extraction.rows.forEach(raw => {
+    const record = buildRecordFromExcel(raw, records.length + 1);
+    if(isExcludedRecord(record)){
+      omittedRows += 1;
+      return;
+    }
+    records.push(record);
+  });
+  return {
+    records,
+    meta: {
+      sheetName: sheet === workbook.Sheets[SHEET_NAME] ? SHEET_NAME : workbook.SheetNames[0],
+      headerRow: extraction.headerRowNumber,
+      detectedFields: extraction.detectedFields,
+      blankRows: extraction.blankRows,
+      omittedRows
+    }
+  };
 }
 
-function buildPayloadFromRecords(records, sourceFile){
+function buildPayloadFromRecords(records, sourceFile, extraMeta){
   const normalizedRecords = records.map(record => ({
     ...record,
     responsable: normalizeResponsibleValue(record.responsable),
@@ -3451,7 +3796,8 @@ function buildPayloadFromRecords(records, sourceFile){
       sheetName: SHEET_NAME,
       generatedAt: new Date().toISOString().slice(0,19),
       referenceDate: todayIso(),
-      recordCount: normalizedRecords.length
+      recordCount: normalizedRecords.length,
+      ...(extraMeta || {})
     },
     summary,
     records: normalizedRecords
@@ -3522,32 +3868,60 @@ function exportStructureXlsx(){
 }
 
 function normalizeStructureRow(raw, idx){
-  const estado = text(raw.estado) || 'Sin estado';
-  const inicio = toIsoDate(raw.inicio);
-  const final = toIsoDate(raw.final);
+  const row = {
+    id: readImportField(raw, 'id') || raw.id,
+    source_order: raw.source_order,
+    edt: readImportField(raw, 'edt'),
+    parent_edt: readImportField(raw, 'parent_edt'),
+    nivel: readImportField(raw, 'nivel'),
+    grupo: readImportField(raw, 'grupo'),
+    actividad: readImportField(raw, 'actividad'),
+    responsable: readImportField(raw, 'responsable'),
+    seguimiento_dgppcs: readImportField(raw, 'seguimiento_dgppcs'),
+    contacto: readImportField(raw, 'contacto'),
+    inicio: readImportField(raw, 'inicio'),
+    final: readImportField(raw, 'final'),
+    duracion_cal: readImportField(raw, 'duracion_cal'),
+    dias_habiles: readImportField(raw, 'dias_habiles'),
+    estado: readImportField(raw, 'estado'),
+    alerta: readImportField(raw, 'alerta'),
+    resumen: readImportField(raw, 'resumen'),
+    titulo_visible: raw.titulo_visible,
+    comentario_seguimiento: raw.comentario_seguimiento,
+    proximo_paso: raw.proximo_paso
+  };
+  let edt = normalizeProgramEdt(row.edt, row.actividad);
+  let actividad = text(row.actividad);
+  if(!edt && /inicio de efectividad del pr[eé]stamo/i.test(actividad)){
+    edt = '4';
+    actividad = 'Inicio de Efectividad del Préstamo';
+  }
+  const estado = normalizeStateValue(row.estado);
+  const inicio = toIsoDate(row.inicio);
+  const final = toIsoDate(row.final);
   return {
-    id: text(raw.id) || `imported-${String(idx).padStart(3,'0')}`,
-    source_order: Number(raw.source_order || idx),
-    edt: text(raw.edt),
-    parent_edt: text(raw.parent_edt),
-    actividad: text(raw.actividad),
-    responsable: normalizeResponsibleValue(raw.responsable),
+    id: text(row.id) || `imported-${String(idx).padStart(3,'0')}`,
+    source_order: Number(row.source_order || idx),
+    edt,
+    parent_edt: text(row.parent_edt) || parentEdt(edt),
+    actividad,
+    responsable: normalizeResponsibleValue(row.responsable),
     inicio,
     final,
-    duracion_cal: toNumber(raw.duracion_cal),
-    dias_habiles: toNumber(raw.dias_habiles),
+    duracion_cal: toNumber(row.duracion_cal),
+    dias_habiles: toNumber(row.dias_habiles),
     dias_restantes: deriveRemaining(final, estado),
     estado,
-    seguimiento_dgppcs: normalizeSeguimientoValue(raw.seguimiento_dgppcs),
-    contacto: text(raw.contacto),
-    nivel: Math.max(1, toNumber(raw.nivel) || deriveLevel(raw.edt) || 1),
-    grupo: text(raw.grupo) || deriveGroup(raw.edt),
+    seguimiento_dgppcs: normalizeSeguimientoValue(row.seguimiento_dgppcs),
+    contacto: text(row.contacto),
+    nivel: normalizedLevelValue(edt, row.nivel),
+    grupo: text(row.grupo) || deriveGroup(edt),
     avance_estimado: deriveProgress(estado),
-    alerta: deriveAlert(inicio, final, estado),
-    resumen: text(raw.resumen) || [text(raw.edt) ? `EDT ${text(raw.edt)}` : '', text(raw.seguimiento_dgppcs) || text(raw.responsable), estado].filter(Boolean).join(' | '),
-    titulo_visible: text(raw.titulo_visible),
-    comentario_seguimiento: text(raw.comentario_seguimiento),
-    proximo_paso: text(raw.proximo_paso)
+    alerta: normalizeAlertValue(row.alerta, inicio, final, estado),
+    resumen: text(row.resumen) || [edt ? `EDT ${edt}` : '', text(row.seguimiento_dgppcs) || text(row.responsable), estado].filter(Boolean).join(' | '),
+    titulo_visible: text(row.titulo_visible),
+    comentario_seguimiento: text(row.comentario_seguimiento),
+    proximo_paso: text(row.proximo_paso)
   };
 }
 
@@ -3563,6 +3937,11 @@ function resetLocalTrackingState(){
 }
 
 function applyImportedStructure(rows, options){
+  const providedFields = detectProvidedOperationalFields(rows);
+  const missing = listMissingOperationalFields(providedFields);
+  if(missing.length){
+    throw new Error('Faltan columnas obligatorias: ' + missing.map(importFieldLabel).join(', ') + '.');
+  }
   const normalized = normalizeRecords(rows.map(normalizeStructureRow));
   const omitted = Math.max(0, rows.length - normalized.length);
   resetLocalTrackingState();
@@ -3604,7 +3983,11 @@ function applyImportedStructure(rows, options){
     nivel: record.nivel,
     grupo: record.grupo,
     resumen: record.resumen
-  })), (options && options.sourceFile) || 'estructura_importada');
+  })), (options && options.sourceFile) || 'estructura_importada', {
+    importKind: 'structure',
+    detectedFields: providedFields.join(', '),
+    omittedRows: omitted
+  });
   appState.sourceMode = 'structure';
   saveCurrentPayload();
   hydrateData(appState.payload);
@@ -3613,7 +3996,7 @@ function applyImportedStructure(rows, options){
   setImportFeedback(
     'Estructura cargada',
     normalized.length + ' actividades activas importadas desde ' + ((options && options.sourceFile) || 'estructura') + '. ' +
-      omitted + ' filas auxiliares o intrínsecas se omitieron del tablero operativo. Catálogos, portada y analítica fueron reconstruidos.',
+      omitted + ' filas auxiliares o intrínsecas se omitieron del tablero operativo. KPIs, Gantt, analítica, filtros, reportes, catálogos y portada fueron actualizados.',
     'success'
   );
   scheduleSharedSync('cargar_estructura');
@@ -3641,20 +4024,44 @@ function ensureDailyBackup(){
 function renderAdminAudit(){
   const host = document.getElementById('adminAuditList');
   if(!host) return;
+  renderAdminStatus();
   if(!appState.adminEnabled){
     host.innerHTML = '<div class="empty">Modo administrador no habilitado.</div>';
     return;
   }
   const list = (appState.audit || []).slice(0,40);
   host.innerHTML = list.length
-    ? list.map(item => '<div class="summary-item"><div><strong>' + escapeHtml(item.action) + '</strong><span>' + escapeHtml([item.actor, item.at, item.detail].filter(Boolean).join(' | ')) + '</span></div></div>').join('')
+    ? list.map(item => '<div class="summary-item"><div><strong>' + escapeHtml(text(item.action) || 'cambio') + '</strong><span>' + escapeHtml(describeAuditItem(item)) + '</span></div></div>').join('')
     : '<div class="empty">Sin cambios auditados todavía.</div>';
+}
+
+function refreshSharedAudit(limit){
+  if(!isSharedBackendMode()) return;
+  const info = ensureServerInfo();
+  if(!info.admin) return;
+  const host = document.getElementById('adminAuditList');
+  if(host) host.innerHTML = '<div class="empty">Cargando auditoría compartida...</div>';
+  google.script.run
+    .withSuccessHandler(result => {
+      updateServerInfoFromEnvelope(result || {});
+      if(result && result.ok && Array.isArray(result.items)){
+        appState.audit = result.items;
+      }
+      renderAdminAudit();
+    })
+    .withFailureHandler(error => {
+      console.error('No se pudo cargar la auditoría compartida.', error);
+      setSharedError('No se pudo cargar la auditoría compartida.', 'error');
+      renderAdminAudit();
+    })
+    .getSharedTrackingAudit(Number(limit || 120));
 }
 
 function openAdminModal(){
   if(!appState.adminEnabled) return;
   renderAdminAudit();
   document.getElementById('adminModal').classList.add('open');
+  refreshSharedAudit(120);
 }
 
 function closeAdminModal(){
@@ -3667,6 +4074,30 @@ function exportAuditLog(){
 }
 
 function exportLatestBackup(){
+  const info = ensureServerInfo();
+  if(isSharedBackendMode() && info.admin){
+    google.script.run
+      .withSuccessHandler(result => {
+        updateServerInfoFromEnvelope(result || {});
+        if(result && result.ok && result.backup && result.backup.content){
+          const name = text(result.backup.fileName) || ('shared_tracking_backup_' + todayIso() + '.json');
+          downloadBlob(name, 'application/json;charset=utf-8', result.backup.content);
+          setImportFeedback('Backup compartido exportado', 'Se descargó el backup más reciente del estado compartido en Drive.', 'success');
+          renderOperationsStatus();
+          return;
+        }
+        const detail = text(result && result.message) || 'No fue posible exportar el backup compartido.';
+        setImportFeedback('Error de backup compartido', detail, 'warn');
+        renderOperationsStatus();
+      })
+      .withFailureHandler(error => {
+        console.error('No se pudo exportar el backup compartido.', error);
+        setImportFeedback('Error de backup compartido', 'No se pudo descargar el backup desde Apps Script. Se mantiene el respaldo local.', 'warn');
+        renderOperationsStatus();
+      })
+      .getSharedTrackingLatestBackup();
+    return;
+  }
   const today = new Date().toISOString().slice(0,10);
   const backupKey = 'pec_tracking_backup_' + today;
   const backup = localStorage.getItem(backupKey) || JSON.stringify(exportStructureJson(), null, 2);
@@ -3683,7 +4114,13 @@ async function loadStructureFromInput(){
   const lower = file.name.toLowerCase();
   if(lower.endsWith('.json')){
     const parsed = JSON.parse(await file.text());
+    if(parsed && parsed.format && text(parsed.format) !== 'pec-gantt-structure-v1'){
+      throw new Error('El JSON no corresponde a una estructura exportada del visor.');
+    }
     const rows = Array.isArray(parsed.rows) ? parsed.rows : [];
+    if(!rows.length){
+      throw new Error('El archivo no tiene formato compatible. Se esperaba un arreglo "rows" con EDT y Actividad.');
+    }
     applyImportedStructure(rows, {
       sourceFile: file.name,
       hero: parsed.hero || appState.hero,
@@ -3727,7 +4164,51 @@ async function loadExcelFromInput(){
   const input = document.getElementById('xlsxInput');
   const file = input.files && input.files[0];
   if(!file){
-    alert('Selecciona primero un archivo Excel.');
+    alert('Selecciona primero un archivo operativo.');
+    return;
+  }
+  const lower = file.name.toLowerCase();
+  if(lower.endsWith('.json')){
+    const parsed = JSON.parse(await file.text());
+    if(parsed && text(parsed.format) === 'pec-gantt-structure-v1'){
+      throw new Error('El JSON seleccionado corresponde a una estructura exportada del visor. Usa "Leer estructura".');
+    }
+    const rows = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed.records)
+        ? parsed.records
+        : [];
+    if(!rows.length){
+      throw new Error('El archivo no tiene formato compatible. Se esperaba un arreglo de registros o un objeto con "records".');
+    }
+    const providedFields = detectProvidedOperationalFields(rows);
+    const missing = listMissingOperationalFields(providedFields);
+    if(missing.length){
+      throw new Error('Faltan columnas obligatorias: ' + missing.map(importFieldLabel).join(', ') + '.');
+    }
+    const parsedRecords = rows.map((raw, idx) => buildRecordFromExcel(raw, idx + 1));
+    const baseRecords = normalizeRecords(parsedRecords);
+    const omitted = Math.max(0, rows.length - baseRecords.length);
+    const payload = buildPayloadFromRecords(baseRecords, file.name, {
+      importKind: 'json',
+      detectedFields: providedFields.join(', '),
+      omittedRows: omitted
+    });
+    appState.payload = payload;
+    appState.sourceMode = 'xlsx';
+    saveCurrentPayload();
+    appendAudit('cargar_json', file.name);
+    ensureDailyBackup();
+    hydrateData(payload);
+    initFilters();
+    applyFilters();
+    setImportFeedback(
+      'Archivo cargado correctamente',
+      'Se cargaron ' + baseRecords.length + ' actividades desde ' + file.name + '. ' +
+        'Se omitieron ' + omitted + ' filas auxiliares, comentario o no operativas. KPIs, Gantt, analítica y reportes fueron actualizados.',
+      'success'
+    );
+    scheduleSharedSync('cargar_json');
     return;
   }
   if(typeof XLSX === 'undefined'){
@@ -3736,9 +4217,17 @@ async function loadExcelFromInput(){
   }
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, {type:'array'});
-  const parsedRecords = parseWorkbookRecords(workbook);
+  const parsedWorkbook = parseWorkbookRecords(workbook);
+  const parsedRecords = parsedWorkbook.records;
   const baseRecords = normalizeRecords(parsedRecords);
-  const payload = buildPayloadFromRecords(baseRecords, file.name);
+  const omitted = Math.max(0, parsedRecords.length - baseRecords.length) + Number(parsedWorkbook.meta && parsedWorkbook.meta.omittedRows || 0);
+  const payload = buildPayloadFromRecords(baseRecords, file.name, {
+    importKind: 'xlsx',
+    sheetName: parsedWorkbook.meta && parsedWorkbook.meta.sheetName || SHEET_NAME,
+    headerRow: parsedWorkbook.meta && parsedWorkbook.meta.headerRow || HEADER_ROW,
+    detectedFields: (parsedWorkbook.meta && parsedWorkbook.meta.detectedFields || []).join(', '),
+    omittedRows: omitted
+  });
   appState.payload = payload;
   appState.sourceMode = 'xlsx';
   saveCurrentPayload();
@@ -3748,9 +4237,9 @@ async function loadExcelFromInput(){
   initFilters();
   applyFilters();
   setImportFeedback(
-    'Cronograma cargado',
-    baseRecords.length + ' actividades activas leídas desde ' + file.name + '. ' +
-      Math.max(0, parsedRecords.length - baseRecords.length) + ' filas auxiliares o no operativas fueron omitidas. KPIs, Gantt, reportes y catálogos quedaron actualizados.',
+    'Archivo cargado correctamente',
+    'Se cargaron ' + baseRecords.length + ' actividades desde ' + file.name + '. ' +
+      'Se omitieron ' + omitted + ' filas auxiliares, comentario o no operativas. KPIs, Gantt, analítica, filtros, reportes y catálogos fueron actualizados.',
     'success'
   );
   scheduleSharedSync('cargar_excel');
@@ -4364,11 +4853,23 @@ function renderOperationsStatus(){
   if(statusHost){
     const meta = (appState.payload && appState.payload.meta) || {};
     const generatedAt = text(meta.generatedAt);
+    const info = ensureServerInfo();
+    const syncDetail = info.syncMessage ? ' | ' + info.syncMessage : '';
+    const savedLine = info.savedAt || info.savedBy
+      ? 'Último guardado central: ' + [formatIsoDisplay(info.savedAt), text(info.savedBy)].filter(Boolean).join(' | ')
+      : '';
+    const backupLine = info.lastBackupAt
+      ? 'Último backup Drive: ' + [formatIsoDisplay(info.lastBackupAt), text(info.lastBackupFile)].filter(Boolean).join(' | ')
+      : '';
     statusHost.innerHTML = [
       '<strong>Estado de la fuente</strong>',
       '<span class="source-badge">' + escapeHtml(sourceModeLabel()) + '</span>',
       '<p>' + escapeHtml(text(meta.sourceFile) || 'Fuente integrada del visor') + '</p>',
-      '<p>' + escapeHtml('Registros operativos: ' + appState.raw.length + (generatedAt ? ' | Actualizado: ' + generatedAt.replace('T',' ') : '')) + '</p>'
+      '<p>' + escapeHtml('Registros operativos: ' + appState.raw.length + (generatedAt ? ' | Actualizado: ' + generatedAt.replace('T',' ') : '')) + '</p>',
+      '<p>' + escapeHtml('Modo: ' + backendModeLabel() + ' | Sincronización: ' + syncStateLabel() + syncDetail) + '</p>',
+      savedLine ? '<p>' + escapeHtml(savedLine) + '</p>' : '',
+      backupLine ? '<p>' + escapeHtml(backupLine) + '</p>' : '',
+      info.lastError ? '<p>' + escapeHtml('Fallback local activo: ' + info.lastError) + '</p>' : ''
     ].join('');
   }
   const feedbackHost = document.getElementById('importFeedback');
@@ -5235,7 +5736,7 @@ function bindEvents(){
   document.getElementById('closeDrawerBtn').addEventListener('click', closeDrawer);
   document.getElementById('editHeroBtn').addEventListener('click', openHeroModal);
   const adminBtn = document.getElementById('openAdminBtn');
-  if(appState.adminEnabled && adminBtn) adminBtn.style.display = '';
+  renderAdminAccess();
   if(adminBtn) adminBtn.addEventListener('click', openAdminModal);
   document.getElementById('closeHeroBtn').addEventListener('click', closeHeroModal);
   document.getElementById('saveHeroBtn').addEventListener('click', saveHeroModal);
@@ -5274,15 +5775,17 @@ function bindEvents(){
   document.getElementById('loadXlsxBtn').addEventListener('click', () => {
     loadExcelFromInput().catch(error => {
       console.error(error);
-      setImportFeedback('Error de carga operativa', 'No se pudo leer el archivo. Verifica que tenga la hoja CRONOGRAMA o un CSV compatible con las columnas esperadas.', 'warn');
-      alert('No se pudo leer el Excel. Verifica que tenga la hoja CRONOGRAMA y estructura compatible.');
+      const detail = error && error.message ? error.message : 'No se pudo leer el archivo. Verifica que tenga la hoja CRONOGRAMA o un CSV compatible con las columnas esperadas.';
+      setImportFeedback('Error de carga operativa', detail, 'warn');
+      alert(detail);
     });
   });
   document.getElementById('loadStructureBtn').addEventListener('click', () => {
     loadStructureFromInput().catch(error => {
       console.error(error);
-      setImportFeedback('Error de estructura', 'No se pudo leer la estructura editable. Revisa el JSON o la hoja GANTT_ESTRUCTURA y vuelve a intentar.', 'warn');
-      alert('No se pudo leer la estructura editable. Verifica el formato JSON o la hoja GANTT_ESTRUCTURA.');
+      const detail = error && error.message ? error.message : 'No se pudo leer la estructura editable. Revisa el JSON o la hoja GANTT_ESTRUCTURA y vuelve a intentar.';
+      setImportFeedback('Error de estructura', detail, 'warn');
+      alert(detail);
     });
   });
   document.getElementById('useEmbeddedBtn').addEventListener('click', useEmbeddedData);
@@ -5317,11 +5820,11 @@ function initFilters(){
 function init(){
   if(SERVER_BOOTSTRAP && SERVER_BOOTSTRAP.state){
     applySharedStateBundle(SERVER_BOOTSTRAP.state, {skipRenderHero:true});
-    appState.serverInfo = {
-      savedAt: text(SERVER_BOOTSTRAP.savedAt || (SERVER_BOOTSTRAP.state && SERVER_BOOTSTRAP.state.savedAt)),
-      savedBy: text(SERVER_BOOTSTRAP.actor || (SERVER_BOOTSTRAP.state && SERVER_BOOTSTRAP.state.savedBy))
-    };
+    updateServerInfoFromEnvelope(SERVER_BOOTSTRAP);
+    setSharedSyncState('synced', 'Estado compartido cargado desde Apps Script.');
   }else{
+    ensureServerInfo();
+    setSharedSyncState('local', 'Modo local: los cambios se guardan en este navegador.');
     hydrateData();
   }
   renderHero();

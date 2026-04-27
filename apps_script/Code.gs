@@ -908,12 +908,12 @@ function normalizeSharedTrackingStateBundle_(bundle, fallback) {
 function normalizeHeroState_(hero) {
   const saved = hero && typeof hero === 'object' ? hero : {};
   return {
-    title: String(saved.title || 'Visor de Seguimiento PEC'),
-    subtitle: String(saved.subtitle || 'Programa de Economia Circular para Puno y Lima.'),
-    meta1: String(saved.meta1 || 'DGPPCS'),
-    meta2: String(saved.meta2 || 'Puno y Lima'),
-    meta3: String(saved.meta3 || 'Seguimiento operativo'),
-    extras: normalizeStringArray_(saved.extras || [])
+    title: saved.title != null ? String(saved.title) : 'Visor de Seguimiento PEC',
+    subtitle: saved.subtitle != null ? String(saved.subtitle) : 'Programa de Economia Circular para Puno y Lima.',
+    meta1: saved.meta1 != null ? String(saved.meta1) : 'DGPPCS',
+    meta2: saved.meta2 != null ? String(saved.meta2) : 'Puno y Lima',
+    meta3: saved.meta3 != null ? String(saved.meta3) : 'Seguimiento operativo',
+    extras: Array.isArray(saved.extras) ? normalizeStringArray_(saved.extras) : []
   };
 }
 

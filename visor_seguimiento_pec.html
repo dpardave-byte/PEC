@@ -2684,15 +2684,21 @@ function renderAdminAccess(){
 function updateServerInfoFromEnvelope(result){
   const info = ensureServerInfo();
   const backend = result && result.backend && typeof result.backend === 'object' ? result.backend : {};
-  info.mode = text(backend.mode) || (isSharedBackendMode() ? 'apps_script' : 'local');
+  const explicitAdmin = result && typeof result.admin !== 'undefined'
+    ? Boolean(result.admin)
+    : (typeof backend.admin !== 'undefined' ? Boolean(backend.admin) : null);
+  info.mode = text(backend.mode) || text(info.mode) || (isSharedBackendMode() ? 'apps_script' : 'local');
   info.actor = text((result && result.actor) || backend.actor || info.actor);
-  info.admin = Boolean((result && typeof result.admin !== 'undefined' ? result.admin : backend.admin) || info.admin);
+  if(explicitAdmin !== null) info.admin = explicitAdmin;
   info.pollIntervalSeconds = Number(backend.pollIntervalSeconds || info.pollIntervalSeconds || 30);
   info.savedAt = text((result && result.savedAt) || (result && result.state && result.state.savedAt) || info.savedAt);
   info.savedBy = text((result && result.savedBy) || (result && result.state && result.state.savedBy) || info.savedBy);
+  info.revision = Number((result && result.revision) || (result && result.state && result.state.revision) || appState.remoteRevision || info.revision || 0);
   info.lastBackupAt = text(backend.lastBackupAt || info.lastBackupAt);
   info.lastBackupFile = text(backend.lastBackupFile || info.lastBackupFile);
-  if(info.admin) appState.adminEnabled = true;
+  appState.adminEnabled = info.mode === 'apps_script'
+    ? Boolean(info.admin)
+    : (Boolean(info.admin) || isAdminMode());
   renderAdminAccess();
   return info;
 }
@@ -2832,9 +2838,21 @@ function persistLocalArtifacts(){
 function applySharedStateBundle(bundle, options){
   const state = normalizeSharedStateBundle(bundle);
   appState.remoteRevision = state.revision || 0;
+  const currentInfo = ensureServerInfo();
   appState.serverInfo = {
-    savedAt: state.savedAt,
-    savedBy: state.savedBy
+    ...currentInfo,
+    mode: text(currentInfo.mode) || (isSharedBackendMode() ? 'apps_script' : 'local'),
+    savedAt: text(state.savedAt) || text(currentInfo.savedAt),
+    savedBy: text(state.savedBy) || text(currentInfo.savedBy),
+    revision: Number(state.revision || currentInfo.revision || 0),
+    actor: text(currentInfo.actor),
+    admin: Boolean(currentInfo.admin),
+    pollIntervalSeconds: Number(currentInfo.pollIntervalSeconds || 30),
+    lastBackupAt: text(currentInfo.lastBackupAt),
+    lastBackupFile: text(currentInfo.lastBackupFile),
+    syncState: text(currentInfo.syncState) || (isSharedBackendMode() ? 'ready' : 'local'),
+    syncMessage: text(currentInfo.syncMessage),
+    lastError: text(currentInfo.lastError)
   };
   appState.hero = state.hero;
   appState.customPeople = state.customPeople;

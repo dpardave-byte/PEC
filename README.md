@@ -6,6 +6,16 @@ URL esperada:
 
 https://dpardave-byte.github.io/PEC/
 
+Visor publicado esperado:
+
+https://dpardave-byte.github.io/PEC/visor_seguimiento_pec.html
+
+Si necesitas forzar recarga por caché, usa:
+
+```text
+https://dpardave-byte.github.io/PEC/visor_seguimiento_pec.html?v=<commit>
+```
+
 ## Estructura recomendada en Drive
 
 Crear la carpeta raiz `PEC - Programa Economia Circular` con estas subcarpetas:
@@ -72,6 +82,10 @@ El repositorio mantiene dos modos de uso para el visor de seguimiento:
   - usa un estado centralizado JSON en Drive;
   - conserva auditoria y backup diario.
 
+Checklist operativo detallado:
+
+- [CHECKLIST_OPERATIVO_VISOR_PEC.md](/C:/Users/Dpard/OneDrive/Escritorio/EC/PEC_repo_limpio/CHECKLIST_OPERATIVO_VISOR_PEC.md)
+
 ### Diferencias operativas
 
 - El modo local no ofrece seguridad centralizada; cualquier “modo admin” local es solo una ayuda operativa del navegador actual.
@@ -99,6 +113,23 @@ Si el estado compartido se daña:
 - `Leer estructura` carga una estructura exportada por el propio visor.
 - `Exportar estructura JSON/XLSX` permite mover la estructura entre visores.
 - Despues de importar, el visor recalcula Gantt, KPIs, analitica, filtros, reporte y catalogos.
+
+### Despliegue rapido de Apps Script
+
+1. Abrir el proyecto Apps Script.
+2. Actualizar `Code.gs`.
+3. Crear o actualizar el HTML `Visor`.
+4. Pegar el contenido de `apps_script/Visor.html`.
+5. Configurar `PEC_VISOR_ADMIN_EMAILS` si corresponde.
+6. Desplegar como Web App.
+7. Probar la URL `.../exec?view=visor`.
+8. Validar:
+   - carga inicial;
+   - edición de ficha;
+   - guardado compartido;
+   - auditoría;
+   - backup;
+   - acceso admin y no admin.
 
 ## Notas de seguridad
 

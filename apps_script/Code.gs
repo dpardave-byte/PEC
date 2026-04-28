@@ -869,6 +869,449 @@ function getSharedTrackingLatestBackup() {
   };
 }
 
+function previewDueTrackingEmails() {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para preparar correos de seguimiento.'
+    };
+  }
+  return buildDueTrackingNotifications_({ preview: true, includeHtml: false });
+}
+
+function sendDueTrackingEmails() {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para enviar alertas por correo.'
+    };
+  }
+  return dispatchDueTrackingEmails_({
+    actor: getSharedTrackingActor_() || 'admin_manual',
+    origin: 'envio_manual_alertas'
+  });
+}
+
+function createDailyNotificationTrigger() {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para crear triggers de notificacion.'
+    };
+  }
+  var existing = getDueTrackingNotificationTriggers_();
+  if (existing.length) {
+    return {
+      ok: true,
+      actor: getSharedTrackingActor_(),
+      admin: true,
+      created: false,
+      triggerCount: existing.length,
+      message: 'Ya existe al menos un trigger diario para runDailyDueTrackingNotifications_.'
+    };
+  }
+  ScriptApp.newTrigger('runDailyDueTrackingNotifications_')
+    .timeBased()
+    .everyDays(1)
+    .atHour(8)
+    .create();
+  return {
+    ok: true,
+    actor: getSharedTrackingActor_(),
+    admin: true,
+    created: true,
+    triggerCount: getDueTrackingNotificationTriggers_().length,
+    message: 'Trigger diario creado para las 08:00.'
+  };
+}
+
+function deleteNotificationTriggers() {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para eliminar triggers de notificacion.'
+    };
+  }
+  var removed = 0;
+  getDueTrackingNotificationTriggers_().forEach(function(trigger) {
+    ScriptApp.deleteTrigger(trigger);
+    removed += 1;
+  });
+  return {
+    ok: true,
+    actor: getSharedTrackingActor_(),
+    admin: true,
+    removed: removed,
+    message: removed
+      ? 'Se eliminaron los triggers diarios de notificacion.'
+      : 'No habia triggers diarios de notificacion para eliminar.'
+  };
+}
+
+function runDailyDueTrackingNotifications_() {
+  return dispatchDueTrackingEmails_({
+    actor: getSharedTrackingActor_() || 'trigger_diario',
+    origin: 'trigger_diario_alertas'
+  });
+}
+
+function getDueTrackingNotificationTriggers_() {
+  return ScriptApp.getProjectTriggers().filter(function(trigger) {
+    return trigger.getHandlerFunction && trigger.getHandlerFunction() === 'runDailyDueTrackingNotifications_';
+  });
+}
+
+function dispatchDueTrackingEmails_(options) {
+  var preview = buildDueTrackingNotifications_({ preview: false, includeHtml: true });
+  if (!preview.ok) return preview;
+  var recipients = [];
+  var totalActivities = 0;
+  preview.groups.forEach(function(group) {
+    if (!group.to) return;
+    var mailOptions = {
+      htmlBody: group.htmlBody,
+      name: 'Visor de Seguimiento PEC'
+    };
+    if (preview.cc.length) mailOptions.cc = preview.cc.join(',');
+    MailApp.sendEmail(group.to, group.subject, group.plainBody, mailOptions);
+    recipients.push(group.to);
+    totalActivities += group.items.length;
+  });
+  var sentAt = new Date().toISOString();
+  var auditEntry = {
+    at: sentAt,
+    actor: String(options && options.actor || getSharedTrackingActor_() || 'trigger_diario').trim(),
+    action: 'enviar_alertas_correo',
+    origin: String(options && options.origin || 'sendDueTrackingEmails').trim(),
+    detail: 'Correos enviados: ' + recipients.length + ' | Actividades notificadas: ' + totalActivities,
+    summary: {
+      total: totalActivities,
+      recipients: recipients.length,
+      missingEmails: preview.missingEmails.map(function(item) { return item.person; }),
+      touchedRecords: preview.groups.flatMap(function(group) {
+        return group.items.map(function(item) { return item.edt; });
+      }).slice(0, 20)
+    },
+    recipients: recipients,
+    notifiedActivities: totalActivities
+  };
+  appendSharedTrackingAudit_(auditEntry);
+  return {
+    ok: true,
+    actor: auditEntry.actor,
+    admin: isSharedTrackingAdmin_(),
+    preview: false,
+    sentAt: sentAt,
+    groups: preview.groups.map(function(group) {
+      return {
+        person: group.person,
+        to: group.to,
+        itemCount: group.items.length,
+        subject: group.subject
+      };
+    }),
+    sentCount: recipients.length,
+    notifiedActivities: totalActivities,
+    missingEmails: preview.missingEmails,
+    cc: preview.cc,
+    webappUrl: preview.webappUrl
+  };
+}
+
+// Script Properties requeridas para notificaciones:
+// - PEC_VISOR_NOTIFY_EMAILS_JSON: {"Darwin Pardave":"correo@dominio", ...}
+// - PEC_VISOR_NOTIFY_CC: correos separados por coma o punto y coma
+// - PEC_VISOR_WEBAPP_URL: URL publica del visor compartido
+function buildDueTrackingNotifications_(options) {
+  var settings = options || {};
+  var state = loadSharedTrackingState_();
+  var records = getEffectiveTrackingRecordsForNotifications_(state);
+  var emailMap = getTrackingNotificationEmailMap_();
+  var cc = getTrackingNotificationCcList_();
+  var webappUrl = getTrackingWebAppUrl_();
+  var generatedAt = new Date().toISOString();
+  var grouped = new Map();
+  var missing = new Map();
+  var unassigned = [];
+  records.forEach(function(record) {
+    var alertInfo = classifyDueTrackingAlert_(record);
+    if (!alertInfo.include) return;
+    var people = splitTrackingPeople_(record.seguimiento_dgppcs);
+    var item = buildDueTrackingNotificationItem_(record, alertInfo, webappUrl);
+    if (!people.length) {
+      unassigned.push(item);
+      return;
+    }
+    people.forEach(function(person) {
+      var key = normalizeNotificationKey_(person);
+      var email = emailMap[key] || '';
+      if (!email) {
+        if (!missing.has(key)) missing.set(key, { person: person, items: [] });
+        missing.get(key).items.push(item);
+        return;
+      }
+      if (!grouped.has(key)) grouped.set(key, { person: person, to: email, items: [] });
+      grouped.get(key).items.push(item);
+    });
+  });
+  var groups = Array.from(grouped.values())
+    .sort(function(a, b) { return a.person.localeCompare(b.person, 'es'); })
+    .map(function(group) {
+      group.items.sort(compareDueTrackingItems_);
+      group.subject = 'PEC | Seguimiento DGPPCS | ' + group.person + ' | ' + group.items.length + ' alerta(s)';
+      group.htmlBody = buildDueTrackingEmailHtml_(group.person, group.items, generatedAt, webappUrl);
+      group.plainBody = buildDueTrackingEmailPlainText_(group.person, group.items, generatedAt, webappUrl);
+      if (settings.includeHtml === false) delete group.htmlBody;
+      return group;
+    });
+  return {
+    ok: true,
+    actor: getSharedTrackingActor_(),
+    admin: isSharedTrackingAdmin_(),
+    preview: Boolean(settings.preview),
+    generatedAt: generatedAt,
+    totalActivities: groups.reduce(function(sum, group) { return sum + group.items.length; }, 0),
+    groups: groups,
+    missingEmails: Array.from(missing.values()).sort(function(a, b) { return a.person.localeCompare(b.person, 'es'); }),
+    unassignedActivities: unassigned.sort(compareDueTrackingItems_),
+    cc: cc,
+    webappUrl: webappUrl
+  };
+}
+
+function getEffectiveTrackingRecordsForNotifications_(state) {
+  var payload = state && state.payload && Array.isArray(state.payload.records) ? state.payload.records : [];
+  var customRecords = Array.isArray(state && state.customRecords) ? state.customRecords : [];
+  var edits = state && state.edits && typeof state.edits === 'object' ? state.edits : {};
+  return payload.concat(customRecords).map(function(record) {
+    var edit = edits[record.id] && typeof edits[record.id] === 'object' ? edits[record.id] : {};
+    if (edit.__deleted) return null;
+    var merged = Object.assign({}, record, edit);
+    if (isNotificationCommentRecord_(merged)) return null;
+    if (String(merged.estado || '').trim().toLowerCase() === 'completado') return null;
+    return merged;
+  }).filter(Boolean);
+}
+
+function isNotificationCommentRecord_(record) {
+  var edt = String(record && record.edt || '').trim();
+  var actividad = String(record && record.actividad || '').trim();
+  if (!actividad) return true;
+  if (edt === '*') return true;
+  if (!edt && /comentario|nota|observacion|observaci[oó]n/i.test(actividad)) return true;
+  return false;
+}
+
+function classifyDueTrackingAlert_(record) {
+  var finalDate = parseTrackingDate_(record && record.final);
+  if (!finalDate) {
+    return { include: false, code: 'sin_fecha', label: 'Sin fecha final', daysRemaining: null, severity: 0 };
+  }
+  var state = String(record && record.estado || '').trim().toLowerCase();
+  if (state === 'completado') {
+    return { include: false, code: 'completed', label: 'Completado', daysRemaining: null, severity: 0 };
+  }
+  var today = parseTrackingDate_(Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd'));
+  var daysRemaining = Math.round((finalDate.getTime() - today.getTime()) / 86400000);
+  if (daysRemaining < 0) {
+    return { include: true, code: 'vencido', label: 'Vencido', daysRemaining: daysRemaining, severity: 3 };
+  }
+  if (daysRemaining <= 7) {
+    return { include: true, code: 'critico', label: 'Vence <= 7 dias', daysRemaining: daysRemaining, severity: 3 };
+  }
+  if (daysRemaining <= 15) {
+    return { include: true, code: 'atencion', label: 'Vence <= 15 dias', daysRemaining: daysRemaining, severity: 2 };
+  }
+  return { include: false, code: 'ok', label: 'En control', daysRemaining: daysRemaining, severity: 1 };
+}
+
+function buildDueTrackingNotificationItem_(record, alertInfo, webappUrl) {
+  return {
+    id: String(record.id || ''),
+    edt: String(record.edt || '').trim(),
+    actividad: String(record.actividad || '').trim(),
+    responsable: String(record.responsable || '').trim(),
+    seguimiento: String(record.seguimiento_dgppcs || '').trim(),
+    final: String(record.final || '').trim(),
+    estado: String(record.estado || '').trim(),
+    alerta: alertInfo.label,
+    alertaCodigo: alertInfo.code,
+    severity: Number(alertInfo.severity || 0),
+    daysRemaining: alertInfo.daysRemaining,
+    resumen: String(record.resumen || '').trim(),
+    link: webappUrl
+  };
+}
+
+function compareDueTrackingItems_(left, right) {
+  return (Number(right.severity || 0) - Number(left.severity || 0)) ||
+    compareNullableDates_(left.final, right.final) ||
+    compareNumericEdtStrings_(left.edt, right.edt) ||
+    String(left.actividad || '').localeCompare(String(right.actividad || ''), 'es');
+}
+
+function compareNullableDates_(left, right) {
+  var leftDate = parseTrackingDate_(left);
+  var rightDate = parseTrackingDate_(right);
+  if (leftDate && rightDate) return leftDate.getTime() - rightDate.getTime();
+  if (leftDate) return -1;
+  if (rightDate) return 1;
+  return 0;
+}
+
+function compareNumericEdtStrings_(left, right) {
+  var a = String(left || '').trim().split('.').map(function(part) {
+    return /^\d+$/.test(part) ? Number(part) : part;
+  });
+  var b = String(right || '').trim().split('.').map(function(part) {
+    return /^\d+$/.test(part) ? Number(part) : part;
+  });
+  var size = Math.max(a.length, b.length);
+  for (var idx = 0; idx < size; idx += 1) {
+    if (idx >= a.length) return -1;
+    if (idx >= b.length) return 1;
+    if (typeof a[idx] === 'number' && typeof b[idx] === 'number') {
+      if (a[idx] !== b[idx]) return a[idx] - b[idx];
+      continue;
+    }
+    var cmp = String(a[idx]).localeCompare(String(b[idx]), 'es', { numeric: true, sensitivity: 'base' });
+    if (cmp) return cmp;
+  }
+  return String(left || '').localeCompare(String(right || ''), 'es', { numeric: true, sensitivity: 'base' });
+}
+
+function buildDueTrackingEmailHtml_(person, items, generatedAt, webappUrl) {
+  var rows = items.map(function(item) {
+    return '<tr>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;">' + escapeHtmlEmail_(item.edt || '-') + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;">' + escapeHtmlEmail_(item.actividad || '-') + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;">' + escapeHtmlEmail_(item.responsable || '-') + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;">' + escapeHtmlEmail_(item.final || '-') + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;">' + escapeHtmlEmail_(item.estado || '-') + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;">' + escapeHtmlEmail_(item.alerta || '-') + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;">' + escapeHtmlEmail_(item.resumen || '-') + '</td>' +
+    '</tr>';
+  }).join('');
+  return [
+    '<div style="font-family:Arial,sans-serif;color:#16324f;line-height:1.45;">',
+    '<h2 style="margin:0 0 8px;">Visor de Seguimiento PEC</h2>',
+    '<p style="margin:0 0 14px;">Seguimiento DGPPCS: <strong>' + escapeHtmlEmail_(person) + '</strong></p>',
+    '<p style="margin:0 0 14px;">Generado: ' + escapeHtmlEmail_(generatedAt) + '</p>',
+    '<table style="border-collapse:collapse;width:100%;font-size:13px;">',
+    '<thead><tr style="background:#edf4fb;">',
+    '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">EDT</th>',
+    '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Actividad</th>',
+    '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Responsable</th>',
+    '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Fecha final</th>',
+    '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Estado</th>',
+    '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Alerta</th>',
+    '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Proximo paso / resumen</th>',
+    '</tr></thead><tbody>',
+    rows,
+    '</tbody></table>',
+    '<p style="margin:14px 0 0;">Visor compartido: <a href="' + escapeHtmlEmail_(webappUrl) + '">' + escapeHtmlEmail_(webappUrl) + '</a></p>',
+    '</div>'
+  ].join('');
+}
+
+function buildDueTrackingEmailPlainText_(person, items, generatedAt, webappUrl) {
+  return [
+    'Visor de Seguimiento PEC',
+    'Seguimiento DGPPCS: ' + person,
+    'Generado: ' + generatedAt,
+    '',
+    items.map(function(item) {
+      return [
+        item.edt || '-',
+        item.actividad || '-',
+        'Responsable: ' + (item.responsable || '-'),
+        'Fecha final: ' + (item.final || '-'),
+        'Estado: ' + (item.estado || '-'),
+        'Alerta: ' + (item.alerta || '-'),
+        'Resumen: ' + (item.resumen || '-')
+      ].join(' | ');
+    }).join('\n'),
+    '',
+    'Visor compartido: ' + webappUrl
+  ].join('\n');
+}
+
+function getTrackingNotificationEmailMap_() {
+  var raw = String(PropertiesService.getScriptProperties().getProperty('PEC_VISOR_NOTIFY_EMAILS_JSON') || '').trim();
+  if (!raw) return {};
+  try {
+    var parsed = JSON.parse(raw);
+    var out = {};
+    Object.keys(parsed || {}).forEach(function(name) {
+      var email = String(parsed[name] == null ? '' : parsed[name]).trim();
+      if (!email) return;
+      out[normalizeNotificationKey_(name)] = email;
+    });
+    return out;
+  } catch (error) {
+    return {};
+  }
+}
+
+function getTrackingNotificationCcList_() {
+  return String(PropertiesService.getScriptProperties().getProperty('PEC_VISOR_NOTIFY_CC') || '')
+    .split(/[;,]/)
+    .map(function(item) { return item.trim(); })
+    .filter(Boolean);
+}
+
+function getTrackingWebAppUrl_() {
+  return String(PropertiesService.getScriptProperties().getProperty('PEC_VISOR_WEBAPP_URL') || '').trim() ||
+    'https://script.google.com/macros/s/AKfycbxLpfDE3-ttlXKlGgKto16_2RuLk5w1Kbpclf_BFtMQBdfUQZrZQomANDaZzIaeR2Yq/exec?view=visor';
+}
+
+function splitTrackingPeople_(value) {
+  var seen = {};
+  return String(value == null ? '' : value)
+    .split(/[\/,;]+/)
+    .map(function(item) { return String(item || '').trim().replace(/\s+/g, ' '); })
+    .filter(Boolean)
+    .filter(function(item) {
+      var key = normalizeNotificationKey_(item);
+      if (!key || seen[key]) return false;
+      seen[key] = true;
+      return true;
+    });
+}
+
+function normalizeNotificationKey_(value) {
+  return String(value == null ? '' : value)
+    .trim()
+    .replace(/\s+/g, ' ')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function parseTrackingDate_(value) {
+  var raw = String(value == null ? '' : value).trim();
+  if (!raw) return null;
+  var date = new Date(raw + 'T00:00:00');
+  return isNaN(date.getTime()) ? null : date;
+}
+
+function escapeHtmlEmail_(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function buildSharedTrackingEnvelope_(state, extra) {
   const safeState = normalizeSharedTrackingStateBundle_(state, buildDefaultSharedTrackingState_());
   const meta = getSharedTrackingBackendMeta_();

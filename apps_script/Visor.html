@@ -73,6 +73,7 @@ button.ghost{background:#edf4ff;color:var(--blue)}
 button.soft{background:#e8f5f1;color:#0e615a}
 button.danger{background:#fff1f2;color:#9f2232;box-shadow:none;border:1px solid #efc6cc}
 .layout{display:grid;grid-template-columns:1.6fr .9fr;gap:16px;align-items:start}
+.layout.compact-layout{gap:12px}
 .stack{display:grid;gap:16px;align-content:start}
 .side-rail.compact-rail{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .side-rail.compact-rail .panel{padding:14px}
@@ -82,9 +83,11 @@ button.danger{background:#fff1f2;color:#9f2232;box-shadow:none;border:1px solid 
 .side-rail.compact-rail .mini-item,.side-rail.compact-rail .alert-item,.side-rail.compact-rail .summary-item{padding:10px 11px}
 .side-rail.compact-rail .empty{padding:14px 12px;font-size:12px}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
-.card{background:linear-gradient(180deg,#ffffff 0,#f8fbff 100%);border:1px solid var(--line);border-radius:16px;padding:16px 16px 14px;box-shadow:var(--shadow-soft);display:grid;gap:8px}
-.card span{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+.card{background:linear-gradient(180deg,#ffffff 0,#f8fbff 100%);border:1px solid var(--line);border-radius:16px;padding:16px 16px 14px;box-shadow:var(--shadow-soft);display:grid;gap:8px;align-content:start}
+.card span{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:650}
 .card b{display:block;font-size:30px;margin-top:2px;color:var(--brand);line-height:1}
+.card b.metric-text{font-size:18px;line-height:1.25;overflow-wrap:anywhere;word-break:break-word}
+.card b.metric-count{font-size:30px}
 .card small{display:block;margin-top:0;color:var(--muted);line-height:1.35}
 .card .metric-note strong{color:var(--ink)}
 .card.alert{background:linear-gradient(180deg,#fffaf9 0,#fff3f3 100%);border-color:#f1d2d6}
@@ -118,7 +121,8 @@ button.danger{background:#fff1f2;color:#9f2232;box-shadow:none;border:1px solid 
 .st-sin-estado{background:#eef2f6;color:#5d6a79}
 .al-ok{background:#eaf5ef;color:var(--green)}
 .al-critico,.al-vencido{background:#fdecee;color:var(--red)}
-.al-atencion,.al-sin-fecha{background:#fbf1e3;color:var(--amber)}
+.al-atencion{background:#fbf1e3;color:var(--amber)}
+.al-sin-fecha{background:#eef2f6;color:#5d6a79}
 .bar-list{display:grid;gap:10px}
 .bar-row{display:grid;grid-template-columns:minmax(120px,1.2fr) minmax(180px,2.4fr) 56px;gap:10px;align-items:center}
 .track{height:14px;border-radius:999px;background:#e8edf3;overflow:hidden}
@@ -126,6 +130,18 @@ button.danger{background:#fff1f2;color:#9f2232;box-shadow:none;border:1px solid 
 .fill.green{background:linear-gradient(90deg,var(--brand-2),#4fb8a5)}
 .fill.red{background:linear-gradient(90deg,#d64f5e,#ff9aa5)}
 .fill.amber{background:linear-gradient(90deg,#c78818,#ffd082)}
+.fill.gray{background:linear-gradient(90deg,#7b8794,#b9c1cc)}
+.timeline-panel{padding-bottom:18px}
+.timeline-panel.compact-timeline{padding:16px}
+.timeline-panel.compact-timeline .timeline-legend{margin:-2px 0 10px}
+.timeline-panel.compact-timeline .timeline-shell{padding-bottom:0}
+.timeline-panel.compact-timeline .timeline-head{margin-bottom:8px}
+.timeline-panel.compact-timeline .gantt-list{gap:8px}
+.timeline-panel.compact-timeline .timeline-row{padding:10px 0}
+.timeline-panel.compact-timeline .timeline-row.level-1{padding:12px}
+.timeline-panel.compact-timeline .empty{padding:14px 12px;font-size:13px}
+.timeline-panel.empty-timeline .timeline-head{display:none}
+.timeline-panel.empty-timeline .timeline-legend{margin:0 0 8px}
 .timeline-shell{overflow:auto;padding-bottom:6px}
 .timeline-head,.timeline-row{
   display:grid;grid-template-columns:430px minmax(680px,1fr) 138px 118px;gap:16px;align-items:center
@@ -134,10 +150,11 @@ button.danger{background:#fff1f2;color:#9f2232;box-shadow:none;border:1px solid 
 .timeline-legend{display:flex;gap:10px;flex-wrap:wrap;margin:-2px 0 14px}
 .timeline-legend span{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:#f3f7fb;color:var(--muted);font-size:12px;font-weight:700}
 .timeline-legend i{display:inline-flex;width:12px;height:12px;border-radius:999px}
-.timeline-legend .done{background:linear-gradient(90deg,#547c4a,#86b378)}
-.timeline-legend .progress{background:linear-gradient(90deg,var(--brand-2),#53b0a0)}
-.timeline-legend .attention{background:linear-gradient(90deg,#c78818,#ffd082)}
+.timeline-legend .completed{background:linear-gradient(90deg,#547c4a,#86b378)}
+.timeline-legend .on-track{background:linear-gradient(90deg,var(--brand-2),#53b0a0)}
+.timeline-legend .due-soon{background:linear-gradient(90deg,#c78818,#ffd082)}
 .timeline-legend .overdue{background:linear-gradient(90deg,#b32738,#ff7a88)}
+.timeline-legend .no-date{background:linear-gradient(90deg,#7b8794,#b9c1cc)}
 .months{display:grid;grid-template-columns:repeat(var(--months),1fr);gap:4px}
 .months div{padding:8px 0;background:#f3f7fb;border-radius:10px;text-align:center;font-size:13px;font-weight:700;color:#486178}
 .gantt-list{display:grid;gap:12px}
@@ -146,6 +163,8 @@ button.danger{background:#fff1f2;color:#9f2232;box-shadow:none;border:1px solid 
   padding:16px 14px;border:1px solid #d7e3ef;border-radius:16px;
   background:linear-gradient(180deg,#fcfdff 0,#f2f7fc 100%)
 }
+.timeline-row.reveal-highlight{border-color:#8cc9c4;box-shadow:0 0 0 3px rgba(79,184,165,.18)}
+.row-highlight td{background:#f2fbf8 !important}
 .timeline-row.level-2{padding-left:8px}
 .timeline-row.level-3,.timeline-row.level-4,.timeline-row.level-5{padding-left:12px}
 .timeline-title strong{display:block;font-size:20px;line-height:1.12}
@@ -153,7 +172,7 @@ button.danger{background:#fff1f2;color:#9f2232;box-shadow:none;border:1px solid 
 .timeline-row.level-2 .timeline-title strong{font-size:18px}
 .timeline-row.level-3 .timeline-title strong,.timeline-row.level-4 .timeline-title strong,.timeline-row.level-5 .timeline-title strong{font-size:16px}
 .timeline-title span{display:block;color:var(--muted);font-size:14px;line-height:1.25;margin-top:5px}
-.timeline-title small{display:block;color:var(--brand-2);font-size:13px;line-height:1.35;margin-top:8px;font-weight:700}
+.timeline-title small{display:block;color:var(--brand-2);font-size:13px;line-height:1.35;margin-top:8px;font-weight:600}
 .timeline-kickers{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
 .timeline-kind{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;background:#edf4fb;color:var(--brand);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
 .timeline-kind.root{background:#e8f0fa}
@@ -169,9 +188,10 @@ button.danger{background:#fff1f2;color:#9f2232;box-shadow:none;border:1px solid 
   background:linear-gradient(90deg,var(--brand-2),#53b0a0);box-shadow:0 8px 20px rgba(27,111,106,.22)
 }
 .gantt-bar.overdue{background:linear-gradient(90deg,#b32738,#ff7a88)}
-.gantt-bar.attention{background:linear-gradient(90deg,#b5750d,#ffc363)}
-.gantt-bar.pending{background:linear-gradient(90deg,#74879d,#b4c0ce)}
-.gantt-bar.done{background:linear-gradient(90deg,#547c4a,#86b378)}
+.gantt-bar.due-soon{background:linear-gradient(90deg,#b5750d,#ffc363)}
+.gantt-bar.no-date{background:linear-gradient(90deg,#74879d,#b4c0ce)}
+.gantt-bar.on-track{background:linear-gradient(90deg,var(--brand-2),#53b0a0)}
+.gantt-bar.completed{background:linear-gradient(90deg,#547c4a,#86b378)}
 .gantt-today{position:absolute;top:0;bottom:0;width:2px;background:#1d4ed8;opacity:.75}
 .gantt-label{font-size:12px;color:var(--muted);text-align:right}
 .gantt-progress{display:grid;gap:6px}
@@ -240,17 +260,34 @@ tbody tr:hover td{background:#f8fbfe}
 .filter-picker[open]{z-index:30}
 .filter-picker summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:12px}
 .filters .filter-picker{width:100%}
-.filters .filter-picker .assign-grid{grid-template-columns:1fr;max-height:260px;overflow:auto;padding-right:2px;position:absolute;left:0;right:0;top:calc(100% + 8px);background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);z-index:40}
-.filters .filter-picker .assign-item{padding:11px 12px;border-radius:12px;min-height:44px;align-items:center}
-.filters .filter-picker .assign-item span{font-size:15px;line-height:1.25;color:var(--ink);font-weight:600}
+.filters .filter-picker .assign-grid{grid-template-columns:1fr;max-height:240px;overflow:auto;padding:6px;position:absolute;left:0;right:auto;top:calc(100% + 8px);width:min(100%,320px);max-width:min(92vw,320px);background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);z-index:40}
+.filters .filter-picker .assign-item{padding:9px 10px;border-radius:10px;min-height:40px;align-items:center}
+.filters .filter-picker .assign-item span{font-size:14px;line-height:1.25;color:var(--ink);font-weight:550}
 .filters .filter-picker .assign-item input{margin-top:0}
-.operations-panel{margin-top:16px;padding:20px 22px;background:linear-gradient(180deg,#ffffff 0,#f8fbfe 100%)}
-.operations-grid{display:grid;grid-template-columns:1.05fr 1fr 1fr;gap:14px;align-items:start}
-.operations-card{background:#fbfdff;border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:12px}
-.operations-card h3{margin:0;font-size:14px;color:var(--brand);text-transform:uppercase;letter-spacing:.08em}
-.operations-card p{margin:0;color:var(--muted);font-size:13px;line-height:1.4}
+.operations-panel{margin-top:0;padding:20px 22px;background:linear-gradient(180deg,#ffffff 0,#f8fbfe 100%)}
+.operations-panel.collapsed{padding:16px 18px}
+.operations-panel.collapsed .operations-grid{display:none}
+.operations-panel.collapsed .operations-panel-head{margin-bottom:0}
+.operations-panel-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:14px}
+.operations-panel-head p{margin:6px 0 0;color:var(--muted);font-size:13px;line-height:1.4}
+.operations-panel-tools{display:grid;justify-items:end;gap:10px}
+.operations-panel-toggle{min-width:0;padding-inline:14px}
+.source-inline-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:#edf4fb;color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.04em}
+.operations-grid{display:grid;gap:14px;align-items:start}
+.operations-accordion{background:#fbfdff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.operations-accordion summary{cursor:pointer;list-style:none;padding:16px 18px;font-size:14px;font-weight:800;color:var(--brand);text-transform:uppercase;letter-spacing:.08em;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.operations-accordion summary::-webkit-details-marker{display:none}
+.operations-accordion summary::after{content:'+';font-size:20px;line-height:1;color:var(--brand)}
+.operations-accordion[open] summary::after{content:'−'}
+.operations-accordion-body{padding:0 18px 18px;display:grid;gap:12px}
+.operations-accordion-body p{margin:0;color:var(--muted);font-size:13px;line-height:1.4}
 .operations-stack{display:grid;gap:10px}
-.operations-actions-grid{display:grid;gap:10px}
+.operations-actions-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
+.operations-actions-grid button{width:100%}
+.operations-note{background:#f4f8fc;border:1px solid #dce8f3;border-radius:12px;padding:12px 13px;color:var(--muted);font-size:13px;line-height:1.45}
+.data-status-toggle{border:1px solid var(--line);border-radius:12px;background:#fff}
+.data-status-toggle summary{cursor:pointer;list-style:none;padding:11px 12px;font-size:13px;font-weight:700;color:var(--brand)}
+.data-status-toggle summary::-webkit-details-marker{display:none}
 .source-status,.ops-feedback{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff}
 .source-status strong,.ops-feedback strong{display:block;color:var(--brand);margin-bottom:4px}
 .source-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:#eaf1f8;color:var(--brand);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
@@ -280,6 +317,8 @@ tbody tr:hover td{background:#f8fbfe}
   .cards{grid-template-columns:repeat(3,minmax(0,1fr))}
   .layout,.topbar,.split,.detail-grid,.filters,.toolbar,.operations-grid{grid-template-columns:1fr}
   .hero{grid-template-columns:1fr}
+  .operations-panel-head{flex-direction:column}
+  .operations-panel-tools{justify-items:start;width:100%}
 }
 @media (max-width:760px){
   .app{padding:10px}
@@ -356,14 +395,15 @@ tbody tr:hover td{background:#f8fbfe}
   <section class="cards" id="kpiGrid"></section>
 
   <section class="layout" id="mainLayout" style="margin-top:16px">
-    <div class="stack">
-      <div class="panel">
+    <div class="stack" id="mainColumn">
+      <div class="panel timeline-panel" id="timelinePanel">
         <h2>Seguimiento maestro</h2>
         <div class="timeline-legend">
-          <span><i class="progress"></i> En proceso</span>
-          <span><i class="done"></i> Completado</span>
-          <span><i class="attention"></i> Próximo a vencer</span>
+          <span><i class="on-track"></i> En control / a tiempo</span>
+          <span><i class="completed"></i> Completado</span>
+          <span><i class="due-soon"></i> Próximo a vencer</span>
           <span><i class="overdue"></i> Atrasado o crítico</span>
+          <span><i class="no-date"></i> Sin fecha final</span>
         </div>
         <div class="timeline-shell">
           <div class="timeline-head">
@@ -423,57 +463,83 @@ tbody tr:hover td{background:#f8fbfe}
     </div>
   </section>
 
-  <section class="panel operations-panel">
-    <h2>Operaciones y reportes</h2>
+  <section class="panel operations-panel collapsed" id="operationsPanel">
+    <div class="operations-panel-head">
+      <div>
+        <h2>Operaciones y reportes</h2>
+        <p>Actualiza datos, exporta respaldos y abre artefactos ejecutivos sin perder jerarquía, seguimiento ni trazabilidad.</p>
+      </div>
+      <div class="operations-panel-tools">
+        <div class="source-inline-badge" id="sourceStatusInline">Datos cargados</div>
+        <button id="toggleOperationsPanelBtn" class="secondary operations-panel-toggle" type="button">Mostrar panel</button>
+      </div>
+    </div>
     <div class="operations-grid">
-      <div class="operations-card">
-        <h3>Fuente de datos</h3>
-        <p>Actualiza el visor con cronogramas operativos o estructuras editables sin perder la lógica de jerarquía, responsables y seguimiento.</p>
-        <div class="operations-stack">
-          <div class="field">
-            <label for="xlsxInput">Cronograma operativo</label>
-            <input id="xlsxInput" type="file" accept=".xlsx,.xls,.xlsm,.xlsb,.csv,.json">
-            <p class="field-help">Formatos admitidos: XLSX, XLS, CSV y JSON operativo con hoja o estructura tipo <strong>CRONOGRAMA</strong>.</p>
+      <details class="operations-accordion" id="opsDataSection" open>
+        <summary>Fuente de datos</summary>
+        <div class="operations-accordion-body">
+          <p>Actualiza el visor con cronogramas operativos o estructuras editables sin perder la lógica de jerarquía, responsables y seguimiento.</p>
+          <div class="operations-stack">
+            <div class="field">
+              <label for="xlsxInput">Cronograma operativo</label>
+              <input id="xlsxInput" type="file" accept=".xlsx,.xls,.xlsm,.xlsb,.csv,.json">
+              <p class="field-help">Formatos admitidos: XLSX, XLS, CSV y JSON operativo con hoja o estructura tipo <strong>CRONOGRAMA</strong>.</p>
+            </div>
+            <div class="field">
+              <label for="structureInput">Estructura editable</label>
+              <input id="structureInput" type="file" accept=".xlsx,.xls,.json">
+              <p class="field-help">Admite estructura exportada del visor en XLSX o JSON, incluyendo catálogos y portada.</p>
+            </div>
           </div>
-          <div class="field">
-            <label for="structureInput">Estructura editable</label>
-            <input id="structureInput" type="file" accept=".xlsx,.xls,.json">
-            <p class="field-help">Admite estructura exportada del visor en XLSX o JSON, incluyendo catálogos y portada.</p>
+          <div class="operations-actions-grid">
+            <button id="loadXlsxBtn" class="ghost">Leer Excel o CSV</button>
+            <button id="loadStructureBtn" class="ghost">Leer estructura</button>
+            <button id="useEmbeddedBtn" class="soft">Usar datos embebidos</button>
+          </div>
+          <details class="data-status-toggle" id="dataStatusSection">
+            <summary>Estado de datos</summary>
+            <div class="source-status" id="sourceStatusCard"></div>
+          </details>
+          <div class="ops-feedback info" id="importFeedback"></div>
+        </div>
+      </details>
+      <details class="operations-accordion" id="opsExportSection">
+        <summary>Exportación y respaldo</summary>
+        <div class="operations-accordion-body">
+          <p>Genera salidas reutilizables para respaldo, intercambio y continuidad operativa sin alterar los datos base del visor.</p>
+          <div class="operations-actions-grid">
+            <button id="exportJsonBtn" class="ghost">Exportar JSON filtrado</button>
+            <button id="exportTxtBtn" class="secondary">Exportar TXT</button>
+            <button id="exportStructureXlsxBtn" class="soft">Exportar estructura XLSX</button>
+            <button id="exportStructureJsonBtn" class="ghost">Exportar estructura JSON</button>
+            <button id="exportBackupBtn" class="soft">Exportar backup del día</button>
           </div>
         </div>
-        <div class="operations-actions-grid">
-          <button id="loadXlsxBtn" class="ghost">Leer Excel o CSV</button>
-          <button id="loadStructureBtn" class="ghost">Leer estructura</button>
-          <button id="useEmbeddedBtn" class="soft">Usar datos embebidos</button>
+      </details>
+      <details class="operations-accordion" id="opsReportSection" open>
+        <summary>Reportes y analítica</summary>
+        <div class="operations-accordion-body">
+          <div class="operations-note"><strong>Visor compartido.</strong> DGPPCS se mantiene visible como actor institucional y los cambios de fichas, estructura y portada se reflejan en la vista común.</div>
+          <div class="operations-actions-grid">
+            <button id="buildReportBtn">Generar reporte ejecutivo</button>
+            <button id="openReportBtn" class="ghost">Ver reporte</button>
+            <button id="openAnalyticsBtn" class="ghost">Ver analítica</button>
+            <button id="printReportBtn" class="soft">Imprimir reporte</button>
+            <button id="exportReportWordBtn" class="soft">Exportar reporte Word</button>
+            <button id="exportReportPdfBtn" class="soft">Exportar reporte PDF</button>
+          </div>
         </div>
-        <div class="source-status" id="sourceStatusCard"></div>
-        <div class="ops-feedback info" id="importFeedback"></div>
-      </div>
-      <div class="operations-card">
-        <h3>Exportación y respaldo</h3>
-        <p>Genera salidas reutilizables para respaldo, intercambio y continuidad operativa sin alterar los datos base del visor.</p>
-        <div class="operations-actions-grid">
-          <button id="exportJsonBtn" class="ghost">Exportar JSON filtrado</button>
-          <button id="exportTxtBtn" class="secondary">Exportar TXT</button>
-          <button id="exportStructureXlsxBtn" class="soft">Exportar estructura XLSX</button>
-          <button id="exportStructureJsonBtn" class="ghost">Exportar estructura JSON</button>
-          <button id="exportBackupBtn" class="soft">Exportar backup del día</button>
+      </details>
+      <details class="operations-accordion" id="opsConfigSection">
+        <summary>Configuración</summary>
+        <div class="operations-accordion-body">
+          <p>Ajusta portada y accesos avanzados del visor sin afectar el flujo operativo diario.</p>
+          <div class="operations-actions-grid">
+            <button id="editHeroBtn" class="secondary">Editar portada</button>
+            <button id="openAdminBtn" class="secondary" style="display:none">Panel admin</button>
+          </div>
         </div>
-      </div>
-      <div class="operations-card">
-        <h3>Reportes y analítica</h3>
-        <div class="summary-item"><div><strong>Visor compartido</strong><span>DGPPCS se mantiene visible como actor institucional y los cambios de fichas, estructura y portada se reflejan en la vista común.</span></div></div>
-        <div class="operations-actions-grid">
-          <button id="buildReportBtn">Generar reporte ejecutivo</button>
-          <button id="openReportBtn" class="ghost">Ver reporte</button>
-          <button id="openAnalyticsBtn" class="ghost">Ver analítica</button>
-          <button id="printReportBtn" class="soft">Imprimir reporte</button>
-          <button id="exportReportWordBtn" class="soft">Exportar reporte Word</button>
-          <button id="exportReportPdfBtn" class="soft">Exportar reporte PDF</button>
-          <button id="editHeroBtn" class="secondary">Editar portada</button>
-        </div>
-        <button id="openAdminBtn" class="secondary" style="display:none">Panel admin</button>
-      </div>
+      </details>
     </div>
   </section>
 </div>
@@ -2206,6 +2272,8 @@ const PAYLOAD_STORAGE_KEY = 'pec_tracking_payload_v1';
 const SOURCE_MODE_STORAGE_KEY = 'pec_tracking_source_mode_v1';
 const AUDIT_STORAGE_KEY = 'pec_tracking_audit_v1';
 const BACKUP_INDEX_STORAGE_KEY = 'pec_tracking_backup_index_v1';
+const OPS_SECTION_STORAGE_KEY = 'pec_tracking_ops_sections_v1';
+const OPERATIONS_PANEL_STORAGE_KEY = 'pec_tracking_ops_panel_v1';
 const STRUCTURE_SHEET_NAME = 'GANTT_ESTRUCTURA';
 const STRUCTURE_CONFIG_SHEET = 'CONFIG_VISOR';
 const STRUCTURE_PEOPLE_SHEET = 'CATALOGO_PERSONAS';
@@ -2329,6 +2397,8 @@ const appState = {
     detail: 'El visor está preparado para leer cronogramas, estructuras exportadas y respaldos del flujo actual.'
   },
   expanded: {},
+  highlightedId: '',
+  revealTimer: null,
   adminEnabled: isAdminMode(),
   remoteRevision: 0,
   serverInfo: null
@@ -2535,6 +2605,24 @@ function slugify(text){
 }
 
 function text(v){ return String(v == null ? '' : v).trim(); }
+
+function normalizeActivityLabel(value){
+  return text(value)
+    .replace(/[\u200B-\u200D\uFEFF]/g,'')
+    .replace(/\u00A0/g,' ')
+    .replace(/\s+/g,' ')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase();
+}
+
+function choosePreferredSiblingDuplicate(leftRecord, rightRecord){
+  const compare =
+    compareEdtValues(leftRecord && leftRecord.edt, rightRecord && rightRecord.edt) ||
+    ((Number(leftRecord && leftRecord.source_order || 0) - Number(rightRecord && rightRecord.source_order || 0))) ||
+    text(leftRecord && leftRecord.id).localeCompare(text(rightRecord && rightRecord.id), 'es');
+  return compare <= 0 ? leftRecord : rightRecord;
+}
 
 function cleanPersonName(name){
   return text(name)
@@ -3041,6 +3129,27 @@ function getGroupRecords(records){
   return sortBySourceOrder(records || appState.raw).filter(record => visualHierarchyLevel(record) === 1 && text(record.edt));
 }
 
+function getRootGroupRecord(rootEdt, records){
+  const target = text(rootEdt);
+  if(!target) return null;
+  const pools = [records || [], appState.raw || []];
+  for(const pool of pools){
+    const found = sortBySourceOrder(pool).find(record => text(record.edt) === target && visualHierarchyLevel(record) === 1);
+    if(found) return found;
+  }
+  return null;
+}
+
+function getRootGroupLabel(rootEdt, records){
+  const target = text(rootEdt);
+  if(!target) return '';
+  const record = getRootGroupRecord(target, records);
+  const rawLabel = record ? (text(appState.aliases[record.id]) || text(record.actividad)) : '';
+  const cleaned = text(rawLabel).replace(/^\d+(?:\.\d+)*\s*-\s*/,'').trim();
+  const label = cleaned || DEFAULT_TITLE_BY_EDT[target];
+  return label ? (target + ' - ' + label) : ('Bloque ' + target);
+}
+
 function getGroupOptionList(records){
   return getGroupRecords(records).map(record => ({
     value: text(record.edt),
@@ -3082,6 +3191,58 @@ function parseIso(value){
 
 function diffDays(end, start){
   return Math.round((end - start) / 86400000);
+}
+
+function compareEdtValues(leftValue, rightValue){
+  const left = text(leftValue);
+  const right = text(rightValue);
+  if(left === right) return 0;
+  const leftParts = left.split('.').map(part => /^\d+$/.test(part) ? Number(part) : part);
+  const rightParts = right.split('.').map(part => /^\d+$/.test(part) ? Number(part) : part);
+  const size = Math.max(leftParts.length, rightParts.length);
+  for(let index = 0; index < size; index += 1){
+    if(index >= leftParts.length) return -1;
+    if(index >= rightParts.length) return 1;
+    const a = leftParts[index];
+    const b = rightParts[index];
+    if(typeof a === 'number' && typeof b === 'number'){
+      if(a !== b) return a - b;
+      continue;
+    }
+    const cmp = String(a).localeCompare(String(b), 'es', {numeric:true, sensitivity:'base'});
+    if(cmp) return cmp;
+  }
+  return left.localeCompare(right, 'es', {numeric:true, sensitivity:'base'});
+}
+
+function resequenceHierarchySourceOrder(records){
+  const groups = new Map();
+  records.forEach(record => {
+    const parentKey = text(record.parent_edt) || '__root__';
+    if(!groups.has(parentKey)) groups.set(parentKey, []);
+    groups.get(parentKey).push(record);
+  });
+  groups.forEach(items => {
+    items.sort((a,b) =>
+      compareEdtValues(a.edt, b.edt) ||
+      (Number(a.nivel || 0) - Number(b.nivel || 0)) ||
+      ((Number(a.source_order) || 0) - (Number(b.source_order) || 0)) ||
+      text(a.id).localeCompare(text(b.id), 'es')
+    );
+  });
+  let nextOrder = 1;
+  const ordered = [];
+  function walk(parentKey){
+    const items = groups.get(parentKey) || [];
+    items.forEach(record => {
+      record.source_order = nextOrder;
+      nextOrder += 1;
+      ordered.push(record);
+      walk(text(record.edt) || record.id);
+    });
+  }
+  walk('__root__');
+  return ordered.length ? ordered : records;
 }
 
 function getMergedRecord(record){
@@ -3299,16 +3460,120 @@ function reconcileHierarchyRecords(records){
     assignedRecords.push({id: record.id, edt, level, actividad: record.actividad});
   });
 
-  return ordered;
+  return resequenceHierarchySourceOrder(ordered);
 }
 
 function hydrateData(payloadOverride){
   const payload = payloadOverride || appState.payload || window.PEC_TRACKING_DATA || {meta:{},summary:{},records:[]};
   appState.payload = payload;
   const sourceRecords = (payload.records || []).concat(appState.customRecords || []);
-  appState.raw = normalizeRecords(sourceRecords.map(getMergedRecord).filter(record => record && !record.__deleted));
+  const mergedRecords = sourceRecords.map(getMergedRecord).filter(record => record && !record.__deleted);
+  const cleanup = cleanupHistoricalSiblingDuplicates(mergedRecords);
+  appState.raw = normalizeRecords(cleanup.records);
   updateMeta(payload.meta);
   resetExpandedState();
+}
+
+function dedupeSiblingActivities(records){
+  const safeRecords = Array.isArray(records) ? records.slice() : [];
+  const seen = new Map();
+  const duplicateRoots = [];
+  sortBySourceOrder(safeRecords).forEach(record => {
+    if(!record || record.__deleted || isExcludedRecord(record) || isIntrinsicNoteRecord(record)) return;
+    const parentKey = text(record.parent_edt) || '__root__';
+    const activityKey = normalizeActivityLabel(record.actividad);
+    if(!activityKey) return;
+    const siblingKey = parentKey + '||' + activityKey;
+    const current = seen.get(siblingKey);
+    if(!current){
+      seen.set(siblingKey, record);
+      return;
+    }
+    const keep = choosePreferredSiblingDuplicate(current, record);
+    const drop = keep && keep.id === current.id ? record : current;
+    seen.set(siblingKey, keep);
+    duplicateRoots.push({
+      keepId: keep.id,
+      keepEdt: text(keep.edt),
+      keepTitle: text(keep.actividad),
+      removeId: drop.id,
+      removeEdt: text(drop.edt),
+      parentEdt: parentKey
+    });
+  });
+  if(!duplicateRoots.length) return {records:safeRecords, duplicates:[], removedIds:new Set()};
+  const byId = new Map(safeRecords.map(record => [record.id, record]));
+  const removedIds = new Set();
+  duplicateRoots.forEach(item => {
+    const root = byId.get(item.removeId);
+    if(!root) return;
+    const rootEdt = text(root.edt);
+    removedIds.add(root.id);
+    if(rootEdt){
+      safeRecords.forEach(candidate => {
+        const candidateEdt = text(candidate && candidate.edt);
+        if(candidate && candidate.id !== root.id && candidateEdt && candidateEdt.startsWith(rootEdt + '.')){
+          removedIds.add(candidate.id);
+        }
+      });
+    }
+  });
+  return {
+    records: safeRecords.filter(record => record && !removedIds.has(record.id)),
+    duplicates: duplicateRoots,
+    removedIds
+  };
+}
+
+function cleanupHistoricalSiblingDuplicates(records){
+  const deduped = dedupeSiblingActivities(records);
+  if(!deduped.duplicates.length) return deduped;
+  const removedIds = deduped.removedIds;
+  const currentCustom = Array.isArray(appState.customRecords) ? appState.customRecords : [];
+  const customIds = new Set(currentCustom.map(record => record && record.id));
+  let changed = false;
+  const nextCustom = currentCustom.filter(record => record && !removedIds.has(record.id));
+  if(nextCustom.length !== currentCustom.length){
+    appState.customRecords = nextCustom;
+    changed = true;
+  }
+  const nextEdits = {...(appState.edits || {})};
+  removedIds.forEach(id => {
+    if(customIds.has(id)) return;
+    const currentEdit = nextEdits[id] && typeof nextEdits[id] === 'object' ? nextEdits[id] : {};
+    if(!currentEdit.__deleted){
+      nextEdits[id] = {...currentEdit, __deleted:true};
+      changed = true;
+    }
+  });
+  if(changed) appState.edits = nextEdits;
+  const nextAliases = {...(appState.aliases || {})};
+  const nextNotes = {...(appState.notes || {})};
+  let aliasChanged = false;
+  let noteChanged = false;
+  removedIds.forEach(id => {
+    if(Object.prototype.hasOwnProperty.call(nextAliases, id)){
+      delete nextAliases[id];
+      aliasChanged = true;
+    }
+    if(Object.prototype.hasOwnProperty.call(nextNotes, id)){
+      delete nextNotes[id];
+      noteChanged = true;
+    }
+  });
+  if(aliasChanged){
+    appState.aliases = nextAliases;
+    changed = true;
+  }
+  if(noteChanged){
+    appState.notes = nextNotes;
+    changed = true;
+  }
+  if(changed){
+    persistLocalArtifacts();
+    if(isSharedBackendMode()) scheduleSharedSync('depurar_subactividades_duplicadas');
+  }
+  return deduped;
 }
 
 function updateMeta(meta){
@@ -3386,6 +3651,153 @@ function updateAlertFilterSummary(){
   if(!summary) return;
   const selected = getSelectedAlertValues();
   summary.textContent = selected.length ? ('Alertas: ' + selected.length) : 'Todas las alertas';
+}
+
+function closeFilterPickers(exceptPicker){
+  document.querySelectorAll('.filter-picker[open]').forEach(picker => {
+    if(exceptPicker && picker === exceptPicker) return;
+    picker.removeAttribute('open');
+  });
+}
+
+function findSearchTargetRecord(rawQuery){
+  const normalizedQuery = normalizeSearchText(rawQuery);
+  if(!normalizedQuery) return null;
+  const matches = appState.raw.filter(record => {
+    const candidates = [
+      text(record.edt),
+      displayTitle(record),
+      text(record.actividad),
+      text(appState.aliases[record.id] || '')
+    ].map(normalizeSearchText).filter(Boolean);
+    return candidates.includes(normalizedQuery);
+  });
+  if(matches.length === 1) return matches[0];
+  if(matches.length > 1){
+    const exactDisplay = matches.find(record => normalizeSearchText(displayTitle(record)) === normalizedQuery);
+    return exactDisplay || matches[0];
+  }
+  const partialMatches = appState.raw.filter(record => {
+    return normalizeSearchText(displayTitle(record)).includes(normalizedQuery) || buildSearchHaystack(record).includes(normalizedQuery);
+  });
+  if(partialMatches.length === 1) return partialMatches[0];
+  const displayMatches = partialMatches.filter(record => normalizeSearchText(displayTitle(record)).includes(normalizedQuery));
+  if(displayMatches.length === 1) return displayMatches[0];
+  return null;
+}
+
+function expandRecordAncestors(recordId){
+  if(!recordId) return;
+  const {childrenMap} = buildHierarchyMaps(appState.raw);
+  const parentById = new Map();
+  childrenMap.forEach((items, parentId) => {
+    items.forEach(item => parentById.set(item.id, parentId === '__root__' ? '' : parentId));
+  });
+  let currentId = recordId;
+  while(currentId){
+    const parentId = parentById.get(currentId);
+    if(!parentId) break;
+    appState.expanded[parentId] = true;
+    currentId = parentId;
+  }
+}
+
+function revealRecordInGantt(recordId, options){
+  if(!recordId) return;
+  const settings = options || {};
+  expandRecordAncestors(recordId);
+  appState.highlightedId = recordId;
+  if(appState.revealTimer){
+    clearTimeout(appState.revealTimer);
+    appState.revealTimer = null;
+  }
+  requestAnimationFrame(() => {
+    let ganttRow = Array.from(document.querySelectorAll('#ganttList .timeline-row')).find(row => row.getAttribute('data-open') === recordId);
+    let tableRow = Array.from(document.querySelectorAll('#tableBody tr')).find(row => row.getAttribute('data-open') === recordId);
+    if(!ganttRow){
+      renderAll();
+      ganttRow = Array.from(document.querySelectorAll('#ganttList .timeline-row')).find(row => row.getAttribute('data-open') === recordId);
+      tableRow = Array.from(document.querySelectorAll('#tableBody tr')).find(row => row.getAttribute('data-open') === recordId);
+    }
+    if(ganttRow){
+      ganttRow.scrollIntoView({block:'center', behavior:settings.instant ? 'auto' : 'smooth'});
+      ganttRow.classList.add('reveal-highlight');
+    }
+    if(tableRow){
+      tableRow.classList.add('row-highlight');
+    }
+    if(settings.openDrawer){
+      openDrawer(recordId);
+    }
+    appState.revealTimer = setTimeout(() => {
+      appState.highlightedId = '';
+      if(ganttRow) ganttRow.classList.remove('reveal-highlight');
+      if(tableRow) tableRow.classList.remove('row-highlight');
+      appState.revealTimer = null;
+    }, 2600);
+  });
+}
+
+function loadOperationsSectionState(){
+  try{
+    const raw = localStorage.getItem(OPS_SECTION_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  }catch(error){
+    return {};
+  }
+}
+
+function persistOperationsSectionState(){
+  try{
+    const state = {};
+    document.querySelectorAll('.operations-accordion, .data-status-toggle').forEach(section => {
+      if(section.id) state[section.id] = Boolean(section.open);
+    });
+    localStorage.setItem(OPS_SECTION_STORAGE_KEY, JSON.stringify(state));
+  }catch(error){}
+}
+
+function restoreOperationsSectionState(){
+  const state = loadOperationsSectionState();
+  document.querySelectorAll('.operations-accordion, .data-status-toggle').forEach(section => {
+    if(Object.prototype.hasOwnProperty.call(state, section.id)){
+      section.open = Boolean(state[section.id]);
+    }
+    section.addEventListener('toggle', persistOperationsSectionState);
+  });
+}
+
+function loadOperationsPanelCollapsed(){
+  try{
+    return localStorage.getItem(OPERATIONS_PANEL_STORAGE_KEY) !== '0';
+  }catch(error){}
+  return true;
+}
+
+function ensureOperationsPanelPlacement(){
+  const panel = document.getElementById('operationsPanel');
+  const column = document.getElementById('mainColumn');
+  if(panel && column && panel.parentElement !== column){
+    column.appendChild(panel);
+  }
+}
+
+function setOperationsPanelCollapsed(collapsed){
+  const panel = document.getElementById('operationsPanel');
+  const toggle = document.getElementById('toggleOperationsPanelBtn');
+  if(!panel || !toggle) return;
+  panel.classList.toggle('collapsed', Boolean(collapsed));
+  toggle.textContent = collapsed ? 'Mostrar panel' : 'Ocultar panel';
+  toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  try{
+    localStorage.setItem(OPERATIONS_PANEL_STORAGE_KEY, collapsed ? '1' : '0');
+  }catch(error){}
+}
+
+function toggleOperationsPanel(){
+  const panel = document.getElementById('operationsPanel');
+  if(!panel) return;
+  setOperationsPanelCollapsed(!panel.classList.contains('collapsed'));
 }
 
 function initSearchSuggestions(){
@@ -3507,11 +3919,18 @@ function applyFilters(){
 
   appState.matched = matched;
   appState.filtered = withAncestors(matched, appState.raw);
+  const searchTarget = findSearchTargetRecord(rawQuery);
+  if(searchTarget && appState.filtered.some(record => record.id === searchTarget.id)){
+    expandRecordAncestors(searchTarget.id);
+  }
 
   renderAll();
   buildExecutiveReport();
   if(isModalOpen('analyticsModal')) renderAnalytics();
   renderOperationsStatus();
+  if(searchTarget && appState.filtered.some(record => record.id === searchTarget.id)){
+    revealRecordInGantt(searchTarget.id);
+  }
 }
 
 function parentEdt(edt){
@@ -4552,6 +4971,35 @@ function selectBox(label, id, value, options){
   '</select></div>';
 }
 
+function getSubtreeIdSet(rootRecord){
+  const {childrenMap} = buildHierarchyMaps(appState.raw);
+  return new Set([rootRecord.id].concat(collectSubtreeRecords(rootRecord.id, childrenMap).map(item => item.id)));
+}
+
+function findEdtConflict(targetEdt, ignoredIds){
+  const normalized = normalizeProgramEdt(targetEdt, '');
+  if(!normalized) return null;
+  return appState.raw.find(record => !ignoredIds.has(record.id) && text(record.edt) === normalized) || null;
+}
+
+function validateEditedHierarchyTarget(rootRecord, nextEdt, nextParentEdt, ignoredIds){
+  const normalizedEdt = normalizeProgramEdt(nextEdt, rootRecord && rootRecord.actividad);
+  if(!normalizedEdt) return 'El EDT visible no puede quedar vacío.';
+  if(!/^\d+(?:\.\d+)*$/.test(normalizedEdt)) return 'El EDT visible debe usar un formato numérico válido, por ejemplo 2.3 o 3.1.4.';
+  if(!isTopLevelEdt(normalizedEdt) && !text(nextParentEdt)) return 'El EDT visible requiere un EDT padre válido para mantener la jerarquía.';
+  const conflict = findEdtConflict(normalizedEdt, ignoredIds);
+  if(conflict){
+    return 'El EDT ' + normalizedEdt + ' ya existe en "' + displayTitle(conflict) + '". Usa otro EDT o cambia primero la ubicación del registro actual.';
+  }
+  if(!isTopLevelEdt(normalizedEdt)){
+    const parentExists = appState.raw.some(record => !ignoredIds.has(record.id) && text(record.edt) === text(nextParentEdt));
+    if(!parentExists){
+      return 'No existe el EDT padre ' + nextParentEdt + ' para ubicar correctamente esta actividad.';
+    }
+  }
+  return '';
+}
+
 function reorderMovedSubtree(rootRecord, destination){
   const {ordered, childrenMap} = buildHierarchyMaps(appState.raw);
   const subtreeIds = [rootRecord.id].concat(collectSubtreeRecords(rootRecord.id, childrenMap).map(item => item.id));
@@ -4749,7 +5197,7 @@ function renderKpis(){
     metricCard('Próximos vencimientos', metrics.upcoming.length, metrics.upcoming.length ? 'Vence <= 15 días' : 'Sin presión inmediata', metrics.upcoming.length ? 'alert' : 'good'),
     metricCard('Sin responsable', metrics.withoutResponsible, metrics.withoutResponsible ? 'Requiere asignación operativa' : 'Cobertura completa'),
     metricCard('Sin seguimiento DGPPCS', metrics.withoutOwner, metrics.withoutOwner ? 'Pendiente de seguimiento' : 'Cobertura completa'),
-    metricCard('Bloque bajo mayor presión', metrics.priorityBlock ? 'B' + metrics.priorityBlock.edt : '—', metrics.priorityBlock ? blockSummaryLine(metrics.priorityBlock) : 'Sin bloques visibles'),
+    metricCard('Bloque bajo mayor presión', metrics.priorityBlock ? metrics.priorityBlock.label : '—', metrics.priorityBlock ? blockSummaryLine(metrics.priorityBlock) : 'Sin bloques visibles'),
     metricCard('Mayor carga responsable', metrics.topResponsible.count, metrics.topResponsible.label, 'neutral'),
     metricCard('Mayor carga seguimiento', metrics.topOwner.count, metrics.topOwner.label, 'neutral')
   ].join('');
@@ -4757,9 +5205,11 @@ function renderKpis(){
 }
 
 function metricCard(label, value, note, tone){
+  const valueText = String(value == null ? '' : value);
+  const isTextValue = /[A-Za-zÁÉÍÓÚáéíóúÑñ]/.test(valueText) || valueText.length > 10;
   return '<article class="card ' + escapeHtml(tone || '') + '">' +
     '<span>' + escapeHtml(label) + '</span>' +
-    '<b>' + escapeHtml(value) + '</b>' +
+    '<b class="' + (isTextValue ? 'metric-text' : 'metric-count') + '">' + escapeHtml(value) + '</b>' +
     '<small class="metric-note">' + escapeHtml(note) + '</small>' +
   '</article>';
 }
@@ -4895,9 +5345,18 @@ function renderResponsibleBars(){
 
 function updateGanttLayoutDensity(){
   const sideRail = document.getElementById('sideRail');
+  const layout = document.getElementById('mainLayout');
+  const timelinePanel = document.getElementById('timelinePanel');
+  const rowCount = document.querySelectorAll('#ganttList .timeline-row').length;
+  const hasEmptyState = Boolean(document.querySelector('#ganttList .empty'));
   if(!sideRail) return;
-  const visibleCount = Array.isArray(appState.filtered) ? appState.filtered.length : 0;
+  const visibleCount = rowCount || (Array.isArray(appState.filtered) ? appState.filtered.length : 0);
   const compact = visibleCount <= 4;
+  if(layout) layout.classList.toggle('compact-layout', compact);
+  if(timelinePanel){
+    timelinePanel.classList.toggle('compact-timeline', compact || hasEmptyState);
+    timelinePanel.classList.toggle('empty-timeline', hasEmptyState);
+  }
   sideRail.classList.toggle('compact-rail', compact);
   sideRail.querySelectorAll('.panel').forEach(panel => {
     const isEmpty = panel.dataset.empty === '1';
@@ -4936,6 +5395,16 @@ function displayStateLabel(value){
   return normalized || 'Sin estado';
 }
 
+function getTimelineStatusClass(record){
+  const state = displayStateLabel(record.estado);
+  const alert = text(record.alerta) || deriveAlert(record.inicio, record.final, record.estado);
+  if(state === 'Completado') return 'completed';
+  if(alert === 'vencido' || alert === 'critico') return 'overdue';
+  if(alert === 'atencion') return 'due-soon';
+  if(alert === 'ok') return 'on-track';
+  return 'no-date';
+}
+
 function alertDueLabel(record){
   return record.final ? fmtDate(record.final) : 'Sin fecha final';
 }
@@ -4949,7 +5418,7 @@ function summarizeBlocks(records){
     if(!map.has(rootEdt)){
       map.set(rootEdt, {
         edt: rootEdt,
-        label: DEFAULT_TITLE_BY_EDT[rootEdt] || ('Bloque ' + rootEdt),
+        label: getRootGroupLabel(rootEdt, records),
         total: 0,
         inProgress: 0,
         pending: 0,
@@ -4980,7 +5449,7 @@ function summarizeBlocks(records){
 function blockSummaryLine(item){
   const avgProgress = item.total ? Math.round(item.progressTotal / item.total) : 0;
   return [
-    'Bloque ' + item.edt + ' - ' + item.label,
+    item.label,
     item.total + ' casos',
     (item.overdue + item.critical + item.attention) + ' alertas',
     item.inProgress + ' en proceso',
@@ -5004,10 +5473,17 @@ function sourceModeLabel(){
 
 function renderOperationsStatus(){
   const statusHost = document.getElementById('sourceStatusCard');
+  const inlineHost = document.getElementById('sourceStatusInline');
+  const meta = (appState.payload && appState.payload.meta) || {};
+  const info = ensureServerInfo();
+  const syncShort = backendModeLabel() === 'Apps Script compartido'
+    ? 'Modo Apps Script · ' + syncStateLabel()
+    : 'Datos cargados · ' + syncStateLabel();
+  if(inlineHost){
+    inlineHost.textContent = syncShort;
+  }
   if(statusHost){
-    const meta = (appState.payload && appState.payload.meta) || {};
     const generatedAt = text(meta.generatedAt);
-    const info = ensureServerInfo();
     const syncDetail = info.syncMessage ? ' | ' + info.syncMessage : '';
     const savedLine = info.savedAt || info.savedBy
       ? 'Último guardado central: ' + [formatIsoDisplay(info.savedAt), text(info.savedBy)].filter(Boolean).join(' | ')
@@ -5016,7 +5492,7 @@ function renderOperationsStatus(){
       ? 'Último backup Drive: ' + [formatIsoDisplay(info.lastBackupAt), text(info.lastBackupFile)].filter(Boolean).join(' | ')
       : '';
     statusHost.innerHTML = [
-      '<strong>Estado de la fuente</strong>',
+      '<strong>Estado de datos</strong>',
       '<span class="source-badge">' + escapeHtml(sourceModeLabel()) + '</span>',
       '<p>' + escapeHtml(text(meta.sourceFile) || 'Fuente integrada del visor') + '</p>',
       '<p>' + escapeHtml('Registros operativos: ' + appState.raw.length + (generatedAt ? ' | Actualizado: ' + generatedAt.replace('T',' ') : '')) + '</p>',
@@ -5072,7 +5548,7 @@ function renderGantt(){
     const kids = childrenMap.get(r.id) || [];
     const hasChildren = kids.length > 0;
     const level = visualHierarchyLevel(r);
-    const hierarchyLabel = hierarchyKindLabel(r) + ' ' + text(r.edt);
+    const hierarchyLabel = level === 1 ? getRootGroupLabel(text(r.edt), appState.raw) : hierarchyKindLabel(r) + ' ' + text(r.edt);
     const hierarchyClass = level === 1 ? 'root' : level === 2 ? 'phase' : 'milestone';
     const indent = (level - 1) * 18;
     const start = item.range.start;
@@ -5083,13 +5559,7 @@ function renderGantt(){
     const width = clamp((diffDays(end, start) + 1) / totalDays * 100, 1.5, 100);
     const ganttState = makePendingState(r.estado);
     const displayState = displayStateLabel(r.estado || ganttState);
-    const stateCls = ganttState === 'Completado'
-      ? 'done'
-      : r.alerta === 'vencido' || r.alerta === 'critico'
-        ? 'overdue'
-        : r.alerta === 'atencion'
-          ? 'attention'
-          : 'pending';
+    const stateCls = getTimelineStatusClass(r);
     return '<div class="timeline-row level-' + level + '" data-open="' + escapeHtml(r.id) + '">' +
       '<div class="timeline-title"><div class="edt-cell" style="padding-left:' + indent + 'px">' +
       renderTreeAffordance(r.id, hasChildren, level) +
@@ -5367,6 +5837,15 @@ function addLocalChildRecord(){
     return;
   }
   const {ordered, childrenMap} = buildHierarchyMaps(appState.raw);
+  const normalizedTitle = normalizeActivityLabel(title);
+  const duplicateSibling = (childrenMap.get(parent.id) || []).find(child => normalizeActivityLabel(child.actividad) === normalizedTitle);
+  if(duplicateSibling){
+    const detail = 'Ya existe una subactividad con ese nombre bajo este mismo padre: ' + displayTitle(duplicateSibling) + '.';
+    setImportFeedback('Subactividad duplicada', detail, 'warn');
+    alert(detail);
+    revealRecordInGantt(duplicateSibling.id, {openDrawer:true});
+    return;
+  }
   const parentIndex = ordered.findIndex(item => item.id === parent.id);
   let insertAfter = Number(parent.source_order || 0);
   if(parentIndex >= 0){
@@ -5416,6 +5895,7 @@ function addLocalChildRecord(){
   hydrateData(appState.payload);
   setImportFeedback('Subactividad agregada', 'Se creó ' + child.edt + ' - ' + child.actividad + ' y el visor recalculó Gantt, KPIs, analítica y reporte.', 'success');
   refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:child.id});
+  revealRecordInGantt(child.id, {openDrawer:true});
   scheduleSharedSync('agregar_subactividad');
 }
 
@@ -5497,7 +5977,7 @@ function saveCurrentCase(){
   saveCustomEntities();
   const currentGroup = text(currentRecord.grupo) || deriveGroup(currentRecord.edt);
   const selectedGroup = text(document.getElementById('editGrupo')?.value) || currentGroup;
-  const manualEdt = text(document.getElementById('editEdt')?.value);
+  const manualEdt = normalizeProgramEdt(text(document.getElementById('editEdt')?.value), currentRecord.actividad);
   const moveTargetValue = text(document.getElementById('editMoveTarget')?.value);
   let nextEdt = manualEdt || text(currentRecord.edt);
   let nextParentEdt = text(currentRecord.parent_edt);
@@ -5531,22 +6011,53 @@ function saveCurrentCase(){
   }else if(manualEdt){
     nextGroup = deriveGroup(manualEdt);
   }
+  if(manualEdt){
+    const derivedParentEdt = isTopLevelEdt(manualEdt) ? '' : parentEdt(manualEdt);
+    if(text(currentRecord.edt) !== manualEdt || text(currentRecord.parent_edt) !== derivedParentEdt || text(currentRecord.grupo) !== deriveGroup(manualEdt)){
+      hierarchyChanged = true;
+    }
+    nextEdt = manualEdt;
+    nextParentEdt = derivedParentEdt;
+    nextGroup = deriveGroup(manualEdt) || nextGroup;
+  }
   if(isTopLevelEdt(nextEdt)) nextParentEdt = '';
+  const subtreeIds = getSubtreeIdSet(currentRecord);
+  const hierarchyConflict = validateEditedHierarchyTarget(currentRecord, nextEdt, nextParentEdt, subtreeIds);
+  if(hierarchyConflict){
+    setImportFeedback('Conflicto de EDT visible', hierarchyConflict, 'warn');
+    alert(hierarchyConflict);
+    return;
+  }
 
-    appState.edits[appState.selectedId] = {
-      edt: nextEdt,
-      parent_edt: nextParentEdt,
-      nivel: String(normalizedLevelValue(nextEdt, text(document.getElementById('editNivel').value))),
-      grupo: nextGroup,
-    responsable: normalizeResponsibleValue(selectedEntities),
-    seguimiento_dgppcs: normalizeSeguimientoValue(selectedPeople),
+  const editedSummaryValue = text(document.getElementById('editResumen').value);
+  const baseSummary = text(currentRecord.resumen);
+  const autoSummary = buildSummaryText(currentRecord);
+  const normalizedResponsible = normalizeResponsibleValue(selectedEntities);
+  const normalizedSeguimiento = normalizeSeguimientoValue(selectedPeople);
+  const nextState = text(document.getElementById('editEstado').value);
+  const nextSummary = (!editedSummaryValue || editedSummaryValue === baseSummary || editedSummaryValue === autoSummary)
+    ? buildSummaryText({
+        edt: nextEdt,
+        responsable: normalizedResponsible,
+        seguimiento_dgppcs: normalizedSeguimiento,
+        estado: nextState
+      })
+    : editedSummaryValue;
+
+  appState.edits[appState.selectedId] = {
+    edt: nextEdt,
+    parent_edt: nextParentEdt,
+    nivel: String(normalizedLevelValue(nextEdt, text(document.getElementById('editNivel').value))),
+    grupo: nextGroup,
+    responsable: normalizedResponsible,
+    seguimiento_dgppcs: normalizedSeguimiento,
     contacto: text(document.getElementById('editContacto').value),
-    estado: text(document.getElementById('editEstado').value),
+    estado: nextState,
     inicio: text(document.getElementById('editInicio').value),
     final: text(document.getElementById('editFinal').value),
     duracion_cal: text(document.getElementById('editDuracion').value),
     dias_habiles: text(document.getElementById('editHabiles').value),
-    resumen: text(document.getElementById('editResumen').value)
+    resumen: nextSummary
   };
   if(hierarchyChanged || text(currentRecord.edt) !== nextEdt || text(currentRecord.grupo) !== nextGroup || text(currentRecord.parent_edt) !== nextParentEdt){
     applyHierarchyEdits(currentRecord, nextEdt);
@@ -5576,7 +6087,9 @@ function saveCurrentCase(){
   ensureDailyBackup();
   hydrateData(appState.payload);
   closeDrawer();
+  setImportFeedback('Ficha actualizada', 'Se guardaron los cambios del EDT, el visor recalculó jerarquía, Gantt, KPIs, analítica, reporte y exportaciones.', 'success');
   refreshDerivedViews({rebuildFilters:true, reapplyFilters:true});
+  revealRecordInGantt(appState.selectedId);
   scheduleSharedSync('guardar_ficha');
 }
 
@@ -5899,13 +6412,13 @@ function renderAnalytics(){
     : 'La curva requiere al menos dos actividades visibles con fecha final registrada.';
 
   const progressRows = metrics.byBlock.map(item => ({
-    label:'Bloque ' + item.edt,
+    label:item.label,
     value:item.total ? Math.round(item.progressTotal / item.total) : 0,
     display:(item.total ? Math.round(item.progressTotal / item.total) : 0) + '%',
     preserve:true
   }));
   const riskRows = metrics.byBlock.map(item => ({
-    label:'Bloque ' + item.edt,
+    label:item.label,
     value:item.overdue + item.critical + item.attention
   }));
   const stateRows = groupCount(records, 'estado').map(item => ({label:item.label, value:item.count}));
@@ -5927,7 +6440,7 @@ function renderAnalytics(){
   renderBarHost('analyticsProgress', progressRows, 100, 'green');
   renderBarHost('analyticsRisk', riskRows, Math.max(1, ...riskRows.map(item => item.value)), item => item.value ? 'red' : 'green');
   renderBarHost('analyticsState', stateRows, Math.max(1, ...stateRows.map(item => item.value)), item => statusBarClass(item.label));
-  renderBarHost('analyticsAlerts', alertRows, Math.max(1, ...alertRows.map(item => item.value)), item => item.label.includes('Vencido') || item.label.includes('7') ? 'red' : item.label.includes('15') || item.label.includes('Sin fecha') ? 'amber' : 'green');
+  renderBarHost('analyticsAlerts', alertRows, Math.max(1, ...alertRows.map(item => item.value)), item => item.label.includes('Vencido') || item.label.includes('7') ? 'red' : item.label.includes('15') ? 'amber' : item.label.includes('Sin fecha') ? 'gray' : 'green');
   renderBarHost('analyticsResponsible', responsibleRows, Math.max(1, ...responsibleRows.map(item => item.value)), '');
   renderBarHost('analyticsOwner', ownerRows, Math.max(1, ...ownerRows.map(item => item.value)), '');
   renderBarHost('analyticsUpcoming', upcomingRows, 3, item => item.alert === 'vencido' || item.alert === 'critico' ? 'red' : 'amber');
@@ -6052,6 +6565,7 @@ function bindEvents(){
   document.getElementById('printReportBtn').addEventListener('click', printReport);
   document.getElementById('exportStructureJsonBtn').addEventListener('click', downloadStructureJson);
   document.getElementById('exportStructureXlsxBtn').addEventListener('click', exportStructureXlsx);
+  document.getElementById('toggleOperationsPanelBtn').addEventListener('click', toggleOperationsPanel);
   document.getElementById('loadXlsxBtn').addEventListener('click', () => {
     loadExcelFromInput().catch(error => {
       console.error(error);
@@ -6069,7 +6583,12 @@ function bindEvents(){
     });
   });
   document.getElementById('useEmbeddedBtn').addEventListener('click', useEmbeddedData);
+  document.addEventListener('keydown', event => {
+    if(event.key === 'Escape') closeFilterPickers();
+  });
   document.body.addEventListener('click', event => {
+    const filterPicker = event.target.closest('.filter-picker');
+    if(!filterPicker) closeFilterPickers();
     const toggle = event.target.closest('[data-toggle]');
     if(toggle){
       event.stopPropagation();
@@ -6117,6 +6636,9 @@ function init(){
   renderHero();
   ensureDailyBackup();
   initFilters();
+  ensureOperationsPanelPlacement();
+  setOperationsPanelCollapsed(loadOperationsPanelCollapsed());
+  restoreOperationsSectionState();
   bindEvents();
   applyFilters();
   buildExecutiveReport();

@@ -2712,15 +2712,18 @@ function getAssignableEntities(){
   );
 }
 
-function normalizeHeroState(hero){
+function normalizeHeroState(hero, fallbackHero){
   const saved = hero && typeof hero === 'object' ? hero : {};
+  const fallback = fallbackHero && typeof fallbackHero === 'object' ? fallbackHero : DEFAULT_HERO;
   return {
-    title: saved.title != null ? String(saved.title) : DEFAULT_HERO.title,
-    subtitle: saved.subtitle != null ? String(saved.subtitle) : DEFAULT_HERO.subtitle,
-    meta1: saved.meta1 != null ? String(saved.meta1) : DEFAULT_HERO.meta1,
-    meta2: saved.meta2 != null ? String(saved.meta2) : DEFAULT_HERO.meta2,
-    meta3: saved.meta3 != null ? String(saved.meta3) : DEFAULT_HERO.meta3,
-    extras: Array.isArray(saved.extras) ? saved.extras.map(value => String(value || '').trim()).filter(Boolean) : []
+    title: saved.title != null ? String(saved.title) : (fallback.title != null ? String(fallback.title) : DEFAULT_HERO.title),
+    subtitle: saved.subtitle != null ? String(saved.subtitle) : (fallback.subtitle != null ? String(fallback.subtitle) : DEFAULT_HERO.subtitle),
+    meta1: saved.meta1 != null ? String(saved.meta1) : (fallback.meta1 != null ? String(fallback.meta1) : DEFAULT_HERO.meta1),
+    meta2: saved.meta2 != null ? String(saved.meta2) : (fallback.meta2 != null ? String(fallback.meta2) : DEFAULT_HERO.meta2),
+    meta3: saved.meta3 != null ? String(saved.meta3) : (fallback.meta3 != null ? String(fallback.meta3) : DEFAULT_HERO.meta3),
+    extras: Array.isArray(saved.extras)
+      ? saved.extras.map(value => String(value || '').trim()).filter(Boolean)
+      : (Array.isArray(fallback.extras) ? fallback.extras.map(value => String(value || '').trim()).filter(Boolean) : [])
   };
 }
 
@@ -2879,7 +2882,7 @@ function normalizeSharedStateBundle(bundle){
     savedAt: text(data.savedAt),
     savedBy: text(data.savedBy),
     sourceMode: text(data.sourceMode) || 'embedded',
-    hero: normalizeHeroState(data.hero),
+    hero: normalizeHeroState(data.hero, appState.hero),
     customPeople: uniquePeople([].concat(BASE_PEOPLE).concat(Array.isArray(data.customPeople) ? data.customPeople : [])),
     customEntities: uniqueEntities([].concat(BASE_ENTITIES).concat(Array.isArray(data.customEntities) ? data.customEntities : [])),
     aliases: data.aliases && typeof data.aliases === 'object' && !Array.isArray(data.aliases) ? data.aliases : {},
@@ -4251,13 +4254,14 @@ async function loadStructureFromInput(){
   if(!structureSheet) throw new Error('No se encontró la hoja de estructura.');
   const rows = XLSX.utils.sheet_to_json(structureSheet, {defval:''});
   const configSheet = workbook.Sheets[STRUCTURE_CONFIG_SHEET];
-  const hero = {...DEFAULT_HERO};
+  const hero = normalizeHeroState(appState.hero);
   if(configSheet){
     const configRows = XLSX.utils.sheet_to_json(configSheet, {defval:''});
     configRows.forEach(row => {
       const key = text(row.clave || row.Clave);
-      const value = text(row.valor || row.Valor);
-      if(['title','subtitle','meta1','meta2','meta3'].includes(key)) hero[key] = value || hero[key];
+      const rawValue = Object.prototype.hasOwnProperty.call(row, 'valor') ? row.valor : row.Valor;
+      const value = rawValue == null ? '' : String(rawValue);
+      if(['title','subtitle','meta1','meta2','meta3'].includes(key)) hero[key] = value;
       if(key === 'extras') hero.extras = value ? value.split('|').map(item => item.trim()).filter(Boolean) : [];
     });
   }

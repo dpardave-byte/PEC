@@ -894,7 +894,7 @@ function normalizeSharedTrackingStateBundle_(bundle, fallback) {
     savedAt: String(data.savedAt != null ? data.savedAt : (base.savedAt || '')),
     savedBy: String(data.savedBy != null ? data.savedBy : (base.savedBy || '')),
     sourceMode: String(data.sourceMode || base.sourceMode || 'embedded'),
-    hero: normalizeHeroState_(data.hero || base.hero || {}),
+    hero: normalizeHeroState_(data.hero, base.hero || {}),
     customPeople: normalizeStringArray_(data.customPeople || base.customPeople || []),
     customEntities: normalizeStringArray_(data.customEntities || base.customEntities || []),
     aliases: normalizeObjectMap_(data.aliases || base.aliases || {}),
@@ -905,15 +905,16 @@ function normalizeSharedTrackingStateBundle_(bundle, fallback) {
   };
 }
 
-function normalizeHeroState_(hero) {
+function normalizeHeroState_(hero, fallbackHero) {
   const saved = hero && typeof hero === 'object' ? hero : {};
+  const fallback = fallbackHero && typeof fallbackHero === 'object' ? fallbackHero : {};
   return {
-    title: saved.title != null ? String(saved.title) : 'Visor de Seguimiento PEC',
-    subtitle: saved.subtitle != null ? String(saved.subtitle) : 'Programa de Economia Circular para Puno y Lima.',
-    meta1: saved.meta1 != null ? String(saved.meta1) : 'DGPPCS',
-    meta2: saved.meta2 != null ? String(saved.meta2) : 'Puno y Lima',
-    meta3: saved.meta3 != null ? String(saved.meta3) : 'Seguimiento operativo',
-    extras: Array.isArray(saved.extras) ? normalizeStringArray_(saved.extras) : []
+    title: saved.title != null ? String(saved.title) : (fallback.title != null ? String(fallback.title) : 'Visor de Seguimiento PEC'),
+    subtitle: saved.subtitle != null ? String(saved.subtitle) : (fallback.subtitle != null ? String(fallback.subtitle) : 'Programa de Economia Circular para Puno y Lima.'),
+    meta1: saved.meta1 != null ? String(saved.meta1) : (fallback.meta1 != null ? String(fallback.meta1) : 'DGPPCS'),
+    meta2: saved.meta2 != null ? String(saved.meta2) : (fallback.meta2 != null ? String(fallback.meta2) : 'Puno y Lima'),
+    meta3: saved.meta3 != null ? String(saved.meta3) : (fallback.meta3 != null ? String(fallback.meta3) : 'Seguimiento operativo'),
+    extras: Array.isArray(saved.extras) ? normalizeStringArray_(saved.extras) : (Array.isArray(fallback.extras) ? normalizeStringArray_(fallback.extras) : [])
   };
 }
 

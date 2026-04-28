@@ -74,6 +74,13 @@ button.soft{background:#e8f5f1;color:#0e615a}
 button.danger{background:#fff1f2;color:#9f2232;box-shadow:none;border:1px solid #efc6cc}
 .layout{display:grid;grid-template-columns:1.6fr .9fr;gap:16px;align-items:start}
 .stack{display:grid;gap:16px;align-content:start}
+.side-rail.compact-rail{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.side-rail.compact-rail .panel{padding:14px}
+.side-rail.compact-rail .panel h2{margin-bottom:10px;font-size:13px}
+.side-rail.compact-rail .bar-row{grid-template-columns:minmax(90px,1fr) minmax(100px,1.4fr) 42px;gap:8px}
+.side-rail.compact-rail .track{height:10px}
+.side-rail.compact-rail .mini-item,.side-rail.compact-rail .alert-item,.side-rail.compact-rail .summary-item{padding:10px 11px}
+.side-rail.compact-rail .empty{padding:14px 12px;font-size:12px}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
 .card{background:linear-gradient(180deg,#ffffff 0,#f8fbff 100%);border:1px solid var(--line);border-radius:16px;padding:16px 16px 14px;box-shadow:var(--shadow-soft);display:grid;gap:8px}
 .card span{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700}
@@ -348,7 +355,7 @@ tbody tr:hover td{background:#f8fbfe}
 
   <section class="cards" id="kpiGrid"></section>
 
-  <section class="layout" style="margin-top:16px">
+  <section class="layout" id="mainLayout" style="margin-top:16px">
     <div class="stack">
       <div class="panel">
         <h2>Seguimiento maestro</h2>
@@ -392,23 +399,23 @@ tbody tr:hover td{background:#f8fbfe}
       </div>
     </div>
 
-    <div class="stack">
-      <div class="panel">
+    <div class="stack side-rail" id="sideRail">
+      <div class="panel" id="alertsPanel">
         <h2>Alertas criticas</h2>
         <div class="alert-list" id="alertList"></div>
       </div>
 
-      <div class="panel">
+      <div class="panel" id="statusPanel">
         <h2>Distribucion por estado</h2>
         <div class="bar-list" id="statusBars"></div>
       </div>
 
-      <div class="panel">
+      <div class="panel" id="responsiblePanel">
         <h2>Carga operativa por responsable</h2>
         <div class="bar-list" id="responsibleBars"></div>
       </div>
 
-      <div class="panel">
+      <div class="panel" id="ownerPanel">
         <h2>Carga de seguimiento DGPPCS</h2>
         <div class="bar-list" id="ownerBars"></div>
       </div>
@@ -4377,6 +4384,7 @@ function renderAll(){
   renderGantt();
   renderTable();
   renderOperationsStatus();
+  updateGanttLayoutDensity();
 }
 
 function sortBySourceOrder(records){
@@ -4804,10 +4812,13 @@ function renderAlerts(){
     .sort((a,b) => alertRank(a.alerta) - alertRank(b.alerta) || text(a.final).localeCompare(text(b.final)))
     .slice(0,12);
   const el = document.getElementById('alertList');
+  const panel = document.getElementById('alertsPanel');
   if(!list.length){
+    if(panel) panel.dataset.empty = '1';
     el.innerHTML = '<div class="empty">No hay alertas para la vista actual.</div>';
     return;
   }
+  if(panel) panel.dataset.empty = '0';
   el.innerHTML = list.map(r =>
     '<div class="alert-item" data-open="' + escapeHtml(r.id) + '">' +
       '<div>' +
@@ -4826,6 +4837,13 @@ function alertRank(alert){
 
 function renderStatusBars(){
   const groups = groupCount(appState.matched, 'estado');
+  const panel = document.getElementById('statusPanel');
+  if(!groups.length){
+    if(panel) panel.dataset.empty = '1';
+    document.getElementById('statusBars').innerHTML = '<div class="empty">No hay estados para la vista actual.</div>';
+    return;
+  }
+  if(panel) panel.dataset.empty = '0';
   const max = Math.max(1, ...groups.map(x => x.count));
   document.getElementById('statusBars').innerHTML = groups.map(item =>
     barRow(item.label, item.count, max, statusBarClass(item.label))
@@ -4842,6 +4860,13 @@ function statusBarClass(label){
 function renderOwnerBars(){
   const expandedOwners = expandOwnerAssignments(appState.matched);
   const groups = groupCount(expandedOwners, 'owner').slice(0,8);
+  const panel = document.getElementById('ownerPanel');
+  if(!groups.length){
+    if(panel) panel.dataset.empty = '1';
+    document.getElementById('ownerBars').innerHTML = '<div class="empty">No hay carga de seguimiento para la vista actual.</div>';
+    return;
+  }
+  if(panel) panel.dataset.empty = '0';
   const max = Math.max(1, ...groups.map(x => x.count));
   document.getElementById('ownerBars').innerHTML = groups.map(item =>
     barRow(item.label, item.count, max, '')
@@ -4851,10 +4876,29 @@ function renderOwnerBars(){
 function renderResponsibleBars(){
   const expandedOwners = expandResponsibleAssignments(appState.matched);
   const groups = groupCount(expandedOwners, 'owner').slice(0,8);
+  const panel = document.getElementById('responsiblePanel');
+  if(!groups.length){
+    if(panel) panel.dataset.empty = '1';
+    document.getElementById('responsibleBars').innerHTML = '<div class="empty">No hay responsables visibles en esta vista.</div>';
+    return;
+  }
+  if(panel) panel.dataset.empty = '0';
   const max = Math.max(1, ...groups.map(x => x.count));
   document.getElementById('responsibleBars').innerHTML = groups.map(item =>
     barRow(item.label, item.count, max, '')
   ).join('');
+}
+
+function updateGanttLayoutDensity(){
+  const sideRail = document.getElementById('sideRail');
+  if(!sideRail) return;
+  const visibleCount = Array.isArray(appState.filtered) ? appState.filtered.length : 0;
+  const compact = visibleCount <= 4;
+  sideRail.classList.toggle('compact-rail', compact);
+  sideRail.querySelectorAll('.panel').forEach(panel => {
+    const isEmpty = panel.dataset.empty === '1';
+    panel.hidden = compact && isEmpty;
+  });
 }
 
 function barRow(label, count, max, cls, preserveLabel){

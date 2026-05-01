@@ -2624,6 +2624,29 @@ function choosePreferredSiblingDuplicate(leftRecord, rightRecord){
   return compare <= 0 ? leftRecord : rightRecord;
 }
 
+function isDirectChildEdt(parentEdtValue, childEdtValue){
+  const parentValue = text(parentEdtValue);
+  const childValue = text(childEdtValue);
+  if(!parentValue || !childValue || !childValue.startsWith(parentValue + '.')) return false;
+  const tail = childValue.slice(parentValue.length + 1);
+  return /^\d+$/.test(tail);
+}
+
+function getDirectChildrenByEdt(parentEdtValue, records, options){
+  const source = Array.isArray(records) ? records : [];
+  const settings = options || {};
+  const context = settings.revealableOnly ? getEffectiveSearchHierarchyContext(source) : null;
+  return sortBySourceOrder(source).filter(record => {
+    if(!record || record.__deleted || isExcludedRecord(record) || isIntrinsicNoteRecord(record)) return false;
+    const edt = text(record.edt);
+    if(!isDirectChildEdt(parentEdtValue, edt)) return false;
+    const resolvedParentEdt = text(record.parent_edt) || parentEdt(edt);
+    if(resolvedParentEdt && resolvedParentEdt !== text(parentEdtValue)) return false;
+    if(settings.revealableOnly && !isSearchRecordRevealable(record, context)) return false;
+    return true;
+  });
+}
+
 function cleanPersonName(name){
   return text(name)
     .replace(/[\u200B-\u200D\uFEFF]/g,'')
@@ -3389,6 +3412,19 @@ function resolveHierarchyOverride(record, assignedRecords){
   return null;
 }
 
+function resolveExplicitHierarchyParent(record, assignedRecords){
+  const explicitParentEdt = text(record.parent_edt);
+  const rawEdt = normalizeProgramEdt(text(record.edt), text(record.actividad));
+  const inferredParentEdt = parentEdt(rawEdt);
+  const requestedParentEdt = explicitParentEdt || inferredParentEdt;
+  if(!requestedParentEdt) return null;
+  for(let idx = assignedRecords.length - 1; idx >= 0; idx -= 1){
+    const candidate = assignedRecords[idx];
+    if(text(candidate.edt) === requestedParentEdt) return candidate;
+  }
+  return null;
+}
+
 function reconcileHierarchyRecords(records){
   const ordered = sortBySourceOrder(records.map(record => ({...record})));
   const stack = [];
@@ -3410,14 +3446,16 @@ function reconcileHierarchyRecords(records){
     }
 
     const overrideParent = resolveHierarchyOverride(record, assignedRecords);
-    if(overrideParent){
-      while(stack.length && stack[stack.length - 1].level >= overrideParent.level) stack.pop();
-      if(!stack.length || stack[stack.length - 1].id !== overrideParent.id){
-        stack.push({id: overrideParent.id, edt: overrideParent.edt, level: overrideParent.level});
+    const explicitParent = resolveExplicitHierarchyParent(record, assignedRecords);
+    const resolvedParent = overrideParent || explicitParent;
+    if(resolvedParent){
+      while(stack.length && stack[stack.length - 1].level >= resolvedParent.level) stack.pop();
+      if(!stack.length || stack[stack.length - 1].id !== resolvedParent.id){
+        stack.push({id: resolvedParent.id, edt: resolvedParent.edt, level: resolvedParent.level});
       }
-      level = overrideParent.level + 1;
+      level = resolvedParent.level + 1;
     }
-    const parentNode = overrideParent || (level > 1 ? stack[stack.length - 1] : null);
+    const parentNode = resolvedParent || (level > 1 ? stack[stack.length - 1] : null);
     const parentEdtValue = parentNode ? parentNode.edt : '';
     const parentKey = parentEdtValue || '__root__';
     const usedSiblings = usedEdtsByParent.get(parentKey) || new Set();
@@ -3466,10 +3504,33 @@ function reconcileHierarchyRecords(records){
 function hydrateData(payloadOverride){
   const payload = payloadOverride || appState.payload || window.PEC_TRACKING_DATA || {meta:{},summary:{},records:[]};
   appState.payload = payload;
-  const sourceRecords = (payload.records || []).concat(appState.customRecords || []);
-  const mergedRecords = sourceRecords.map(getMergedRecord).filter(record => record && !record.__deleted);
-  const cleanup = cleanupHistoricalSiblingDuplicates(mergedRecords);
-  appState.raw = normalizeRecords(cleanup.records);
+  let sourceRecords = (payload.records || []).concat(appState.customRecords || []);
+  let mergedRecords = sourceRecords.map(getMergedRecord).filter(record => record && !record.__deleted);
+  let cleanup = cleanupHistoricalSiblingDuplicates(mergedRecords);
+  let normalized = normalizeRecords(cleanup.records);
+  const customIds = new Set((appState.customRecords || []).map(record => record && record.id).filter(Boolean));
+  const searchContext = getEffectiveSearchHierarchyContext(normalized);
+  const ghostCustomIds = normalized
+    .filter(record => customIds.has(record.id) && !isSearchRecordRevealable(record, searchContext))
+    .map(record => record.id);
+  if(ghostCustomIds.length){
+    const ghostSet = new Set(ghostCustomIds);
+    appState.customRecords = (appState.customRecords || []).filter(record => record && !ghostSet.has(record.id));
+    ghostCustomIds.forEach(id => {
+      if(appState.edits && Object.prototype.hasOwnProperty.call(appState.edits, id)) delete appState.edits[id];
+      if(appState.aliases && Object.prototype.hasOwnProperty.call(appState.aliases, id)) delete appState.aliases[id];
+      if(appState.notes && Object.prototype.hasOwnProperty.call(appState.notes, id)) delete appState.notes[id];
+    });
+    persistLocalArtifacts();
+    if(isSharedBackendMode()) scheduleSharedSync('depurar_subactividades_fantasma');
+    sourceRecords = (payload.records || []).concat(appState.customRecords || []);
+    mergedRecords = sourceRecords.map(getMergedRecord).filter(record => record && !record.__deleted);
+    cleanup = cleanupHistoricalSiblingDuplicates(mergedRecords);
+    normalized = normalizeRecords(cleanup.records);
+  }
+  appState.raw = normalized;
+  appState.duplicateCleanup = cleanup.duplicates || [];
+  appState.searchableRecords = getEffectiveRecordsForSearch();
   updateMeta(payload.meta);
   resetExpandedState();
 }
@@ -3576,6 +3637,43 @@ function cleanupHistoricalSiblingDuplicates(records){
   return deduped;
 }
 
+function isSearchRecordRevealable(record, hierarchyContext){
+  if(!record || !record.id) return false;
+  const context = hierarchyContext || getEffectiveSearchHierarchyContext(appState.raw);
+  if(!context.byId.has(record.id)) return false;
+  const edt = text(record.edt);
+  const level = visualHierarchyLevel(record);
+  const explicitParentEdt = text(record.parent_edt);
+  const inferredParentEdt = parentEdt(edt);
+  const explicitParentId = explicitParentEdt && context.edtMap.has(explicitParentEdt) ? context.edtMap.get(explicitParentEdt) : '';
+  const inferredParentId = inferredParentEdt && context.edtMap.has(inferredParentEdt) ? context.edtMap.get(inferredParentEdt) : '';
+  const hasValidRoute = level === 1 ||
+    isRootBlockEdt(edt) ||
+    (explicitParentId && explicitParentId !== record.id) ||
+    (inferredParentId && inferredParentId !== record.id);
+  if(!hasValidRoute) return false;
+  const range = getInheritedRange(record, context.childrenMap);
+  return Boolean(range.start && range.end);
+}
+
+function getEffectiveSearchHierarchyContext(records){
+  const source = Array.isArray(records)
+    ? records.filter(record => record && !record.__deleted && !isExcludedRecord(record) && !isCommentOnlyRecord(record) && text(record.edt) && text(record.actividad))
+    : [];
+  const hierarchy = buildHierarchyMaps(source);
+  return {
+    ordered: hierarchy.ordered || [],
+    childrenMap: hierarchy.childrenMap || new Map(),
+    edtMap: hierarchy.edtMap || new Map(),
+    byId: new Map((hierarchy.ordered || []).map(record => [record.id, record]))
+  };
+}
+
+function getEffectiveRecordsForSearch(){
+  const context = getEffectiveSearchHierarchyContext(appState.raw);
+  return context.ordered.filter(record => isSearchRecordRevealable(record, context));
+}
+
 function updateMeta(meta){
   const generatedEl = document.getElementById('metaGeneratedAt');
   const referenceEl = document.getElementById('metaReferenceDate');
@@ -3663,7 +3761,8 @@ function closeFilterPickers(exceptPicker){
 function findSearchTargetRecord(rawQuery){
   const normalizedQuery = normalizeSearchText(rawQuery);
   if(!normalizedQuery) return null;
-  const matches = appState.raw.filter(record => {
+  const searchRecords = getEffectiveRecordsForSearch();
+  const matches = searchRecords.filter(record => {
     const candidates = [
       text(record.edt),
       displayTitle(record),
@@ -3677,7 +3776,7 @@ function findSearchTargetRecord(rawQuery){
     const exactDisplay = matches.find(record => normalizeSearchText(displayTitle(record)) === normalizedQuery);
     return exactDisplay || matches[0];
   }
-  const partialMatches = appState.raw.filter(record => {
+  const partialMatches = searchRecords.filter(record => {
     return normalizeSearchText(displayTitle(record)).includes(normalizedQuery) || buildSearchHaystack(record).includes(normalizedQuery);
   });
   if(partialMatches.length === 1) return partialMatches[0];
@@ -3800,10 +3899,17 @@ function toggleOperationsPanel(){
   setOperationsPanelCollapsed(!panel.classList.contains('collapsed'));
 }
 
-function initSearchSuggestions(){
+function initSearchSuggestions(rawQuery){
+  const input = document.getElementById('searchInput');
   const datalist = document.getElementById('searchSuggestions');
-  const suggestionRecords = sortBySourceOrder(appState.raw)
-    .filter(record => text(record.edt) && text(record.actividad));
+  const normalizedQuery = normalizeSearchText(rawQuery != null ? rawQuery : text(input && input.value));
+  if(!normalizedQuery){
+    datalist.innerHTML = '';
+    if(input) input.removeAttribute('list');
+    return;
+  }
+  const suggestionRecords = getEffectiveRecordsForSearch()
+    .filter(record => normalizeSearchText(displayTitle(record)).includes(normalizedQuery) || buildSearchHaystack(record).includes(normalizedQuery));
   const seen = new Set();
   const items = suggestionRecords
     .sort((a,b) => visualHierarchyLevel(a) - visualHierarchyLevel(b) || (Number(a.source_order) || 0) - (Number(b.source_order) || 0))
@@ -3816,8 +3922,12 @@ function initSearchSuggestions(){
       seen.add(cleaned);
       return true;
     })
-    .slice(0, 180);
+    .slice(0, 60);
   datalist.innerHTML = items.map(item => '<option value="' + escapeHtml(item) + '"></option>').join('');
+  if(input){
+    if(items.length) input.setAttribute('list', 'searchSuggestions');
+    else input.removeAttribute('list');
+  }
 }
 
 function escapeHtml(value){
@@ -3863,6 +3973,50 @@ function hierarchyQueryMatches(record, query){
   return hierarchyTerms.includes(normalizedQuery);
 }
 
+function getCurrentFilterSnapshot(){
+  return {
+    rawQuery: text(document.getElementById('searchInput')?.value),
+    statuses: getSelectedStatusValues(),
+    alerts: getSelectedAlertValues(),
+    group: text(document.getElementById('groupFilter')?.value),
+    responsible: text(document.getElementById('responsibleFilter')?.value),
+    owner: text(document.getElementById('ownerFilter')?.value)
+  };
+}
+
+function recordMatchesFilterSnapshot(record, snapshot){
+  if(!record) return false;
+  const filters = snapshot || getCurrentFilterSnapshot();
+  const q = normalizeSearchText(filters.rawQuery);
+  if(q){
+    if(isEdtScopedQuery(q)){
+      if(!edtQueryMatches(record, q)) return false;
+    }else if(/^(bloque|fase|hito|caso)\s+\d+(?:\.\d+)*$/.test(q)){
+      if(!hierarchyQueryMatches(record, q)) return false;
+    }else if(!buildSearchHaystack(record).includes(q)){
+      return false;
+    }
+  }
+  if(filters.statuses && filters.statuses.length && !filters.statuses.includes(record.estado)) return false;
+  if(filters.alerts && filters.alerts.length && !filters.alerts.includes(record.alerta)) return false;
+  if(filters.group && record.grupo !== filters.group) return false;
+  if(filters.responsible && !splitEntities(record.responsable).some(entity => entityKey(entity) === entityKey(filters.responsible))) return false;
+  if(filters.owner && !splitPeople(record.seguimiento_dgppcs).some(person => personKey(person) === personKey(filters.owner))) return false;
+  return true;
+}
+
+function clearActiveFilters(){
+  ['searchInput','groupFilter','responsibleFilter','ownerFilter'].forEach(id => {
+    const field = document.getElementById(id);
+    if(field) field.value = '';
+  });
+  document.querySelectorAll('.status-filter-option').forEach(input => { input.checked = false; });
+  document.querySelectorAll('.alert-filter-option').forEach(input => { input.checked = false; });
+  updateStatusFilterSummary();
+  updateAlertFilterSummary();
+  initSearchSuggestions('');
+}
+
 function buildSearchHierarchyTerms(record){
   const edt = text(record.edt);
   if(!edt) return [];
@@ -3892,6 +4046,7 @@ function buildSearchHaystack(record){
 
 function applyFilters(){
   const rawQuery = text(document.getElementById('searchInput').value);
+  initSearchSuggestions(rawQuery);
   const q = normalizeSearchText(rawQuery);
   const statuses = getSelectedStatusValues();
   const alerts = getSelectedAlertValues();
@@ -3920,8 +4075,15 @@ function applyFilters(){
   appState.matched = matched;
   appState.filtered = withAncestors(matched, appState.raw);
   const searchTarget = findSearchTargetRecord(rawQuery);
-  if(searchTarget && appState.filtered.some(record => record.id === searchTarget.id)){
-    expandRecordAncestors(searchTarget.id);
+  if(searchTarget){
+    const filteredTarget = appState.filtered.find(record => record.id === searchTarget.id);
+    if(filteredTarget){
+      expandRecordAncestors(searchTarget.id);
+    }else if(!matched.length && !statuses.length && !alerts.length && !group && !responsible && !owner){
+      appState.matched = [searchTarget];
+      appState.filtered = withAncestors([searchTarget], appState.raw);
+      expandRecordAncestors(searchTarget.id);
+    }
   }
 
   renderAll();
@@ -3931,6 +4093,13 @@ function applyFilters(){
   if(searchTarget && appState.filtered.some(record => record.id === searchTarget.id)){
     revealRecordInGantt(searchTarget.id);
   }
+}
+
+function handleSearchInputChange(){
+  const searchInput = document.getElementById('searchInput');
+  const rawQuery = text(searchInput && searchInput.value);
+  initSearchSuggestions(rawQuery);
+  applyFilters();
 }
 
 function parentEdt(edt){
@@ -4876,14 +5045,16 @@ function getInheritedRange(record, childrenMap){
 function nextChildEdt(parentRecord, childrenMap){
   const parentEdt = text(parentRecord.edt);
   if(!parentEdt) return '';
-  const directChildren = childrenMap.get(parentRecord.id) || [];
+  const recordSource = Array.isArray(appState.raw) && appState.raw.length ? appState.raw : ((childrenMap && childrenMap.get(parentRecord.id)) || []);
+  const directChildren = Array.isArray(recordSource) && recordSource === appState.raw
+    ? getDirectChildrenByEdt(parentEdt, appState.raw, {revealableOnly:true})
+    : ((childrenMap && childrenMap.get(parentRecord.id)) || []).filter(child => isDirectChildEdt(parentEdt, child && child.edt));
   const numbers = directChildren
     .map(child => {
       const edt = text(child.edt);
-      if(!edt.startsWith(parentEdt + '.')) return null;
+      if(!isDirectChildEdt(parentEdt, edt)) return null;
       const tail = edt.slice(parentEdt.length + 1);
-      const first = tail.split('.')[0];
-      return /^\d+$/.test(first) ? Number(first) : null;
+      return /^\d+$/.test(tail) ? Number(tail) : null;
     })
     .filter(value => value != null);
   const next = (numbers.length ? Math.max(...numbers) : 0) + 1;
@@ -5560,7 +5731,9 @@ function renderGantt(){
     const ganttState = makePendingState(r.estado);
     const displayState = displayStateLabel(r.estado || ganttState);
     const stateCls = getTimelineStatusClass(r);
-    return '<div class="timeline-row level-' + level + '" data-open="' + escapeHtml(r.id) + '">' +
+    const rowClasses = ['timeline-row', 'level-' + level];
+    if(appState.highlightedId === r.id) rowClasses.push('reveal-highlight');
+    return '<div class="' + rowClasses.join(' ') + '" data-open="' + escapeHtml(r.id) + '">' +
       '<div class="timeline-title"><div class="edt-cell" style="padding-left:' + indent + 'px">' +
       renderTreeAffordance(r.id, hasChildren, level) +
       '<div><div class="timeline-kickers">' +
@@ -5610,7 +5783,9 @@ function renderTable(){
       const hasChildren = kids.length > 0;
       const level = visualHierarchyLevel(r);
       const indent = (level - 1) * 18;
-      return '<tr class="row-level-' + level + '" data-open="' + escapeHtml(r.id) + '">' +
+      const rowClasses = ['row-level-' + level];
+      if(appState.highlightedId === r.id) rowClasses.push('row-highlight');
+      return '<tr class="' + rowClasses.join(' ') + '" data-open="' + escapeHtml(r.id) + '">' +
         '<td>' +
           '<div class="edt-cell" style="padding-left:' + indent + 'px">' +
             renderTreeAffordance(r.id, hasChildren, level) +
@@ -5821,6 +5996,8 @@ function resetHeroModal(){
 }
 
 function addLocalChildRecord(){
+  const activeFilters = getCurrentFilterSnapshot();
+  hydrateData(appState.payload);
   const parentId = text(document.getElementById('addChildBtn')?.dataset.parentId) || appState.selectedId;
   if(!parentId){
     alert('Selecciona primero una actividad padre para agregar la subactividad.');
@@ -5836,9 +6013,14 @@ function addLocalChildRecord(){
     alert('Ingresa la descripcion de la subactividad.');
     return;
   }
+  const previousCustomRecords = (appState.customRecords || []).map(record => ({...record}));
+  const previousEdits = {...(appState.edits || {})};
+  const previousAliases = {...(appState.aliases || {})};
+  const previousNotes = {...(appState.notes || {})};
   const {ordered, childrenMap} = buildHierarchyMaps(appState.raw);
+  const parentVisualLevel = normalizedLevelValue(parent.edt, parent.nivel);
   const normalizedTitle = normalizeActivityLabel(title);
-  const duplicateSibling = (childrenMap.get(parent.id) || []).find(child => normalizeActivityLabel(child.actividad) === normalizedTitle);
+  const duplicateSibling = getDirectChildrenByEdt(parent.edt, appState.raw, {revealableOnly:true}).find(child => normalizeActivityLabel(child.actividad) === normalizedTitle);
   if(duplicateSibling){
     const detail = 'Ya existe una subactividad con ese nombre bajo este mismo padre: ' + displayTitle(duplicateSibling) + '.';
     setImportFeedback('Subactividad duplicada', detail, 'warn');
@@ -5862,8 +6044,11 @@ function addLocalChildRecord(){
     alert('No se pudo calcular el EDT de la nueva subactividad. Revisa la jerarquía del nodo padre e intenta otra vez.');
     return;
   }
-  const start = text(document.getElementById('newChildStart').value);
-  const end = text(document.getElementById('newChildEnd').value);
+  const rawStart = text(document.getElementById('newChildStart').value);
+  const rawEnd = text(document.getElementById('newChildEnd').value);
+  const inheritedRange = getInheritedRange(parent, childrenMap);
+  const start = rawStart || (inheritedRange && inheritedRange.start ? inheritedRange.start.toISOString().slice(0,10) : '');
+  const end = rawEnd || (inheritedRange && inheritedRange.end ? inheritedRange.end.toISOString().slice(0,10) : '');
   const state = normalizeStateValue(document.getElementById('newChildState').value) || 'Pendiente de Iniciar';
   const child = {
     id: 'local-' + Date.now(),
@@ -5871,20 +6056,20 @@ function addLocalChildRecord(){
     edt,
     parent_edt: parent.edt || '',
     actividad: title,
-    responsable: '',
+    responsable: text(parent.responsable),
     inicio: start,
     final: end,
     duracion_cal: '',
     dias_habiles: '',
     dias_restantes: deriveRemaining(end, state),
     estado: state,
-    seguimiento_dgppcs: '',
-    contacto: '',
-      nivel: normalizedLevelValue(parent.edt, parent.nivel) + 1,
+    seguimiento_dgppcs: text(parent.seguimiento_dgppcs),
+    contacto: text(parent.contacto),
+    nivel: parentVisualLevel + 1,
     grupo: parent.grupo || deriveGroup(edt),
     avance_estimado: deriveProgress(state),
     alerta: deriveAlert(start, end, state),
-    resumen: [edt ? `EDT ${edt}` : '', state].filter(Boolean).join(' | ')
+    resumen: [edt ? `EDT ${edt}` : '', text(parent.seguimiento_dgppcs) || text(parent.responsable), state].filter(Boolean).join(' | ')
   };
   appState.customRecords = sortBySourceOrder([].concat(appState.customRecords || []).concat(child));
   saveCustomRecords();
@@ -5893,9 +6078,40 @@ function addLocalChildRecord(){
   ensureDailyBackup();
   if(parent.id) appState.expanded[parent.id] = true;
   hydrateData(appState.payload);
-  setImportFeedback('Subactividad agregada', 'Se creó ' + child.edt + ' - ' + child.actividad + ' y el visor recalculó Gantt, KPIs, analítica y reporte.', 'success');
-  refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:child.id});
-  revealRecordInGantt(child.id, {openDrawer:true});
+  const hydratedChild = appState.raw.find(record => record.id === child.id);
+  const revealId = hydratedChild && hydratedChild.id ? hydratedChild.id : child.id;
+  const revealParentEdt = text((hydratedChild && hydratedChild.parent_edt) || child.parent_edt);
+  const hiddenByFilters = hydratedChild ? !recordMatchesFilterSnapshot(hydratedChild, activeFilters) : false;
+  if(hiddenByFilters){
+    clearActiveFilters();
+  }
+  if(revealParentEdt){
+    appState.raw.filter(record => text(record.edt) === revealParentEdt).forEach(record => {
+      appState.expanded[record.id] = true;
+    });
+  }
+  const feedbackDetail = hiddenByFilters
+    ? ('Se creó ' + child.edt + ' - ' + child.actividad + '. Se limpiaron filtros activos para mostrar la nueva subactividad en el Gantt.')
+    : ('Se creó ' + child.edt + ' - ' + child.actividad + ' y el visor recalculó Gantt, KPIs, analítica y reporte.');
+  setImportFeedback('Subactividad agregada', feedbackDetail, 'success');
+  refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:revealId});
+  revealRecordInGantt(revealId, {openDrawer:true});
+  renderAll();
+  let visibleRow = Array.from(document.querySelectorAll('#ganttList .timeline-row')).find(row => row.getAttribute('data-open') === revealId);
+  if(!visibleRow){
+    appState.customRecords = previousCustomRecords;
+    appState.edits = previousEdits;
+    appState.aliases = previousAliases;
+    appState.notes = previousNotes;
+    persistLocalArtifacts();
+    hydrateData(appState.payload);
+    if(parent.id) appState.expanded[parent.id] = true;
+    refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:parent.id});
+    const detail = 'No se pudo mostrar la nueva subactividad en el Gantt. La creación se revirtió para evitar un registro oculto o fantasma.';
+    setImportFeedback('Subactividad revertida', detail, 'warn');
+    alert(detail);
+    return;
+  }
   scheduleSharedSync('agregar_subactividad');
 }
 
@@ -6501,13 +6717,17 @@ function printReport(){
 }
 
 function bindEvents(){
-  ['searchInput','groupFilter','responsibleFilter','ownerFilter'].forEach(id => {
+  const searchInput = document.getElementById('searchInput');
+  searchInput.addEventListener('input', handleSearchInputChange);
+  searchInput.addEventListener('change', handleSearchInputChange);
+  searchInput.addEventListener('search', handleSearchInputChange);
+  ['groupFilter','responsibleFilter','ownerFilter'].forEach(id => {
     document.getElementById(id).addEventListener('input', applyFilters);
     document.getElementById(id).addEventListener('change', applyFilters);
   });
   document.getElementById('statusFilterOptions').addEventListener('change', () => {
     updateStatusFilterSummary();
-    applyFilters();
+    handleSearchInputChange();
   });
   document.getElementById('alertFilterOptions').addEventListener('change', () => {
     updateAlertFilterSummary();

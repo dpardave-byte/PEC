@@ -19,8 +19,13 @@ Cuando una tarea afecte el visor PEC, primero identifica el tipo de cambio:
 4. Cambio que pueda romper comportamiento existente:
    - Usar el skill pec-qa-regresion.
 
-5. Antes de cerrar la tarea:
-   - Usar el skill pec-git-entrega.
+5. Supervisión de calidad, regresión visual o validación final:
+   - Usar el skill `pec-supervisor-calidad`.
+
+6. Antes de cerrar la tarea:
+   - Usar el skill `pec-supervisor-calidad`.
+   - Si el veredicto es “listo para commit”, usar el skill `pec-git-entrega`.
+   - Si el veredicto es “no listo para commit”, no recomendar `git add`, `git commit` ni `push`.
 
 Reglas obligatorias para el visor PEC:
 
@@ -31,3 +36,8 @@ Reglas obligatorias para el visor PEC:
 - La DGPPCS debe aparecer como responsable cuando corresponda.
 - No modificar funcionalidades existentes sin revisar regresion.
 - Antes de finalizar, explicar que archivos se tocaron, que se corrigio y que pruebas se realizaron.
+## Regla de supervisión obligatoria
+
+- Si una corrección no se valida visualmente o no pasa el flujo completo usuario → estado → hidratación → filtros → render → persistencia, no está lista para commit.
+- Si el usuario contradice una validación de Codex con evidencia visual, prevalece la evidencia visual del usuario y debe reabrirse el diagnóstico.
+- No se debe recomendar commit si existen registros invisibles, duplicados persistidos, botones sin conexión real, errores de Apps Script o archivos temporales no rastreados.

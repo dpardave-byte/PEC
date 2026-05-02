@@ -1264,10 +1264,10 @@ function classifyDueTrackingAlert_(record) {
     return { include: true, code: 'vencido', label: 'Vencido', daysRemaining: daysRemaining, severity: 3 };
   }
   if (daysRemaining <= 7) {
-    return { include: true, code: 'critico', label: 'Vence <= 7 dias', daysRemaining: daysRemaining, severity: 3 };
+    return { include: true, code: 'critico', label: 'Vence <= 7 días', daysRemaining: daysRemaining, severity: 3 };
   }
   if (daysRemaining <= 15) {
-    return { include: true, code: 'atencion', label: 'Vence <= 15 dias', daysRemaining: daysRemaining, severity: 2 };
+    return { include: true, code: 'atencion', label: 'Vence <= 15 días', daysRemaining: daysRemaining, severity: 2 };
   }
   return { include: false, code: 'ok', label: 'En control', daysRemaining: daysRemaining, severity: 1 };
 }
@@ -1351,10 +1351,10 @@ function buildDueTrackingEmailHtml_(person, items, generatedAt, webappUrl, confi
     '<div style="font-family:Arial,sans-serif;color:#16324f;line-height:1.5;max-width:980px;">',
     '<h2 style="margin:0 0 10px;font-size:20px;">Visor de Seguimiento PEC</h2>',
     '<p style="margin:0 0 14px;">Estimado/a <strong>' + escapeHtmlEmail_(person) + '</strong>:</p>',
-    '<p style="margin:0 0 12px;">Se remite el resumen de actividades bajo su seguimiento que registran vencimiento, atraso o atencion prioritaria en el Visor PEC.</p>',
+    '<p style="margin:0 0 12px;">Se remite el resumen de actividades bajo su seguimiento que registran vencimiento, atraso o atención prioritaria en el Visor PEC.</p>',
     '<p style="margin:0 0 16px;">Agradeceremos revisar el estado y actualizar el seguimiento correspondiente en el visor compartido.</p>',
     introNotice,
-    '<p style="margin:0 0 12px;color:#4d6379;font-size:12px;">Fecha de generacion: ' + escapeHtmlEmail_(generatedAt) + '</p>',
+    '<p style="margin:0 0 12px;color:#4d6379;font-size:12px;">Fecha de generación: ' + escapeHtmlEmail_(generatedAt) + '</p>',
     '<table style="border-collapse:collapse;width:100%;font-size:13px;background:#ffffff;">',
     '<thead><tr style="background:#edf4fb;color:#16324f;">',
     '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">EDT</th>',
@@ -1363,12 +1363,12 @@ function buildDueTrackingEmailHtml_(person, items, generatedAt, webappUrl, confi
     '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Fecha final</th>',
     '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Estado</th>',
     '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Alerta</th>',
-    '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Proximo paso / resumen</th>',
+    '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Próximo paso / resumen</th>',
     '</tr></thead><tbody>',
     rows,
     '</tbody></table>',
     '<p style="margin:18px 0 0;"><a href="' + escapeHtmlEmail_(webappUrl) + '" style="display:inline-block;padding:10px 16px;border-radius:8px;background:#1d5f8f;color:#ffffff;text-decoration:none;font-weight:600;">Abrir visor compartido</a></p>',
-    '<p style="margin:16px 0 0;color:#4d6379;font-size:12px;">Este mensaje fue generado automaticamente por el Visor de Seguimiento PEC.</p>',
+    '<p style="margin:16px 0 0;color:#4d6379;font-size:12px;">Este mensaje fue generado automáticamente por el Visor de Seguimiento PEC.</p>',
     '</div>'
   ].join('');
 }
@@ -1378,10 +1378,10 @@ function buildDueTrackingEmailPlainText_(person, items, generatedAt, webappUrl, 
     'Visor de Seguimiento PEC',
     'Estimado/a ' + person + ':',
     '',
-    'Se remite el resumen de actividades bajo su seguimiento que registran vencimiento, atraso o atencion prioritaria en el Visor PEC.',
+    'Se remite el resumen de actividades bajo su seguimiento que registran vencimiento, atraso o atención prioritaria en el Visor PEC.',
     'Agradeceremos revisar el estado y actualizar el seguimiento correspondiente en el visor compartido.',
     config && config.mode === 'TEST_REDIRECT' ? 'Correo de prueba. No enviado al responsable final.' : '',
-    'Fecha de generacion: ' + generatedAt,
+    'Fecha de generación: ' + generatedAt,
     '',
     items.map(function(item) {
       return [
@@ -1397,7 +1397,7 @@ function buildDueTrackingEmailPlainText_(person, items, generatedAt, webappUrl, 
     '',
     'Abrir visor compartido: ' + webappUrl,
     '',
-    'Este mensaje fue generado automaticamente por el Visor de Seguimiento PEC.'
+    'Este mensaje fue generado automáticamente por el Visor de Seguimiento PEC.'
   ].filter(Boolean).join('\n');
 }
 

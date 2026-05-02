@@ -69,6 +69,7 @@ button{
   min-height:42px;padding:0 15px;box-shadow:0 10px 24px rgba(22,99,199,.18)
 }
 button.secondary{background:#41586f}
+button.secondary.is-active,button.ghost.is-active{background:#103958;color:#fff;box-shadow:none}
 button.ghost{background:#edf4ff;color:var(--blue)}
 button.soft{background:#e8f5f1;color:#0e615a}
 button.danger{background:#fff1f2;color:#9f2232;box-shadow:none;border:1px solid #efc6cc}
@@ -388,6 +389,7 @@ tbody tr:hover td{background:#f8fbfe}
       </div>
     </div>
     <div class="toolbar-actions">
+      <button id="missingOwnerQuickFilterBtn" class="ghost" type="button">Sin seguimiento DGPPCS</button>
       <button id="resetFiltersBtn" class="secondary">Limpiar filtros</button>
     </div>
   </section>
@@ -2399,6 +2401,7 @@ const appState = {
   expanded: {},
   highlightedId: '',
   revealTimer: null,
+  quickFilter: '',
   adminEnabled: isAdminMode(),
   remoteRevision: 0,
   serverInfo: null
@@ -3954,6 +3957,70 @@ function normalizeSearchText(value){
     .toLowerCase();
 }
 
+function isMissingSeguimientoPlaceholder(value){
+  const normalized = normalizeSearchText(value).replace(/\s+/g,' ');
+  return !normalized || [
+    'sin seguimiento',
+    'sin seguimiento dgpccs',
+    'sin seguimiento dgppcs',
+    'seguimiento dgppcs pendiente',
+    'dgpccs pendiente',
+    'dgppcs pendiente',
+    'pendiente',
+    'sin asignar',
+    'por asignar'
+  ].includes(normalized);
+}
+
+function hasSeguimientoAssigned(record){
+  const people = splitPeople(record && record.seguimiento_dgppcs)
+    .filter(person => !isMissingSeguimientoPlaceholder(person));
+  return people.length > 0;
+}
+
+function isMissingOwnerQuickFilterActive(){
+  return text(appState.quickFilter) === 'missingOwner';
+}
+
+function renderMissingOwnerQuickFilterState(){
+  const btn = document.getElementById('missingOwnerQuickFilterBtn');
+  if(!btn) return;
+  const active = isMissingOwnerQuickFilterActive();
+  btn.classList.toggle('is-active', active);
+  btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+  btn.textContent = active ? 'Mostrando sin seguimiento DGPPCS' : 'Sin seguimiento DGPPCS';
+}
+
+function toggleMissingOwnerQuickFilter(){
+  const ownerField = document.getElementById('ownerFilter');
+  appState.quickFilter = isMissingOwnerQuickFilterActive() ? '' : 'missingOwner';
+  if(appState.quickFilter && ownerField) ownerField.value = '';
+  renderMissingOwnerQuickFilterState();
+  applyFilters();
+}
+
+function currentFilteredEmptyMessage(defaultMessage){
+  return isMissingOwnerQuickFilterActive()
+    ? 'No hay casos sin seguimiento DGPPCS asignado.'
+    : defaultMessage;
+}
+
+function analyticsRecordLabel(record){
+  const title = displayTitle(record);
+  const edt = text(record && record.edt);
+  if(!edt) return title;
+  const normalizedTitle = normalizeSearchText(title);
+  const normalizedEdt = normalizeSearchText(edt);
+  if(
+    normalizedTitle === normalizedEdt ||
+    normalizedTitle.startsWith(normalizedEdt + ' - ') ||
+    normalizedTitle.startsWith(normalizedEdt + ' · ')
+  ){
+    return title;
+  }
+  return [edt, title].filter(Boolean).join(' · ');
+}
+
 function edtQueryMatches(record, query){
   const scopedEdt = text(record.edt);
   const level = deriveLevel(query);
@@ -3980,7 +4047,8 @@ function getCurrentFilterSnapshot(){
     alerts: getSelectedAlertValues(),
     group: text(document.getElementById('groupFilter')?.value),
     responsible: text(document.getElementById('responsibleFilter')?.value),
-    owner: text(document.getElementById('ownerFilter')?.value)
+    owner: text(document.getElementById('ownerFilter')?.value),
+    quickFilter: text(appState.quickFilter)
   };
 }
 
@@ -4002,6 +4070,7 @@ function recordMatchesFilterSnapshot(record, snapshot){
   if(filters.group && record.grupo !== filters.group) return false;
   if(filters.responsible && !splitEntities(record.responsable).some(entity => entityKey(entity) === entityKey(filters.responsible))) return false;
   if(filters.owner && !splitPeople(record.seguimiento_dgppcs).some(person => personKey(person) === personKey(filters.owner))) return false;
+  if(filters.quickFilter === 'missingOwner' && hasSeguimientoAssigned(record)) return false;
   return true;
 }
 
@@ -4012,9 +4081,11 @@ function clearActiveFilters(){
   });
   document.querySelectorAll('.status-filter-option').forEach(input => { input.checked = false; });
   document.querySelectorAll('.alert-filter-option').forEach(input => { input.checked = false; });
+  appState.quickFilter = '';
   updateStatusFilterSummary();
   updateAlertFilterSummary();
   initSearchSuggestions('');
+  renderMissingOwnerQuickFilterState();
 }
 
 function buildSearchHierarchyTerms(record){
@@ -4053,6 +4124,10 @@ function applyFilters(){
   const group = text(document.getElementById('groupFilter').value);
   const responsible = text(document.getElementById('responsibleFilter').value);
   const owner = text(document.getElementById('ownerFilter').value);
+  if(owner && isMissingOwnerQuickFilterActive()){
+    appState.quickFilter = '';
+    renderMissingOwnerQuickFilterState();
+  }
 
   const matched = appState.raw.filter(record => {
     if(q){
@@ -4069,6 +4144,7 @@ function applyFilters(){
     if(group && record.grupo !== group) return false;
     if(responsible && !splitEntities(record.responsable).some(entity => entityKey(entity) === entityKey(responsible))) return false;
     if(owner && !splitPeople(record.seguimiento_dgppcs).some(person => personKey(person) === personKey(owner))) return false;
+    if(isMissingOwnerQuickFilterActive() && hasSeguimientoAssigned(record)) return false;
     return true;
   });
 
@@ -5280,7 +5356,7 @@ function getVisibleHierarchy(records){
 function expandOwnerAssignments(records){
   const rows = [];
   records.forEach(record => {
-    const people = splitPeople(record.seguimiento_dgppcs);
+    const people = splitPeople(record.seguimiento_dgppcs).filter(person => !isMissingSeguimientoPlaceholder(person));
     if(!people.length){
       rows.push({owner:'Sin seguimiento'});
       return;
@@ -5328,7 +5404,7 @@ function buildVisibleMetrics(records){
   const upcoming = getUpcomingRecords(records);
   const notesCount = records.filter(r => r.local_note || r.local_action).length;
   const withoutResponsible = records.filter(r => !splitEntities(r.responsable).length).length;
-  const withoutOwner = records.filter(r => !splitPeople(r.seguimiento_dgppcs).length).length;
+  const withoutOwner = records.filter(r => !hasSeguimientoAssigned(r)).length;
   const byBlock = summarizeBlocks(records);
   const byOwner = groupCount(expandOwnerAssignments(records), 'owner');
   const byResponsible = groupCount(expandResponsibleAssignments(records), 'owner');
@@ -5373,6 +5449,7 @@ function renderKpis(){
     metricCard('Mayor carga seguimiento', metrics.topOwner.count, metrics.topOwner.label, 'neutral')
   ].join('');
   document.getElementById('kpiGrid').innerHTML = html;
+  renderMissingOwnerQuickFilterState();
 }
 
 function metricCard(label, value, note, tone){
@@ -5694,7 +5771,7 @@ function renderGantt(){
   const listEl = document.getElementById('ganttList');
   if(!source.length){
     monthsEl.innerHTML = '';
-    listEl.innerHTML = '<div class="empty">No hay actividades con fechas para construir el Gantt.</div>';
+    listEl.innerHTML = '<div class="empty">' + escapeHtml(currentFilteredEmptyMessage('No hay actividades con fechas para construir el Gantt.')) + '</div>';
     return;
   }
   const {childrenMap, visible} = getVisibleHierarchy(source);
@@ -5703,7 +5780,7 @@ function renderGantt(){
     .filter(item => item.range.start && item.range.end);
   if(!records.length){
     monthsEl.innerHTML = '';
-    listEl.innerHTML = '<div class="empty">No hay actividades visibles con fechas para construir el Gantt.</div>';
+    listEl.innerHTML = '<div class="empty">' + escapeHtml(currentFilteredEmptyMessage('No hay actividades visibles con fechas para construir el Gantt.')) + '</div>';
     return;
   }
   const today = parseIso(todayIso());
@@ -5771,6 +5848,7 @@ function renderTable(){
   const empty = document.getElementById('tableEmpty');
   if(!appState.filtered.length){
     tbody.innerHTML = '';
+    empty.textContent = currentFilteredEmptyMessage('No hay registros con los filtros actuales.');
     empty.hidden = false;
     return;
   }
@@ -6646,7 +6724,7 @@ function renderAnalytics(){
     .sort((a,b) => alertRank(a.alerta) - alertRank(b.alerta) || text(a.final).localeCompare(text(b.final)))
     .slice(0,8)
     .map(record => ({
-      label:[text(record.edt), displayTitle(record)].filter(Boolean).join(' · '),
+      label:analyticsRecordLabel(record),
       value:record.alerta === 'vencido' ? 3 : record.alerta === 'critico' ? 2 : 1,
       display:record.final ? fmtDate(record.final) : alertLabel(record.alerta),
       preserve:true,
@@ -6733,14 +6811,9 @@ function bindEvents(){
     updateAlertFilterSummary();
     applyFilters();
   });
+  document.getElementById('missingOwnerQuickFilterBtn').addEventListener('click', toggleMissingOwnerQuickFilter);
   document.getElementById('resetFiltersBtn').addEventListener('click', () => {
-    ['searchInput','groupFilter','responsibleFilter','ownerFilter'].forEach(id => {
-      document.getElementById(id).value = '';
-    });
-    document.querySelectorAll('.status-filter-option').forEach(input => { input.checked = false; });
-    document.querySelectorAll('.alert-filter-option').forEach(input => { input.checked = false; });
-    updateStatusFilterSummary();
-    updateAlertFilterSummary();
+    clearActiveFilters();
     applyFilters();
   });
   document.getElementById('closeDrawerBtn').addEventListener('click', closeDrawer);
@@ -6833,6 +6906,7 @@ function initFilters(){
   buildSelect('groupFilter', uniqueSorted(appState.raw.map(r => r.grupo)), 'Todos los grupos');
   buildSelect('responsibleFilter', getAssignableEntities(), 'Toda entidad responsable');
   buildSelect('ownerFilter', getAssignablePeople(), 'Todo seguimiento');
+  renderMissingOwnerQuickFilterState();
   initSearchSuggestions();
 }
 

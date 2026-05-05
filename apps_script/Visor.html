@@ -5614,7 +5614,7 @@ function statusBarClass(label){
 
 function renderOwnerBars(){
   const expandedOwners = expandOwnerAssignments(appState.matched);
-  const groups = groupCount(expandedOwners, 'owner').slice(0,8);
+  const groups = groupCount(expandedOwners, 'owner');
   const panel = document.getElementById('ownerPanel');
   if(!groups.length){
     if(panel) panel.dataset.empty = '1';
@@ -5630,7 +5630,7 @@ function renderOwnerBars(){
 
 function renderResponsibleBars(){
   const expandedOwners = expandResponsibleAssignments(appState.matched);
-  const groups = groupCount(expandedOwners, 'owner').slice(0,8);
+  const groups = groupCount(expandedOwners, 'owner');
   const panel = document.getElementById('responsiblePanel');
   if(!groups.length){
     if(panel) panel.dataset.empty = '1';
@@ -6792,8 +6792,8 @@ function renderAnalytics(){
   }));
   const stateRows = groupCount(records, 'estado').map(item => ({label:item.label, value:item.count}));
   const alertRows = groupCount(records, 'alerta').map(item => ({label:alertLabel(item.label), value:item.count}));
-  const responsibleRows = metrics.byResponsible.slice(0,8).map(item => ({label:item.label, value:item.count}));
-  const ownerRows = metrics.byOwner.slice(0,8).map(item => ({label:item.label, value:item.count}));
+  const responsibleRows = metrics.byResponsible.map(item => ({label:item.label, value:item.count}));
+  const ownerRows = metrics.byOwner.map(item => ({label:item.label, value:item.count}));
   const upcomingRows = records
     .filter(record => record.estado !== 'Completado' && (record.alerta === 'vencido' || record.alerta === 'critico' || record.alerta === 'atencion'))
     .sort((a,b) => alertRank(a.alerta) - alertRank(b.alerta) || text(a.final).localeCompare(text(b.final)))

@@ -100,6 +100,24 @@ En Apps Script se crea una carpeta de backend `\_VisorSeguimientoPEC` con:
 - `shared_tracking_audit.json`
 - carpeta `backups/` con `shared_tracking_backup_YYYYMMDD.json`
 
+### Cierre diario por usuario
+
+En el panel administrador del visor ahora existe un bloque `Cierre diario por usuario` que:
+
+- agrupa los cambios auditados del día por usuario;
+- resume movimientos, impactos y registros tocados;
+- muestra el detalle reciente por actor;
+- permite exportar un reporte diario en texto para remitir a DGPPCS.
+
+En modo local:
+
+- el actor puede declararse con `?actor=correo@dominio` para que la auditoría no quede anónima.
+
+En Apps Script compartido:
+
+- el actor esperado es el correo del usuario autenticado cuando Apps Script lo expone;
+- el reporte diario se construye desde la bitácora central `shared_tracking_audit.json`.
+
 Si el estado compartido se daña:
 
 1. exporta una copia del estado actual;
@@ -128,8 +146,25 @@ Si el estado compartido se daña:
    - edición de ficha;
    - guardado compartido;
    - auditoría;
+   - cierre diario por usuario;
+   - exportación del reporte diario;
    - backup;
    - acceso admin y no admin.
+
+### Validación de acceso para DGPPCS
+
+Si el visor se enviará por correo:
+
+1. Abrir la URL publicada del Web App con una cuenta autorizada.
+2. Confirmar si el despliegue pide Google Sign-In.
+3. Si aparece Google Sign-In, validar que los destinatarios DGPPCS usarán cuentas Google autorizadas antes del envío.
+4. Verificar que el panel administrador muestre:
+   - actor;
+   - sincronización;
+   - último backup;
+   - cierre diario por usuario.
+5. Exportar un reporte diario de prueba antes del envío operativo.
+6. Si se requiere acceso sin autenticación adicional, ajustar la configuración del Web App antes de compartir la URL final.
 
 ## Notas de seguridad
 

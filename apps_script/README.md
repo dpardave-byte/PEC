@@ -111,6 +111,8 @@ PEC_VISOR_ADMIN_EMAILS=darwin@dominio.com;otro@dominio.com
 Los administradores pueden:
 
 - ver la auditoria compartida;
+- ver el cierre diario por usuario;
+- exportar el reporte diario por usuario;
 - exportar la auditoria cargada en el panel admin;
 - descargar el backup mas reciente del estado compartido;
 - ver quien guardo y cuando se actualizo el backend.
@@ -166,9 +168,24 @@ Checklist operativo detallado:
     - edición de ficha;
     - guardado compartido;
     - auditoría;
+    - cierre diario por usuario;
+    - exportación del reporte diario;
     - backup;
     - acceso admin;
     - acceso no admin.
+
+### Reporte diario por usuario
+
+En el panel administrador del visor compartido:
+
+- seleccionar la fecha del cierre;
+- revisar el bloque `Cierre diario por usuario`;
+- confirmar actores, movimientos, impactos y registros tocados;
+- usar `Exportar reporte diario` antes del envío operativo a DGPPCS.
+
+Si el reporte se enviará por correo, verificar además que el Web App sea accesible para los destinatarios previstos con sus cuentas Google autorizadas.
+
+En la publicación validada en este repositorio, la URL pública responde con redirección a `accounts.google.com`, por lo que la comprobación final debe hacerse iniciando sesión con una cuenta DGPPCS autorizada.
 
 ## Flujo de trabajo recomendado
 

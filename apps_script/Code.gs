@@ -86,6 +86,9 @@ function doGet(e) {
   if (params.action === 'visor_audit') {
     return outputPayload_(getSharedTrackingAudit(params.limit), params);
   }
+  if (params.action === 'visor_audit_daily_report') {
+    return outputPayload_(getSharedTrackingDailyAuditReport(params.date, params.limit), params);
+  }
   const payload = { updatedAt: new Date().toISOString(), records: getRecords_() };
   if (params.format === 'csv') {
     return ContentService
@@ -847,6 +850,234 @@ function getSharedTrackingAudit(limit) {
     admin: isSharedTrackingAdmin_(),
     items: loadSharedTrackingAudit_().slice(0, Math.max(1, Number(limit || 100)))
   };
+}
+
+function getSharedTrackingDailyAuditReport(date, limit) {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para ver el reporte diario de cambios.'
+    };
+  }
+  const timezone = Session.getScriptTimeZone();
+  const normalizedDate = normalizeRequestedAuditReportDate_(date, timezone);
+  const safeLimit = Math.max(1, Math.min(1000, Number(limit || 1000)));
+  const items = loadSharedTrackingAudit_().slice(0, safeLimit);
+  const report = buildAuditDailyReportFromItems_(items, normalizedDate, timezone, {
+    mode: 'apps_script',
+    actor: getSharedTrackingActor_()
+  });
+  report.actor = getSharedTrackingActor_();
+  report.admin = true;
+  report.ok = true;
+  return report;
+}
+
+function normalizeRequestedAuditReportDate_(value, timezone) {
+  const raw = String(value == null ? '' : value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  return Utilities.formatDate(new Date(), timezone || Session.getScriptTimeZone(), 'yyyy-MM-dd');
+}
+
+function formatAuditReportDateLabel_(value, timezone) {
+  const date = parseTrackingDate_(value);
+  if (!date) return String(value == null ? '' : value).trim();
+  return Utilities.formatDate(date, timezone || Session.getScriptTimeZone(), 'dd/MM/yyyy');
+}
+
+function getAuditDateKeyInTimezone_(value, timezone) {
+  const date = value instanceof Date ? value : parseTrackingDateTime_(value);
+  if (!date) return '';
+  return Utilities.formatDate(date, timezone || Session.getScriptTimeZone(), 'yyyy-MM-dd');
+}
+
+function getAuditItemTouchedRecords_(item) {
+  const summaryRecords = item && item.summary && Array.isArray(item.summary.touchedRecords)
+    ? item.summary.touchedRecords
+    : [];
+  const changeRecords = Array.isArray(item && item.changes)
+    ? item.changes.map(function(change) { return String(change && change.id || '').trim(); }).filter(Boolean)
+    : [];
+  return Array.from(new Set(summaryRecords.concat(changeRecords).map(function(value) {
+    return String(value == null ? '' : value).trim();
+  }).filter(Boolean))).sort();
+}
+
+function getAuditItemSections_(item) {
+  const buckets = item && item.summary && item.summary.bySection && typeof item.summary.bySection === 'object'
+    ? item.summary.bySection
+    : {};
+  return Object.keys(buckets)
+    .map(function(name) {
+      return { name: String(name || '').trim(), count: Number(buckets[name] || 0) };
+    })
+    .filter(function(section) { return section.name && section.count > 0; })
+    .sort(function(a, b) { return b.count - a.count || a.name.localeCompare(b.name, 'es'); });
+}
+
+function getAuditItemChangeTotal_(item) {
+  const direct = Number(item && item.changeCount);
+  if (isFinite(direct) && direct > 0) return direct;
+  const summaryTotal = Number(item && item.summary && item.summary.total);
+  return isFinite(summaryTotal) && summaryTotal > 0 ? summaryTotal : 0;
+}
+
+function getAuditItemDetailText_(item) {
+  const detail = String(item && (item.detail || item.message) || '').trim();
+  if (detail) return detail;
+  const parts = [];
+  const total = getAuditItemChangeTotal_(item);
+  const records = getAuditItemTouchedRecords_(item);
+  if (total) parts.push('Impactos auditados: ' + total);
+  if (records.length) parts.push('Registros: ' + records.slice(0, 6).join(', '));
+  return parts.join(' | ') || 'Sin detalle.';
+}
+
+function humanizeAuditAction_(action) {
+  const label = String(action == null ? '' : action).trim().replace(/_/g, ' ');
+  return label ? (label.charAt(0).toUpperCase() + label.slice(1)) : 'Cambio';
+}
+
+function mapAuditSummaryPairs_(sourceMap) {
+  return Array.from(sourceMap.entries())
+    .map(function(entry) {
+      return {
+        name: String(entry[0] == null ? '' : entry[0]).trim(),
+        count: Number(entry[1] || 0)
+      };
+    })
+    .filter(function(item) { return item.name && item.count > 0; })
+    .sort(function(a, b) { return b.count - a.count || a.name.localeCompare(b.name, 'es'); });
+}
+
+function buildDailyAuditReportPlainText_(report, timezone) {
+  const summary = report && typeof report === 'object' ? report : {};
+  const lines = [
+    'Reporte diario de cambios - ' + (summary.dateLabel || summary.date || ''),
+    'Modo: ' + (summary.mode === 'apps_script' ? 'Apps Script compartido' : 'Local standalone'),
+    'Usuarios con cambios: ' + Number(summary.totalActors || 0),
+    'Movimientos auditados: ' + Number(summary.totalEntries || 0),
+    'Impactos auditados: ' + Number(summary.totalChanges || 0),
+    'Registros tocados: ' + Number(summary.totalTouchedRecords || 0),
+    ''
+  ];
+  const actors = Array.isArray(summary.actors) ? summary.actors : [];
+  if (!actors.length) {
+    lines.push('Sin cambios auditados para la fecha seleccionada.');
+    return lines.join('\n').trim();
+  }
+  actors.forEach(function(actor) {
+    lines.push(actor.actor || 'Usuario sin identificar');
+    lines.push('- Movimientos: ' + Number(actor.totalEntries || 0) + ' | Impactos: ' + Number(actor.totalChanges || 0) + ' | Último cambio: ' + (formatTrackingDateTime_(actor.lastChangeAt) || 'Sin hora'));
+    if (Array.isArray(actor.actions) && actor.actions.length) {
+      lines.push('- Acciones: ' + actor.actions.map(function(item) {
+        return humanizeAuditAction_(item.name) + ' (' + item.count + ')';
+      }).join('; '));
+    }
+    if (Array.isArray(actor.touchedRecords) && actor.touchedRecords.length) {
+      lines.push('- Registros: ' + actor.touchedRecords.join(', '));
+    }
+    (Array.isArray(actor.entries) ? actor.entries : []).forEach(function(entry) {
+      lines.push('  * ' + [
+        formatTrackingDateTime_(entry.at) || 'Sin hora',
+        entry.actionLabel || humanizeAuditAction_(entry.action),
+        entry.detail || 'Sin detalle.'
+      ].filter(Boolean).join(' | '));
+    });
+    lines.push('');
+  });
+  return lines.join('\n').trim();
+}
+
+function buildAuditDailyReportFromItems_(items, reportDate, timezone, options) {
+  const selectedDate = normalizeRequestedAuditReportDate_(reportDate, timezone);
+  const grouped = new Map();
+  const touchedRecords = new Map();
+  const filteredItems = (Array.isArray(items) ? items : [])
+    .filter(function(item) {
+      return getAuditDateKeyInTimezone_(item && item.at, timezone) === selectedDate;
+    })
+    .sort(function(a, b) {
+      return String(b && b.at || '').localeCompare(String(a && a.at || ''));
+    });
+
+  filteredItems.forEach(function(item) {
+    const actor = String(item && item.actor || (options && options.actor) || 'Usuario sin identificar').trim();
+    if (!grouped.has(actor)) {
+      grouped.set(actor, {
+        actor: actor,
+        totalEntries: 0,
+        totalChanges: 0,
+        lastChangeAt: '',
+        actionsMap: new Map(),
+        sectionsMap: new Map(),
+        recordsMap: new Map(),
+        entries: []
+      });
+    }
+    const bucket = grouped.get(actor);
+    const action = String(item && item.action || 'cambio').trim() || 'cambio';
+    const changeTotal = getAuditItemChangeTotal_(item);
+    const records = getAuditItemTouchedRecords_(item);
+    const sections = getAuditItemSections_(item);
+    bucket.totalEntries += 1;
+    bucket.totalChanges += changeTotal;
+    bucket.actionsMap.set(action, (bucket.actionsMap.get(action) || 0) + 1);
+    sections.forEach(function(section) {
+      bucket.sectionsMap.set(section.name, (bucket.sectionsMap.get(section.name) || 0) + section.count);
+    });
+    records.forEach(function(record) {
+      bucket.recordsMap.set(record, true);
+      touchedRecords.set(record, true);
+    });
+    if (String(item && item.at || '').trim() && (!bucket.lastChangeAt || String(item.at).trim() > bucket.lastChangeAt)) {
+      bucket.lastChangeAt = String(item.at).trim();
+    }
+    bucket.entries.push({
+      at: String(item && item.at || '').trim(),
+      action: action,
+      actionLabel: humanizeAuditAction_(action),
+      detail: getAuditItemDetailText_(item),
+      changeCount: changeTotal,
+      touchedRecords: records,
+      sections: sections
+    });
+  });
+
+  const actors = Array.from(grouped.values())
+    .map(function(bucket) {
+      return {
+        actor: bucket.actor,
+        totalEntries: bucket.totalEntries,
+        totalChanges: bucket.totalChanges,
+        lastChangeAt: bucket.lastChangeAt,
+        actions: mapAuditSummaryPairs_(bucket.actionsMap),
+        sections: mapAuditSummaryPairs_(bucket.sectionsMap),
+        touchedRecords: Array.from(bucket.recordsMap.keys()).slice(0, 18),
+        entries: bucket.entries
+      };
+    })
+    .sort(function(a, b) {
+      return b.totalEntries - a.totalEntries || String(b.lastChangeAt || '').localeCompare(String(a.lastChangeAt || '')) || a.actor.localeCompare(b.actor, 'es');
+    });
+
+  const report = {
+    ok: true,
+    mode: String(options && options.mode || 'apps_script').trim() || 'apps_script',
+    timezone: timezone || Session.getScriptTimeZone(),
+    date: selectedDate,
+    dateLabel: formatAuditReportDateLabel_(selectedDate, timezone),
+    generatedAt: new Date().toISOString(),
+    totalActors: actors.length,
+    totalEntries: actors.reduce(function(sum, actor) { return sum + Number(actor.totalEntries || 0); }, 0),
+    totalChanges: actors.reduce(function(sum, actor) { return sum + Number(actor.totalChanges || 0); }, 0),
+    totalTouchedRecords: touchedRecords.size,
+    actors: actors
+  };
+  report.plainText = buildDailyAuditReportPlainText_(report, timezone);
+  return report;
 }
 
 function getSharedTrackingLatestBackup() {

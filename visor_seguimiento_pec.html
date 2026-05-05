@@ -94,6 +94,7 @@ button.danger{background:#fff1f2;color:#9f2232;box-shadow:none;border:1px solid 
 .toolbar-actions button.is-active{background:#edf4fb;border-color:#c8d9eb;color:var(--brand)}
 .toolbar-actions button:hover{background:#f6f9fc}
 .layout{display:grid;grid-template-columns:1.6fr .9fr;gap:16px;align-items:start}
+.layout.main-only{grid-template-columns:1fr}
 .layout.compact-layout{gap:12px}
 .stack{display:grid;gap:16px;align-content:start}
 .side-rail.compact-rail{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
@@ -127,6 +128,13 @@ button.danger{background:#fff1f2;color:#9f2232;box-shadow:none;border:1px solid 
 .mini-item,.alert-item,.summary-item{
   display:flex;justify-content:space-between;gap:12px;align-items:flex-start;
   padding:12px 13px;border:1px solid #e8eef5;border-radius:12px;background:var(--soft)
+}
+.alert-item[data-open-context]{
+  cursor:pointer;transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease
+}
+.alert-item[data-open-context]:hover,
+.alert-item[data-open-context]:focus{
+  border-color:#bfd2e6;box-shadow:0 10px 22px rgba(31,70,109,.12);transform:translateY(-1px);outline:none
 }
 .summary-item strong,.alert-item strong{display:block}
 .summary-item span,.alert-item span{color:var(--muted);font-size:12px}
@@ -304,6 +312,7 @@ tbody tr:hover td{background:#f8fbfe}
 .filters .filter-picker .assign-item{padding:9px 10px;border-radius:10px;min-height:40px;align-items:center}
 .filters .filter-picker .assign-item span{font-size:14px;line-height:1.25;color:var(--ink);font-weight:550}
 .filters .filter-picker .assign-item input{margin-top:0}
+.report-analytics-panel{padding:20px 22px;background:linear-gradient(180deg,#ffffff 0,#f8fbfe 100%)}
 .operations-panel{margin-top:0;padding:20px 22px;background:linear-gradient(180deg,#ffffff 0,#f8fbfe 100%)}
 .operations-panel.collapsed{padding:16px 18px}
 .operations-panel.collapsed .operations-grid{display:none}
@@ -339,6 +348,37 @@ tbody tr:hover td{background:#f8fbfe}
 .summary-bullets li{color:var(--muted);font-size:14px;line-height:1.3}
 .modal{padding:20px;overflow:auto}
 .modal-card{max-width:1160px;margin:0 auto;padding:20px}
+.admin-modal-card{max-width:1320px}
+.monitoring-modal-card{max-width:1280px}
+.pending-modal-card{max-width:1180px}
+.pending-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+.pending-panel-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
+.pending-panel-head p{margin:0;color:var(--muted);font-size:13px;line-height:1.45}
+.pending-panel-head .ghost{flex:0 0 auto}
+.admin-audit-toolbar{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap;margin:14px 0 16px}
+.admin-date-field{display:grid;gap:6px;min-width:220px}
+.admin-date-field span{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--brand)}
+.admin-date-field input{min-height:42px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font:inherit;background:#fff}
+.admin-audit-sections{display:grid;gap:16px}
+.admin-audit-section{display:grid;gap:12px}
+.admin-audit-section h4{margin:0;color:var(--brand)}
+.admin-audit-section p{margin:0;color:var(--muted);font-size:13px;line-height:1.4}
+.admin-daily-report{display:grid;gap:14px}
+.audit-report-card{border:1px solid var(--line);border-radius:16px;background:linear-gradient(180deg,#ffffff 0,#f8fbfe 100%);padding:16px;display:grid;gap:12px;box-shadow:var(--shadow-soft)}
+.audit-report-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.audit-report-head h4{margin:0;color:var(--brand)}
+.audit-report-head p{margin:6px 0 0;color:var(--muted);font-size:13px;line-height:1.4}
+.audit-report-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.audit-report-metric{border:1px solid var(--line);border-radius:12px;background:#fff;padding:10px 12px;display:grid;gap:4px}
+.audit-report-metric span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+.audit-report-metric b{font-size:24px;color:var(--brand);line-height:1}
+.audit-report-tags{display:flex;flex-wrap:wrap;gap:8px}
+.audit-report-tags span{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;background:#eef4fb;color:var(--brand);font-size:12px;font-weight:700}
+.audit-report-entry-list{display:grid;gap:10px}
+.audit-report-entry{padding-top:10px;border-top:1px solid #e6edf4}
+.audit-report-entry:first-child{padding-top:0;border-top:0}
+.audit-report-entry strong{display:block;color:var(--ink)}
+.audit-report-entry span{display:block;color:var(--muted);font-size:12px;line-height:1.45}
 .report-preview{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;line-height:1.6}
 .report-preview h1,.report-preview h2,.report-preview h3{color:var(--brand)}
 .analytics-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:14px}
@@ -428,14 +468,15 @@ tbody tr:hover td{background:#f8fbfe}
       </div>
     </div>
     <div class="toolbar-actions">
-      <button id="missingOwnerQuickFilterBtn" class="ghost" type="button">Sin seguimiento DGPPCS</button>
+      <button id="openPendingModalBtn" class="ghost" type="button">Ver pendientes</button>
+      <button id="openMonitoringBtn" class="ghost" type="button">Ver monitoreo</button>
       <button id="resetFiltersBtn" class="secondary">Limpiar filtros</button>
     </div>
   </section>
 
   <section class="cards" id="kpiGrid"></section>
 
-  <section class="layout" id="mainLayout" style="margin-top:16px">
+  <section class="layout main-only" id="mainLayout" style="margin-top:16px">
     <div class="stack" id="mainColumn">
       <div class="panel timeline-panel" id="timelinePanel">
         <h2>Seguimiento maestro</h2>
@@ -456,6 +497,24 @@ tbody tr:hover td{background:#f8fbfe}
           <div class="gantt-list" id="ganttList"></div>
         </div>
       </div>
+
+      <section class="panel report-analytics-panel" id="reportAnalyticsPanel">
+        <div class="operations-panel-head">
+          <div>
+            <h2>Reportes y analítica</h2>
+            <p>Abre el reporte ejecutivo y la lectura analítica del portafolio desde la vista filtrada actual, sin alterar notas, responsables ni datos base.</p>
+          </div>
+        </div>
+        <div class="operations-note"><strong>Base ejecutiva compartida.</strong> Los artefactos de reporte y analítica respetan la jerarquía por bloques, fases, hitos y seguimiento DGPPCS.</div>
+        <div class="operations-actions-grid">
+          <button id="buildReportBtn">Generar reporte ejecutivo</button>
+          <button id="openReportBtn" class="ghost">Ver reporte</button>
+          <button id="openAnalyticsBtn" class="ghost">Ver analítica</button>
+          <button id="printReportBtn" class="soft">Imprimir reporte</button>
+          <button id="exportReportWordBtn" class="soft">Exportar reporte Word</button>
+          <button id="exportReportPdfBtn" class="soft">Exportar reporte PDF</button>
+        </div>
+      </section>
 
       <div class="panel" id="tablePanel" hidden>
         <h2>Portafolio de casos</h2>
@@ -479,40 +538,17 @@ tbody tr:hover td{background:#f8fbfe}
         <div id="tableEmpty" class="empty" hidden>No hay registros con los filtros actuales.</div>
       </div>
     </div>
-
-    <div class="stack side-rail" id="sideRail">
-      <div class="panel" id="alertsPanel">
-        <h2>Alertas criticas</h2>
-        <div class="alert-list" id="alertList"></div>
-      </div>
-
-      <div class="panel" id="statusPanel">
-        <h2>Distribucion por estado</h2>
-        <div class="bar-list" id="statusBars"></div>
-      </div>
-
-      <div class="panel" id="responsiblePanel">
-        <h2>Carga operativa por responsable</h2>
-        <div class="bar-list" id="responsibleBars"></div>
-      </div>
-
-      <div class="panel" id="ownerPanel">
-        <h2>Carga de seguimiento DGPPCS</h2>
-        <div class="bar-list" id="ownerBars"></div>
-      </div>
-
-    </div>
   </section>
 
   <section class="panel operations-panel collapsed" id="operationsPanel">
     <div class="operations-panel-head">
       <div>
-        <h2>Operaciones y reportes</h2>
-        <p>Actualiza datos, exporta respaldos y abre artefactos ejecutivos sin perder jerarquía, seguimiento ni trazabilidad.</p>
+        <h2>Secciones complementarias</h2>
+        <p>Gestiona fuente de datos, exportaciones y configuración avanzada sin saturar la vista principal del tablero.</p>
       </div>
       <div class="operations-panel-tools">
         <div class="source-inline-badge" id="sourceStatusInline">Datos cargados</div>
-        <button id="toggleOperationsPanelBtn" class="secondary operations-panel-toggle" type="button">Mostrar panel</button>
+        <button id="toggleOperationsPanelBtn" class="secondary operations-panel-toggle" type="button">Mostrar secciones</button>
       </div>
     </div>
     <div class="operations-grid">
@@ -554,20 +590,6 @@ tbody tr:hover td{background:#f8fbfe}
             <button id="exportStructureXlsxBtn" class="soft">Exportar estructura XLSX</button>
             <button id="exportStructureJsonBtn" class="ghost">Exportar estructura JSON</button>
             <button id="exportBackupBtn" class="soft">Exportar backup del día</button>
-          </div>
-        </div>
-      </details>
-      <details class="operations-accordion" id="opsReportSection" open>
-        <summary>Reportes y analítica</summary>
-        <div class="operations-accordion-body">
-          <div class="operations-note"><strong>Visor compartido.</strong> DGPPCS se mantiene visible como actor institucional y los cambios de fichas, estructura y portada se reflejan en la vista común.</div>
-          <div class="operations-actions-grid">
-            <button id="buildReportBtn">Generar reporte ejecutivo</button>
-            <button id="openReportBtn" class="ghost">Ver reporte</button>
-            <button id="openAnalyticsBtn" class="ghost">Ver analítica</button>
-            <button id="printReportBtn" class="soft">Imprimir reporte</button>
-            <button id="exportReportWordBtn" class="soft">Exportar reporte Word</button>
-            <button id="exportReportPdfBtn" class="soft">Exportar reporte PDF</button>
           </div>
         </div>
       </details>
@@ -705,6 +727,70 @@ tbody tr:hover td{background:#f8fbfe}
   </div>
 </div>
 
+<div id="monitoringModal" class="modal">
+  <div class="modal-card monitoring-modal-card">
+    <div class="modal-head">
+      <div>
+        <h3>Centro de monitoreo</h3>
+        <div class="hero-meta">
+          <div><b>Base:</b> vista filtrada actual</div>
+        </div>
+      </div>
+      <button id="closeMonitoringBtn" class="secondary">Cerrar</button>
+    </div>
+    <div class="analytics-grid side-rail" id="sideRail">
+      <div class="panel" id="alertsPanel">
+        <h2>Alertas criticas</h2>
+        <div class="alert-list" id="alertList"></div>
+      </div>
+      <div class="panel" id="statusPanel">
+        <h2>Distribucion por estado</h2>
+        <div class="bar-list" id="statusBars"></div>
+      </div>
+      <div class="panel" id="responsiblePanel">
+        <h2>Carga operativa por responsable</h2>
+        <div class="bar-list" id="responsibleBars"></div>
+      </div>
+      <div class="panel" id="ownerPanel">
+        <h2>Carga de seguimiento DGPPCS</h2>
+        <div class="bar-list" id="ownerBars"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="pendingModal" class="modal">
+  <div class="modal-card pending-modal-card">
+    <div class="modal-head">
+      <div>
+        <h3>Pendientes de asignación</h3>
+        <div class="hero-meta">
+          <div><b>Base:</b> vista filtrada actual</div>
+        </div>
+      </div>
+      <button id="closePendingBtn" class="secondary">Cerrar</button>
+    </div>
+    <div class="pending-grid">
+      <div class="panel" id="pendingResponsiblePanel">
+        <h2>Casos sin responsable</h2>
+        <div class="pending-panel-head">
+          <p id="pendingResponsibleSummary">Sin casos pendientes.</p>
+          <button id="filterMissingResponsibleBtn" class="ghost" type="button">Filtrar en Gantt</button>
+        </div>
+        <div class="alert-list" id="pendingResponsibleList"></div>
+      </div>
+      <div class="panel" id="pendingOwnerPanel">
+        <h2>Casos sin seguimiento DGPPCS</h2>
+        <div class="pending-panel-head">
+          <p id="pendingOwnerSummary">Sin casos pendientes.</p>
+          <button id="filterMissingOwnerBtn" class="ghost" type="button">Filtrar en Gantt</button>
+        </div>
+        <div class="alert-list" id="pendingOwnerList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="heroModal" class="modal">
   <div class="modal-card">
     <div class="modal-head">
@@ -732,7 +818,7 @@ tbody tr:hover td{background:#f8fbfe}
 </div>
 
 <div id="adminModal" class="modal">
-  <div class="modal-card">
+  <div class="modal-card admin-modal-card">
     <div class="modal-head">
       <div>
         <h3>Panel administrador</h3>
@@ -745,10 +831,34 @@ tbody tr:hover td{background:#f8fbfe}
       </div>
       <button id="closeAdminBtn" class="secondary">Cerrar</button>
     </div>
-    <div class="toolbar-actions" style="margin-bottom:12px">
-      <button id="exportAuditBtn" class="ghost">Exportar auditoria</button>
+    <div class="operations-note"><strong>Cierre diario para DGPPCS.</strong> El reporte diario agrupa la auditoría por usuario, conserva el detalle de cada cambio y permite exportar el resumen del día seleccionado.</div>
+    <div class="admin-audit-toolbar">
+      <label class="admin-date-field" for="adminAuditDate">
+        <span>Fecha del reporte</span>
+        <input id="adminAuditDate" type="date">
+      </label>
+      <div class="toolbar-actions">
+        <button id="refreshAuditReportBtn" class="secondary">Actualizar reporte diario</button>
+        <button id="exportDailyAuditBtn" class="ghost">Exportar reporte diario</button>
+        <button id="exportAuditBtn" class="ghost">Exportar auditoria</button>
+      </div>
     </div>
-    <div class="summary-list" id="adminAuditList"></div>
+    <div class="admin-audit-sections">
+      <section class="admin-audit-section">
+        <div>
+          <h4>Cierre diario por usuario</h4>
+          <p id="adminDailyAuditMeta">Se mostrará un resumen diario por usuario con todos los cambios auditados de la fecha seleccionada.</p>
+        </div>
+        <div class="admin-daily-report" id="adminDailyAuditSummary"></div>
+      </section>
+      <section class="admin-audit-section">
+        <div>
+          <h4>Detalle reciente de auditoría</h4>
+          <p>Últimos movimientos registrados en la bitácora operativa del visor.</p>
+        </div>
+        <div class="summary-list" id="adminAuditList"></div>
+      </section>
+    </div>
   </div>
 </div>
 
@@ -2314,7 +2424,7 @@ const SOURCE_MODE_STORAGE_KEY = 'pec_tracking_source_mode_v1';
 const AUDIT_STORAGE_KEY = 'pec_tracking_audit_v1';
 const BACKUP_INDEX_STORAGE_KEY = 'pec_tracking_backup_index_v1';
 const OPS_SECTION_STORAGE_KEY = 'pec_tracking_ops_sections_v1';
-const OPERATIONS_PANEL_STORAGE_KEY = 'pec_tracking_ops_panel_v1';
+const OPERATIONS_PANEL_STORAGE_KEY = 'pec_tracking_ops_panel_v2';
 const STRUCTURE_SHEET_NAME = 'GANTT_ESTRUCTURA';
 const STRUCTURE_CONFIG_SHEET = 'CONFIG_VISOR';
 const STRUCTURE_PEOPLE_SHEET = 'CATALOGO_PERSONAS';
@@ -2427,6 +2537,7 @@ const appState = {
   hero: loadHeroConfig(),
   customRecords: loadCustomRecords(),
   audit: loadAuditLog(),
+  adminDailyReport: null,
   selectedId: '',
   reportText: '',
   reportHtml: '',
@@ -2600,7 +2711,7 @@ function loadAuditLog(){
 }
 
 function saveAuditLog(){
-  localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify((appState.audit || []).slice(-500)));
+  localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify((appState.audit || []).slice(0,500)));
 }
 
 function appendAudit(action, detail){
@@ -2608,7 +2719,7 @@ function appendAudit(action, detail){
   appState.audit = appState.audit || [];
   appState.audit.unshift({
     at: new Date().toISOString(),
-    actor: 'Darwin Pardavé',
+    actor: getAuditActorName(),
     action,
     detail
   });
@@ -2887,9 +2998,15 @@ function isSharedBackendMode(){
 function getClientActorName(){
   try{
     const params = new URLSearchParams(window.location.search);
+    const explicitActor = text(params.get('actor') || params.get('user') || params.get('usuario'));
+    if(explicitActor) return explicitActor;
     if(params.get('admin') === 'darwin') return 'Darwin Pardavé';
   }catch(error){}
   return '';
+}
+
+function getAuditActorName(){
+  return text(getClientActorName()) || text(appState.serverInfo && appState.serverInfo.actor) || 'Administrador local';
 }
 
 function getDefaultServerInfo(){
@@ -3025,6 +3142,329 @@ function describeAuditItem(item){
     parts.push('Registros: ' + item.summary.touchedRecords.slice(0, 4).join(', '));
   }
   return parts.join(' | ');
+}
+
+function normalizeAuditReportDateInput(value){
+  const raw = text(value);
+  if(/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  if(!raw) return todayCalendarIso();
+  const date = new Date(raw);
+  if(Number.isNaN(date.getTime())) return todayCalendarIso();
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2,'0'),
+    String(date.getDate()).padStart(2,'0')
+  ].join('-');
+}
+
+function formatAuditReportDateLabel(value){
+  const raw = normalizeAuditReportDateInput(value);
+  const date = new Date(raw + 'T00:00:00');
+  if(Number.isNaN(date.getTime())) return raw;
+  return date.toLocaleDateString('es-PE', {
+    year:'numeric',
+    month:'long',
+    day:'2-digit'
+  });
+}
+
+function getLocalAuditDateKey(value){
+  const raw = text(value);
+  if(!raw) return '';
+  const date = new Date(raw);
+  if(Number.isNaN(date.getTime())) return '';
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2,'0'),
+    String(date.getDate()).padStart(2,'0')
+  ].join('-');
+}
+
+function getAuditItemTouchedRecords(item){
+  const summaryRecords = item && item.summary && Array.isArray(item.summary.touchedRecords)
+    ? item.summary.touchedRecords
+    : [];
+  const changeRecords = Array.isArray(item && item.changes)
+    ? item.changes.map(change => text(change && change.id)).filter(Boolean)
+    : [];
+  return uniqueSorted([].concat(summaryRecords).concat(changeRecords).map(text).filter(Boolean));
+}
+
+function getAuditItemSections(item){
+  const buckets = item && item.summary && item.summary.bySection && typeof item.summary.bySection === 'object'
+    ? item.summary.bySection
+    : {};
+  return Object.keys(buckets)
+    .map(name => ({name:text(name), count:Number(buckets[name] || 0)}))
+    .filter(section => section.name && section.count > 0)
+    .sort((a,b) => b.count - a.count || a.name.localeCompare(b.name,'es'));
+}
+
+function getAuditItemChangeTotal(item){
+  const direct = Number(item && item.changeCount);
+  if(Number.isFinite(direct) && direct > 0) return direct;
+  const summaryTotal = Number(item && item.summary && item.summary.total);
+  return Number.isFinite(summaryTotal) && summaryTotal > 0 ? summaryTotal : 0;
+}
+
+function getAuditItemDetailText(item){
+  const detail = text(item && (item.detail || item.message));
+  if(detail) return detail;
+  const parts = [];
+  const changeTotal = getAuditItemChangeTotal(item);
+  const records = getAuditItemTouchedRecords(item);
+  if(changeTotal) parts.push('Impactos auditados: ' + changeTotal);
+  if(records.length) parts.push('Registros: ' + records.slice(0,6).join(', '));
+  return parts.join(' | ') || 'Sin detalle.';
+}
+
+function humanizeAuditAction(action){
+  const label = text(action).replace(/_/g,' ');
+  return label ? (label.charAt(0).toUpperCase() + label.slice(1)) : 'Cambio';
+}
+
+function mapAuditSummaryPairs(sourceMap){
+  return Array.from(sourceMap.entries())
+    .map(([name, count]) => ({name:text(name), count:Number(count || 0)}))
+    .filter(item => item.name && item.count > 0)
+    .sort((a,b) => b.count - a.count || a.name.localeCompare(b.name,'es'));
+}
+
+function buildDailyAuditReportPlainText(report){
+  const summary = report && typeof report === 'object' ? report : {};
+  const lines = [
+    'Reporte diario de cambios - ' + (summary.dateLabel || summary.date || ''),
+    'Modo: ' + (summary.mode === 'apps_script' ? 'Apps Script compartido' : 'Local standalone'),
+    'Usuarios con cambios: ' + Number(summary.totalActors || 0),
+    'Movimientos auditados: ' + Number(summary.totalEntries || 0),
+    'Impactos auditados: ' + Number(summary.totalChanges || 0),
+    'Registros tocados: ' + Number(summary.totalTouchedRecords || 0),
+    ''
+  ];
+  const actors = Array.isArray(summary.actors) ? summary.actors : [];
+  if(!actors.length){
+    lines.push('Sin cambios auditados para la fecha seleccionada.');
+    return lines.join('\n').trim();
+  }
+  actors.forEach(actor => {
+    lines.push(actor.actor || 'Usuario sin identificar');
+    lines.push('- Movimientos: ' + Number(actor.totalEntries || 0) + ' | Impactos: ' + Number(actor.totalChanges || 0) + ' | Último cambio: ' + (formatIsoDisplay(actor.lastChangeAt) || 'Sin hora'));
+    if(Array.isArray(actor.actions) && actor.actions.length){
+      lines.push('- Acciones: ' + actor.actions.map(item => humanizeAuditAction(item.name) + ' (' + item.count + ')').join('; '));
+    }
+    if(Array.isArray(actor.touchedRecords) && actor.touchedRecords.length){
+      lines.push('- Registros: ' + actor.touchedRecords.join(', '));
+    }
+    (Array.isArray(actor.entries) ? actor.entries : []).forEach(entry => {
+      lines.push('  * ' + [
+        formatIsoDisplay(entry.at) || 'Sin hora',
+        entry.actionLabel || humanizeAuditAction(entry.action),
+        entry.detail || 'Sin detalle.'
+      ].filter(Boolean).join(' | '));
+    });
+    lines.push('');
+  });
+  return lines.join('\n').trim();
+}
+
+function buildDailyAuditReportFromItems(items, rawDate, options){
+  const reportDate = normalizeAuditReportDateInput(rawDate);
+  const filteredItems = (Array.isArray(items) ? items : [])
+    .filter(item => getLocalAuditDateKey(item && item.at) === reportDate)
+    .sort((a,b) => text(b && b.at).localeCompare(text(a && a.at)));
+  const grouped = new Map();
+  const touchedRecords = new Map();
+
+  filteredItems.forEach(item => {
+    const actor = text(item && item.actor) || text(options && options.actor) || 'Usuario sin identificar';
+    if(!grouped.has(actor)){
+      grouped.set(actor, {
+        actor,
+        totalEntries: 0,
+        totalChanges: 0,
+        lastChangeAt: '',
+        actionsMap: new Map(),
+        sectionsMap: new Map(),
+        recordsMap: new Map(),
+        entries: []
+      });
+    }
+    const bucket = grouped.get(actor);
+    const action = text(item && item.action) || 'cambio';
+    const changeTotal = getAuditItemChangeTotal(item);
+    const records = getAuditItemTouchedRecords(item);
+    const sections = getAuditItemSections(item);
+    bucket.totalEntries += 1;
+    bucket.totalChanges += changeTotal;
+    bucket.actionsMap.set(action, (bucket.actionsMap.get(action) || 0) + 1);
+    sections.forEach(section => {
+      bucket.sectionsMap.set(section.name, (bucket.sectionsMap.get(section.name) || 0) + section.count);
+    });
+    records.forEach(record => {
+      bucket.recordsMap.set(record, true);
+      touchedRecords.set(record, true);
+    });
+    if(text(item && item.at) && (!bucket.lastChangeAt || text(item.at) > bucket.lastChangeAt)){
+      bucket.lastChangeAt = text(item.at);
+    }
+    bucket.entries.push({
+      at: text(item && item.at),
+      action,
+      actionLabel: humanizeAuditAction(action),
+      detail: getAuditItemDetailText(item),
+      changeCount: changeTotal,
+      touchedRecords: records,
+      sections
+    });
+  });
+
+  const actors = Array.from(grouped.values())
+    .map(bucket => ({
+      actor: bucket.actor,
+      totalEntries: bucket.totalEntries,
+      totalChanges: bucket.totalChanges,
+      lastChangeAt: bucket.lastChangeAt,
+      actions: mapAuditSummaryPairs(bucket.actionsMap),
+      sections: mapAuditSummaryPairs(bucket.sectionsMap),
+      touchedRecords: Array.from(bucket.recordsMap.keys()).slice(0,18),
+      entries: bucket.entries
+    }))
+    .sort((a,b) => b.totalEntries - a.totalEntries || text(b.lastChangeAt).localeCompare(text(a.lastChangeAt)) || a.actor.localeCompare(b.actor,'es'));
+
+  const report = {
+    ok: true,
+    mode: text(options && options.mode) || 'local',
+    timezone: text(options && options.timezone) || 'navegador',
+    date: reportDate,
+    dateLabel: formatAuditReportDateLabel(reportDate),
+    generatedAt: new Date().toISOString(),
+    totalActors: actors.length,
+    totalEntries: actors.reduce((sum, actor) => sum + Number(actor.totalEntries || 0), 0),
+    totalChanges: actors.reduce((sum, actor) => sum + Number(actor.totalChanges || 0), 0),
+    totalTouchedRecords: touchedRecords.size,
+    actors
+  };
+  report.plainText = buildDailyAuditReportPlainText(report);
+  return report;
+}
+
+function setSelectedAuditReportDate(value){
+  const normalized = normalizeAuditReportDateInput(value);
+  const field = document.getElementById('adminAuditDate');
+  if(field) field.value = normalized;
+  return normalized;
+}
+
+function renderAdminDailyAuditReport(report){
+  const host = document.getElementById('adminDailyAuditSummary');
+  const metaHost = document.getElementById('adminDailyAuditMeta');
+  const exportBtn = document.getElementById('exportDailyAuditBtn');
+  if(!host || !metaHost) return;
+  if(exportBtn) exportBtn.disabled = !(report && report.ok && Array.isArray(report.actors) && report.actors.length);
+  if(!appState.adminEnabled){
+    metaHost.textContent = 'Modo administrador no habilitado.';
+    host.innerHTML = '<div class="empty">Modo administrador no habilitado.</div>';
+    return;
+  }
+  if(!report){
+    metaHost.textContent = 'Preparando reporte diario de cambios...';
+    host.innerHTML = '<div class="empty">Preparando reporte diario...</div>';
+    return;
+  }
+  if(report.ok === false){
+    const message = text(report.message) || 'No se pudo generar el reporte diario.';
+    metaHost.textContent = message;
+    host.innerHTML = '<div class="empty">' + escapeHtml(message) + '</div>';
+    return;
+  }
+  metaHost.textContent = [
+    report.dateLabel || report.date,
+    Number(report.totalActors || 0) + ' usuario(s)',
+    Number(report.totalEntries || 0) + ' movimiento(s)',
+    Number(report.totalTouchedRecords || 0) + ' registro(s) impactados'
+  ].join(' | ');
+  if(!Array.isArray(report.actors) || !report.actors.length){
+    host.innerHTML = '<div class="empty">Sin cambios auditados para la fecha seleccionada.</div>';
+    return;
+  }
+  host.innerHTML = report.actors.map(actor => {
+    const actionsHtml = Array.isArray(actor.actions) && actor.actions.length
+      ? '<div class="audit-report-tags">' + actor.actions.slice(0,8).map(item => '<span>' + escapeHtml(humanizeAuditAction(item.name) + ' (' + item.count + ')') + '</span>').join('') + '</div>'
+      : '';
+    const sectionsHtml = Array.isArray(actor.sections) && actor.sections.length
+      ? '<div class="audit-report-tags">' + actor.sections.slice(0,8).map(item => '<span>' + escapeHtml(item.name + ' (' + item.count + ')') + '</span>').join('') + '</div>'
+      : '';
+    const entriesHtml = (Array.isArray(actor.entries) ? actor.entries : []).map(entry => {
+      const recordLine = Array.isArray(entry.touchedRecords) && entry.touchedRecords.length
+        ? ' | Registros: ' + entry.touchedRecords.slice(0,8).join(', ')
+        : '';
+      return '<div class="audit-report-entry">' +
+        '<strong>' + escapeHtml((formatIsoDisplay(entry.at) || 'Sin hora') + ' | ' + (entry.actionLabel || humanizeAuditAction(entry.action))) + '</strong>' +
+        '<span>' + escapeHtml((entry.detail || 'Sin detalle.') + recordLine) + '</span>' +
+      '</div>';
+    }).join('');
+    return '<section class="audit-report-card">' +
+      '<div class="audit-report-head">' +
+        '<div>' +
+          '<h4>' + escapeHtml(actor.actor || 'Usuario sin identificar') + '</h4>' +
+          '<p>' + escapeHtml(actor.lastChangeAt ? ('Último cambio: ' + formatIsoDisplay(actor.lastChangeAt)) : 'Sin hora de cierre registrada.') + '</p>' +
+        '</div>' +
+        '<span class="source-badge">Cierre diario</span>' +
+      '</div>' +
+      '<div class="audit-report-metrics">' +
+        '<div class="audit-report-metric"><span>Movimientos</span><b>' + escapeHtml(String(actor.totalEntries || 0)) + '</b></div>' +
+        '<div class="audit-report-metric"><span>Impactos</span><b>' + escapeHtml(String(actor.totalChanges || 0)) + '</b></div>' +
+        '<div class="audit-report-metric"><span>Registros</span><b>' + escapeHtml(String((actor.touchedRecords || []).length)) + '</b></div>' +
+        '<div class="audit-report-metric"><span>Acciones únicas</span><b>' + escapeHtml(String((actor.actions || []).length)) + '</b></div>' +
+      '</div>' +
+      (actionsHtml ? '<div><p>Acciones más frecuentes</p>' + actionsHtml + '</div>' : '') +
+      (sectionsHtml ? '<div><p>Áreas impactadas</p>' + sectionsHtml + '</div>' : '') +
+      (entriesHtml ? '<div class="audit-report-entry-list">' + entriesHtml + '</div>' : '<div class="empty">Sin detalle disponible.</div>') +
+    '</section>';
+  }).join('');
+}
+
+function loadAdminDailyAuditReport(rawDate){
+  const selectedDate = setSelectedAuditReportDate(rawDate || text(document.getElementById('adminAuditDate') && document.getElementById('adminAuditDate').value) || todayCalendarIso());
+  renderAdminDailyAuditReport(null);
+  const info = ensureServerInfo();
+  if(isSharedBackendMode() && info.admin){
+    google.script.run
+      .withSuccessHandler(result => {
+        updateServerInfoFromEnvelope(result || {});
+        appState.adminDailyReport = result && result.ok
+          ? result
+          : {ok:false, message:text(result && result.message) || 'No se pudo generar el reporte diario.'};
+        renderAdminDailyAuditReport(appState.adminDailyReport);
+      })
+      .withFailureHandler(error => {
+        console.error('No se pudo generar el reporte diario de auditoría.', error);
+        appState.adminDailyReport = {ok:false, message:'No se pudo generar el reporte diario desde Apps Script.'};
+        renderAdminDailyAuditReport(appState.adminDailyReport);
+      })
+      .getSharedTrackingDailyAuditReport(selectedDate, 1000);
+    return;
+  }
+  appState.adminDailyReport = buildDailyAuditReportFromItems(appState.audit || [], selectedDate, {
+    mode: 'local',
+    timezone: 'navegador'
+  });
+  renderAdminDailyAuditReport(appState.adminDailyReport);
+}
+
+function exportDailyAuditReport(){
+  const report = appState.adminDailyReport && appState.adminDailyReport.ok
+    ? appState.adminDailyReport
+    : buildDailyAuditReportFromItems(appState.audit || [], text(document.getElementById('adminAuditDate') && document.getElementById('adminAuditDate').value) || todayCalendarIso(), {
+        mode: isSharedBackendMode() ? 'apps_script' : 'local',
+        timezone: isSharedBackendMode() ? 'apps_script' : 'navegador'
+      });
+  if(!report || report.ok === false) return;
+  downloadBlob(
+    'reporte_cambios_usuarios_' + normalizeAuditReportDateInput(report.date) + '.txt',
+    'text/plain;charset=utf-8',
+    text(report.plainText) || buildDailyAuditReportPlainText(report)
+  );
 }
 
 function normalizeSharedStateBundle(bundle){
@@ -3248,6 +3688,15 @@ function alertLabel(value){
 
 function todayIso(){
   return (window.PEC_TRACKING_DATA && window.PEC_TRACKING_DATA.meta && window.PEC_TRACKING_DATA.meta.referenceDate) || '2026-04-25';
+}
+
+function todayCalendarIso(){
+  const now = new Date();
+  return [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2,'0'),
+    String(now.getDate()).padStart(2,'0')
+  ].join('-');
 }
 
 function parseIso(value){
@@ -3732,17 +4181,9 @@ function renderHero(){
 }
 
 function resetExpandedState(){
-  const rootSummaries = summarizeBlocks(
-    appState.raw.filter(record => !isExcludedRecord(record) && !isCommentOnlyRecord(record))
-  );
-  const completedRoots = new Set(
-    rootSummaries
-      .filter(item => item && item.total && item.completed === item.total)
-      .map(item => text(item.edt))
-  );
   appState.expanded = {};
   appState.raw.filter(r => Number(r.nivel) === 1).forEach(r => {
-    appState.expanded[r.id] = !completedRoots.has(text(r.edt));
+    appState.expanded[r.id] = false;
   });
 }
 
@@ -3926,7 +4367,12 @@ function loadOperationsPanelCollapsed(){
 function ensureOperationsPanelPlacement(){
   const panel = document.getElementById('operationsPanel');
   const column = document.getElementById('mainColumn');
+  const tablePanel = document.getElementById('tablePanel');
   if(panel && column && panel.parentElement !== column){
+    if(tablePanel && tablePanel.parentElement === column){
+      column.insertBefore(panel, tablePanel);
+      return;
+    }
     column.appendChild(panel);
   }
 }
@@ -3936,7 +4382,7 @@ function setOperationsPanelCollapsed(collapsed){
   const toggle = document.getElementById('toggleOperationsPanelBtn');
   if(!panel || !toggle) return;
   panel.classList.toggle('collapsed', Boolean(collapsed));
-  toggle.textContent = collapsed ? 'Mostrar panel' : 'Ocultar panel';
+  toggle.textContent = collapsed ? 'Mostrar secciones' : 'Ocultar secciones';
   toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
   try{
     localStorage.setItem(OPERATIONS_PANEL_STORAGE_KEY, collapsed ? '1' : '0');
@@ -4025,31 +4471,43 @@ function hasSeguimientoAssigned(record){
   return people.length > 0;
 }
 
+function hasResponsibleAssigned(record){
+  return splitEntities(record && record.responsable).length > 0;
+}
+
+function isMissingResponsibleQuickFilterActive(){
+  return text(appState.quickFilter) === 'missingResponsible';
+}
+
 function isMissingOwnerQuickFilterActive(){
   return text(appState.quickFilter) === 'missingOwner';
 }
 
-function renderMissingOwnerQuickFilterState(){
-  const btn = document.getElementById('missingOwnerQuickFilterBtn');
+function renderPendingQuickFilterState(){
+  const btn = document.getElementById('openPendingModalBtn');
   if(!btn) return;
-  const active = isMissingOwnerQuickFilterActive();
+  const active = isMissingOwnerQuickFilterActive() || isMissingResponsibleQuickFilterActive();
   btn.classList.toggle('is-active', active);
   btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-  btn.textContent = active ? 'Mostrando sin seguimiento DGPPCS' : 'Sin seguimiento DGPPCS';
+  btn.textContent = active ? 'Mostrando pendientes' : 'Ver pendientes';
 }
 
-function toggleMissingOwnerQuickFilter(){
+function applyPendingQuickFilter(type){
+  const filterType = text(type);
+  const responsibleField = document.getElementById('responsibleFilter');
   const ownerField = document.getElementById('ownerFilter');
-  appState.quickFilter = isMissingOwnerQuickFilterActive() ? '' : 'missingOwner';
-  if(appState.quickFilter && ownerField) ownerField.value = '';
-  renderMissingOwnerQuickFilterState();
+  appState.quickFilter = filterType;
+  if(filterType === 'missingOwner' && ownerField) ownerField.value = '';
+  if(filterType === 'missingResponsible' && responsibleField) responsibleField.value = '';
+  renderPendingQuickFilterState();
+  closePendingModal();
   applyFilters();
 }
 
 function currentFilteredEmptyMessage(defaultMessage){
-  return isMissingOwnerQuickFilterActive()
-    ? 'No hay casos sin seguimiento DGPPCS asignado.'
-    : defaultMessage;
+  if(isMissingOwnerQuickFilterActive()) return 'No hay casos sin seguimiento DGPPCS asignado.';
+  if(isMissingResponsibleQuickFilterActive()) return 'No hay casos sin responsable asignado.';
+  return defaultMessage;
 }
 
 function analyticsRecordLabel(record){
@@ -4118,6 +4576,7 @@ function recordMatchesFilterSnapshot(record, snapshot){
   if(filters.responsible && !splitEntities(record.responsable).some(entity => entityKey(entity) === entityKey(filters.responsible))) return false;
   if(filters.owner && !splitPeople(record.seguimiento_dgppcs).some(person => personKey(person) === personKey(filters.owner))) return false;
   if(filters.quickFilter === 'missingOwner' && hasSeguimientoAssigned(record)) return false;
+  if(filters.quickFilter === 'missingResponsible' && hasResponsibleAssigned(record)) return false;
   return true;
 }
 
@@ -4132,7 +4591,7 @@ function clearActiveFilters(){
   updateStatusFilterSummary();
   updateAlertFilterSummary();
   initSearchSuggestions('');
-  renderMissingOwnerQuickFilterState();
+  renderPendingQuickFilterState();
 }
 
 function buildSearchHierarchyTerms(record){
@@ -4173,7 +4632,11 @@ function applyFilters(){
   const owner = text(document.getElementById('ownerFilter').value);
   if(owner && isMissingOwnerQuickFilterActive()){
     appState.quickFilter = '';
-    renderMissingOwnerQuickFilterState();
+    renderPendingQuickFilterState();
+  }
+  if(responsible && isMissingResponsibleQuickFilterActive()){
+    appState.quickFilter = '';
+    renderPendingQuickFilterState();
   }
 
   const matched = appState.raw.filter(record => {
@@ -4192,6 +4655,7 @@ function applyFilters(){
     if(responsible && !splitEntities(record.responsable).some(entity => entityKey(entity) === entityKey(responsible))) return false;
     if(owner && !splitPeople(record.seguimiento_dgppcs).some(person => personKey(person) === personKey(owner))) return false;
     if(isMissingOwnerQuickFilterActive() && hasSeguimientoAssigned(record)) return false;
+    if(isMissingResponsibleQuickFilterActive() && hasResponsibleAssigned(record)) return false;
     return true;
   });
 
@@ -4886,9 +5350,12 @@ function refreshSharedAudit(limit){
 
 function openAdminModal(){
   if(!appState.adminEnabled) return;
+  setSelectedAuditReportDate(text(document.getElementById('adminAuditDate') && document.getElementById('adminAuditDate').value) || todayCalendarIso());
   renderAdminAudit();
+  renderAdminDailyAuditReport(appState.adminDailyReport);
   document.getElementById('adminModal').classList.add('open');
-  refreshSharedAudit(120);
+  loadAdminDailyAuditReport();
+  refreshSharedAudit(180);
 }
 
 function closeAdminModal(){
@@ -5092,14 +5559,61 @@ function useEmbeddedData(){
 function renderAll(){
   renderKpis();
   renderQuickSummary();
-  renderAlerts();
-  renderStatusBars();
-  renderResponsibleBars();
-  renderOwnerBars();
+  renderPendingPanels();
+  renderMonitoringPanels();
   renderGantt();
   renderTable();
   renderOperationsStatus();
   updateGanttLayoutDensity();
+}
+
+function renderMonitoringPanels(){
+  renderAlerts();
+  renderStatusBars();
+  renderResponsibleBars();
+  renderOwnerBars();
+}
+
+function pendingCaseItem(record){
+  return '<div class="alert-item" data-open="' + escapeHtml(record.id) + '" data-open-context="pendingModal" role="button" tabindex="0" aria-label="' + escapeHtml('Abrir ficha de ' + displayTitle(record)) + '">' +
+    '<div>' +
+      '<span class="kicker">' + escapeHtml(hierarchyKindLabel(record) + ' ' + text(record.edt)) + '</span>' +
+      '<strong>' + escapeHtml(displayTitle(record)) + '</strong>' +
+      '<span>' + escapeHtml([
+        record.responsable || 'Responsable pendiente',
+        record.seguimiento_dgppcs || 'Seguimiento DGPPCS pendiente',
+        alertDueLabel(record)
+      ].join(' | ')) + '</span>' +
+    '</div>' +
+    '<span class="alert-pill al-' + slugify(record.alerta) + '">' + escapeHtml(alertLabel(record.alerta)) + '</span>' +
+  '</div>';
+}
+
+function renderPendingPanels(){
+  const missingResponsible = appState.matched
+    .filter(record => !hasResponsibleAssigned(record))
+    .sort((a,b) => alertRank(a.alerta) - alertRank(b.alerta) || text(a.final).localeCompare(text(b.final)));
+  const missingOwner = appState.matched
+    .filter(record => !hasSeguimientoAssigned(record))
+    .sort((a,b) => alertRank(a.alerta) - alertRank(b.alerta) || text(a.final).localeCompare(text(b.final)));
+  const responsiblePanel = document.getElementById('pendingResponsiblePanel');
+  const ownerPanel = document.getElementById('pendingOwnerPanel');
+  if(responsiblePanel) responsiblePanel.dataset.empty = missingResponsible.length ? '0' : '1';
+  if(ownerPanel) ownerPanel.dataset.empty = missingOwner.length ? '0' : '1';
+  document.getElementById('pendingResponsibleSummary').textContent = missingResponsible.length
+    ? (missingResponsible.length + ' caso(s) requieren entidad responsable.')
+    : 'No hay casos sin responsable asignado en la vista actual.';
+  document.getElementById('pendingOwnerSummary').textContent = missingOwner.length
+    ? (missingOwner.length + ' caso(s) requieren seguimiento DGPPCS.')
+    : 'No hay casos sin seguimiento DGPPCS en la vista actual.';
+  document.getElementById('pendingResponsibleList').innerHTML = missingResponsible.length
+    ? missingResponsible.slice(0, 18).map(pendingCaseItem).join('')
+    : '<div class="empty">No hay casos sin responsable asignado.</div>';
+  document.getElementById('pendingOwnerList').innerHTML = missingOwner.length
+    ? missingOwner.slice(0, 18).map(pendingCaseItem).join('')
+    : '<div class="empty">No hay casos sin seguimiento DGPPCS asignado.</div>';
+  document.getElementById('filterMissingResponsibleBtn').disabled = !missingResponsible.length;
+  document.getElementById('filterMissingOwnerBtn').disabled = !missingOwner.length;
 }
 
 function sortBySourceOrder(records){
@@ -5489,14 +6003,10 @@ function renderKpis(){
     metricCard('Pendientes', metrics.pending, pctText(metrics.pending, metrics.total), 'neutral'),
     metricCard('Atrasados', metrics.overdue, metrics.overdue ? 'Casos vencidos abiertos' : 'Sin atrasos abiertos', metrics.overdue ? 'alert' : 'good'),
     metricCard('Próximos vencimientos', metrics.upcoming.length, metrics.upcoming.length ? 'Vence <= 15 días' : 'Sin presión inmediata', metrics.upcoming.length ? 'alert' : 'good'),
-    metricCard('Sin responsable', metrics.withoutResponsible, metrics.withoutResponsible ? 'Requiere asignación operativa' : 'Cobertura completa', {compact:true}),
-    metricCard('Sin seguimiento DGPPCS', metrics.withoutOwner, metrics.withoutOwner ? 'Pendiente de seguimiento' : 'Cobertura completa', {compact:true}),
-    metricCard('Bloque bajo mayor presión', metrics.priorityBlock ? metrics.priorityBlock.label : '—', metrics.priorityBlock ? blockSummaryLine(metrics.priorityBlock) : 'Sin bloques visibles', {compact:true}),
-    metricCard('Mayor carga responsable', metrics.topResponsible.count, metrics.topResponsible.label, {tone:'neutral', compact:true}),
-    metricCard('Mayor carga seguimiento', metrics.topOwner.count, metrics.topOwner.label, {tone:'neutral', compact:true})
+    metricCard('Bloque bajo mayor presión', metrics.priorityBlock ? metrics.priorityBlock.label : '—', metrics.priorityBlock ? blockSummaryLine(metrics.priorityBlock) : 'Sin bloques visibles', {compact:true})
   ].join('');
   document.getElementById('kpiGrid').innerHTML = html;
-  renderMissingOwnerQuickFilterState();
+  renderPendingQuickFilterState();
 }
 
 function metricCard(label, value, note, toneOrOptions){
@@ -5575,7 +6085,7 @@ function renderAlerts(){
   }
   if(panel) panel.dataset.empty = '0';
   el.innerHTML = list.map(r =>
-    '<div class="alert-item" data-open="' + escapeHtml(r.id) + '">' +
+    '<div class="alert-item" data-open="' + escapeHtml(r.id) + '" data-open-context="monitoringModal" role="button" tabindex="0" aria-label="' + escapeHtml('Abrir ficha de ' + displayTitle(r)) + '">' +
       '<div>' +
         '<span class="kicker">' + escapeHtml(hierarchyKindLabel(r) + ' ' + text(r.edt)) + '</span>' +
         '<strong>' + escapeHtml(displayTitle(r)) + '</strong>' +
@@ -5963,6 +6473,8 @@ function renderTable(){
 function openDrawer(recordId){
   const record = appState.raw.find(r => r.id === recordId);
   if(!record) return;
+  closePendingModal();
+  closeMonitoringModal();
   const {childrenMap} = buildHierarchyMaps(appState.raw);
   const groupOptions = getGroupOptionList(appState.raw);
   appState.selectedId = record.id;
@@ -6084,6 +6596,44 @@ function openHeroModal(){
 
 function closeHeroModal(){
   document.getElementById('heroModal').classList.remove('open');
+}
+
+function openMonitoringModal(){
+  renderMonitoringPanels();
+  document.getElementById('monitoringModal').classList.add('open');
+}
+
+function closeMonitoringModal(){
+  document.getElementById('monitoringModal').classList.remove('open');
+}
+
+function openPendingModal(){
+  renderPendingPanels();
+  document.getElementById('pendingModal').classList.add('open');
+}
+
+function closePendingModal(){
+  document.getElementById('pendingModal').classList.remove('open');
+}
+
+function closeRecordContextModal(modalId){
+  const normalizedId = text(modalId);
+  if(!normalizedId || normalizedId === 'drawer') return;
+  if(normalizedId === 'pendingModal'){
+    closePendingModal();
+    return;
+  }
+  if(normalizedId === 'monitoringModal'){
+    closeMonitoringModal();
+    return;
+  }
+  const modal = document.getElementById(normalizedId);
+  if(modal) modal.classList.remove('open');
+}
+
+function openDrawerFromContext(recordId, modalId){
+  closeRecordContextModal(modalId);
+  openDrawer(recordId);
 }
 
 function isModalOpen(modalId){
@@ -6886,7 +7436,9 @@ function bindEvents(){
     updateAlertFilterSummary();
     applyFilters();
   });
-  document.getElementById('missingOwnerQuickFilterBtn').addEventListener('click', toggleMissingOwnerQuickFilter);
+  document.getElementById('openPendingModalBtn').addEventListener('click', openPendingModal);
+  document.getElementById('filterMissingResponsibleBtn').addEventListener('click', () => applyPendingQuickFilter('missingResponsible'));
+  document.getElementById('filterMissingOwnerBtn').addEventListener('click', () => applyPendingQuickFilter('missingOwner'));
   document.getElementById('resetFiltersBtn').addEventListener('click', () => {
     clearActiveFilters();
     applyFilters();
@@ -6896,10 +7448,14 @@ function bindEvents(){
   const adminBtn = document.getElementById('openAdminBtn');
   renderAdminAccess();
   if(adminBtn) adminBtn.addEventListener('click', openAdminModal);
+  setSelectedAuditReportDate(todayCalendarIso());
   document.getElementById('closeHeroBtn').addEventListener('click', closeHeroModal);
   document.getElementById('saveHeroBtn').addEventListener('click', saveHeroModal);
   document.getElementById('resetHeroBtn').addEventListener('click', resetHeroModal);
   document.getElementById('closeAdminBtn').addEventListener('click', closeAdminModal);
+  document.getElementById('adminAuditDate').addEventListener('change', () => loadAdminDailyAuditReport());
+  document.getElementById('refreshAuditReportBtn').addEventListener('click', () => loadAdminDailyAuditReport());
+  document.getElementById('exportDailyAuditBtn').addEventListener('click', exportDailyAuditReport);
   document.getElementById('exportAuditBtn').addEventListener('click', exportAuditLog);
   document.getElementById('exportBackupBtn').addEventListener('click', exportLatestBackup);
   document.getElementById('addChildBtn').addEventListener('click', addLocalChildRecord);
@@ -6918,6 +7474,8 @@ function bindEvents(){
     renderAnalytics();
     document.getElementById('analyticsModal').classList.add('open');
   };
+  document.getElementById('openMonitoringBtn').addEventListener('click', openMonitoringModal);
+  document.getElementById('closePendingBtn').addEventListener('click', closePendingModal);
   document.getElementById('openReportBtn').addEventListener('click', openReport);
   document.getElementById('openAnalyticsBtn').addEventListener('click', openAnalytics);
   document.getElementById('exportReportWordBtn').addEventListener('click', exportReportWord);
@@ -6928,6 +7486,7 @@ function bindEvents(){
   document.getElementById('closeAnalyticsBtn').addEventListener('click', () => {
     document.getElementById('analyticsModal').classList.remove('open');
   });
+  document.getElementById('closeMonitoringBtn').addEventListener('click', closeMonitoringModal);
   document.getElementById('exportTxtBtn').addEventListener('click', exportTxt);
   document.getElementById('exportJsonBtn').addEventListener('click', exportJson);
   document.getElementById('printReportBtn').addEventListener('click', printReport);
@@ -6966,12 +7525,29 @@ function bindEvents(){
       return;
     }
     const row = event.target.closest('[data-open]');
-    if(row) openDrawer(row.getAttribute('data-open'));
+    if(row){
+      const modalId = row.getAttribute('data-open-context');
+      if(modalId){
+        openDrawerFromContext(row.getAttribute('data-open'), modalId);
+      }else{
+        openDrawer(row.getAttribute('data-open'));
+      }
+      return;
+    }
     if(event.target.id === 'drawer') closeDrawer();
     if(event.target.id === 'heroModal') closeHeroModal();
     if(event.target.id === 'reportModal') document.getElementById('reportModal').classList.remove('open');
     if(event.target.id === 'analyticsModal') document.getElementById('analyticsModal').classList.remove('open');
+    if(event.target.id === 'monitoringModal') closeMonitoringModal();
+    if(event.target.id === 'pendingModal') closePendingModal();
     if(event.target.id === 'adminModal') closeAdminModal();
+  });
+  document.body.addEventListener('keydown', event => {
+    if(event.key !== 'Enter' && event.key !== ' ') return;
+    const openable = event.target.closest('[data-open-context][data-open]');
+    if(!openable) return;
+    event.preventDefault();
+    openDrawerFromContext(openable.getAttribute('data-open'), openable.getAttribute('data-open-context'));
   });
 }
 
@@ -6981,7 +7557,7 @@ function initFilters(){
   buildSelect('groupFilter', uniqueSorted(appState.raw.map(r => r.grupo)), 'Todos los grupos');
   buildSelect('responsibleFilter', getAssignableEntities(), 'Toda entidad responsable');
   buildSelect('ownerFilter', getAssignablePeople(), 'Todo seguimiento');
-  renderMissingOwnerQuickFilterState();
+  renderPendingQuickFilterState();
   initSearchSuggestions();
 }
 

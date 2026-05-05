@@ -47,6 +47,7 @@ Uso recomendado:
 - estado centralizado;
 - auditoría;
 - backup operativo.
+- acceso con cuenta Google autorizada cuando el despliegue redirige a Sign-In.
 
 ## 2. Carga e importación de información
 
@@ -188,11 +189,14 @@ Verificar en el panel admin:
 - modo;
 - sincronización;
 - último backup;
+- cierre diario por usuario;
 - auditoría compartida.
 
 Acciones esperadas:
 
 - ver auditoría;
+- ver cierre diario por usuario;
+- exportar reporte diario;
 - exportar auditoría;
 - exportar backup;
 - revisar último guardado central.
@@ -231,6 +235,7 @@ En Apps Script:
 
 - usa estado centralizado;
 - soporta auditoría y backup;
+- soporta cierre diario por usuario desde la bitácora central;
 - puede validar admins por correo con `PEC_VISOR_ADMIN_EMAILS`;
 - usa polling de 30 segundos.
 
@@ -247,4 +252,6 @@ En Apps Script:
 - `Leer estructura` sigue disponible.
 - `Exportar JSON filtrado` y `Exportar TXT` siguen disponibles.
 - En Apps Script, `?view=visor` abre el visor correcto.
-- En Apps Script, el panel admin muestra auditoría y último backup si el usuario es admin.
+- En Apps Script, si la URL redirige a Google Sign-In, la cuenta autenticada pertenece al grupo autorizado para DGPPCS.
+- En Apps Script, el panel admin muestra auditoría, cierre diario por usuario y último backup si el usuario es admin.
+- El reporte diario por usuario se puede exportar antes del envío a DGPPCS.

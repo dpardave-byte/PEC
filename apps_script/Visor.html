@@ -51,13 +51,25 @@ body{min-height:100vh}
 .report-box figure img{width:100%;height:180px;object-fit:cover;display:block}
 .report-box figcaption{padding:10px 12px;font-size:12px;color:var(--muted);background:#fbfdff}
 .report-box{padding:20px;display:grid;gap:16px;background:linear-gradient(180deg,#ffffff 0,#f9fbfe 100%)}
-.report-box h2{margin:0;font-size:16px;color:var(--brand);letter-spacing:.04em;text-transform:uppercase}
+.report-box h2,.panel h2,.operations-panel-head h2,.field label{
+  color:var(--brand);font-weight:800;letter-spacing:.08em
+}
+.report-box h2,.panel h2,.operations-panel-head h2,.field label{
+  display:flex;align-items:center;gap:8px
+}
+.report-box h2::after,.panel h2::after,.operations-panel-head h2::after,.field label::after{
+  content:'';display:inline-block;height:2px;border-radius:999px;
+  background:linear-gradient(90deg,var(--blue),#97c0f3)
+}
+.report-box h2::after,.panel h2::after,.operations-panel-head h2::after{width:28px}
+.field label::after{width:16px}
+.report-box h2{margin:0;font-size:16px;text-transform:uppercase}
 .report-box .actions,.toolbar-actions{display:flex;gap:10px;flex-wrap:wrap}
 .toolbar{display:grid;grid-template-columns:1fr;gap:12px;align-items:start;margin-bottom:18px}
 .filters{display:grid;grid-template-columns:1.55fr repeat(5,minmax(150px,1fr));gap:16px;align-items:start}
 .ingest{display:grid;grid-template-columns:1.2fr auto auto;gap:10px;align-items:end}
 .field{display:grid;gap:6px;min-width:0}
-.field label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700}
+.field label{font-size:11px;text-transform:uppercase}
 .field input,.field select,.field textarea{
   width:100%;min-height:44px;border:1px solid var(--line);border-radius:12px;background:#fff;
   color:var(--ink);padding:10px 12px;font:14px "Segoe UI","Aptos",Arial,sans-serif;box-shadow:inset 0 1px 2px rgba(16,33,50,.02)
@@ -73,6 +85,14 @@ button.secondary.is-active,button.ghost.is-active{background:#103958;color:#fff;
 button.ghost{background:#edf4ff;color:var(--blue)}
 button.soft{background:#e8f5f1;color:#0e615a}
 button.danger{background:#fff1f2;color:#9f2232;box-shadow:none;border:1px solid #efc6cc}
+.toolbar-actions{gap:8px}
+.toolbar-actions button{
+  min-height:38px;padding:0 14px;border:1px solid var(--line);box-shadow:none;
+  background:#fff;color:var(--brand)
+}
+.toolbar-actions button.secondary,.toolbar-actions button.ghost{background:#fff;color:var(--brand)}
+.toolbar-actions button.is-active{background:#edf4fb;border-color:#c8d9eb;color:var(--brand)}
+.toolbar-actions button:hover{background:#f6f9fc}
 .layout{display:grid;grid-template-columns:1.6fr .9fr;gap:16px;align-items:start}
 .layout.compact-layout{gap:12px}
 .stack{display:grid;gap:16px;align-content:start}
@@ -83,21 +103,25 @@ button.danger{background:#fff1f2;color:#9f2232;box-shadow:none;border:1px solid 
 .side-rail.compact-rail .track{height:10px}
 .side-rail.compact-rail .mini-item,.side-rail.compact-rail .alert-item,.side-rail.compact-rail .summary-item{padding:10px 11px}
 .side-rail.compact-rail .empty{padding:14px 12px;font-size:12px}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
-.card{background:linear-gradient(180deg,#ffffff 0,#f8fbff 100%);border:1px solid var(--line);border-radius:16px;padding:16px 16px 14px;box-shadow:var(--shadow-soft);display:grid;gap:8px;align-content:start}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(172px,1fr));gap:12px}
+.card{background:linear-gradient(180deg,#ffffff 0,#f8fbff 100%);border:1px solid var(--line);border-radius:16px;padding:14px 15px 12px;box-shadow:var(--shadow-soft);display:grid;gap:7px;align-content:start}
 .card span{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:650}
-.card b{display:block;font-size:30px;margin-top:2px;color:var(--brand);line-height:1}
+.card b{display:block;font-size:28px;margin-top:2px;color:var(--brand);line-height:1}
 .card b.metric-text{font-size:18px;line-height:1.25;overflow-wrap:anywhere;word-break:break-word}
-.card b.metric-count{font-size:30px}
+.card b.metric-count{font-size:28px}
 .card small{display:block;margin-top:0;color:var(--muted);line-height:1.35}
 .card .metric-note strong{color:var(--ink)}
+.card.compact-card{padding:12px 13px 11px;gap:6px;box-shadow:none;background:linear-gradient(180deg,#ffffff 0,#fbfdff 100%)}
+.card.compact-card b.metric-count{font-size:23px}
+.card.compact-card b.metric-text{font-size:16px}
+.card.compact-card small{font-size:12px}
 .card.alert{background:linear-gradient(180deg,#fffaf9 0,#fff3f3 100%);border-color:#f1d2d6}
 .card.alert b{color:var(--red)}
 .card.good{background:linear-gradient(180deg,#f6fffb 0,#eefaf5 100%)}
 .card.good b{color:var(--brand-2)}
 .card.neutral{background:linear-gradient(180deg,#fbfcfe 0,#f4f8fb 100%)}
 .panel{padding:18px}
-.panel h2{margin:0 0 14px;font-size:15px;color:var(--brand);text-transform:uppercase;letter-spacing:.08em}
+.panel h2{margin:0 0 14px;font-size:15px;text-transform:uppercase}
 .split{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .mini-list,.alert-list,.summary-list,.report-output{display:grid;gap:10px}
 .mini-item,.alert-item,.summary-item{
@@ -164,6 +188,10 @@ button.danger{background:#fff1f2;color:#9f2232;box-shadow:none;border:1px solid 
   padding:16px 14px;border:1px solid #d7e3ef;border-radius:16px;
   background:linear-gradient(180deg,#fcfdff 0,#f2f7fc 100%)
 }
+.timeline-row.level-1.collapsed-completed{
+  padding:12px 14px;background:linear-gradient(180deg,#f8fcfb 0,#eff7f4 100%);
+  border-color:#cfe3d9
+}
 .timeline-row.reveal-highlight{border-color:#8cc9c4;box-shadow:0 0 0 3px rgba(79,184,165,.18)}
 .row-highlight td{background:#f2fbf8 !important}
 .timeline-row.level-2{padding-left:8px}
@@ -183,6 +211,12 @@ button.danger{background:#fff1f2;color:#9f2232;box-shadow:none;border:1px solid 
 .timeline-row.level-1 .gantt-track{background:#e3ebf4}
 .timeline-row.level-1 .gantt-progress .progress-track{background:#dfe7f0}
 .timeline-row.level-1 .tree-toggle{background:#dfeafa}
+.timeline-row.level-1.collapsed-completed .tree-toggle{background:#dceee6;color:#0d6a57}
+.timeline-row.level-1.collapsed-completed .timeline-title strong{font-size:18px;color:#245f52}
+.timeline-row.level-1.collapsed-completed .timeline-title span{font-size:13px;margin-top:4px}
+.timeline-row.level-1.collapsed-completed .timeline-title small{font-size:12px;margin-top:6px;color:#517166}
+.timeline-row.level-1.collapsed-completed .gantt-track{height:22px}
+.timeline-row.level-1.collapsed-completed .gantt-bar{top:3px;height:14px}
 .gantt-track{height:28px;background:#eef3f8;border-radius:999px;position:relative;overflow:hidden;border:1px solid #e2eaf3}
 .gantt-bar{
   position:absolute;top:4px;height:18px;border-radius:999px;
@@ -254,12 +288,17 @@ tbody tr:hover td{background:#f8fbfe}
 .assign-item input{min-height:auto;width:auto;margin-top:2px}
 .assign-extra{margin-top:10px}
 .assign-picker{margin-top:4px;position:relative}
-.assign-picker summary{cursor:pointer;list-style:none;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;font-weight:700;color:var(--brand)}
+.assign-picker summary{cursor:pointer;list-style:none;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;font-weight:500;color:var(--ink)}
 .assign-picker summary::-webkit-details-marker{display:none}
 .assign-picker[open] summary{border-color:#c7d5e5}
 .filter-picker{z-index:1}
 .filter-picker[open]{z-index:30}
-.filter-picker summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.filter-picker summary{
+  width:100%;min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#fff;
+  color:var(--ink);font:14px "Segoe UI","Aptos",Arial,sans-serif;font-weight:400;line-height:1.2;
+  box-shadow:inset 0 1px 2px rgba(16,33,50,.02)
+}
 .filters .filter-picker{width:100%}
 .filters .filter-picker .assign-grid{grid-template-columns:1fr;max-height:240px;overflow:auto;padding:6px;position:absolute;left:0;right:auto;top:calc(100% + 8px);width:min(100%,320px);max-width:min(92vw,320px);background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);z-index:40}
 .filters .filter-picker .assign-item{padding:9px 10px;border-radius:10px;min-height:40px;align-items:center}
@@ -3693,9 +3732,17 @@ function renderHero(){
 }
 
 function resetExpandedState(){
+  const rootSummaries = summarizeBlocks(
+    appState.raw.filter(record => !isExcludedRecord(record) && !isCommentOnlyRecord(record))
+  );
+  const completedRoots = new Set(
+    rootSummaries
+      .filter(item => item && item.total && item.completed === item.total)
+      .map(item => text(item.edt))
+  );
   appState.expanded = {};
   appState.raw.filter(r => Number(r.nivel) === 1).forEach(r => {
-    appState.expanded[r.id] = true;
+    appState.expanded[r.id] = !completedRoots.has(text(r.edt));
   });
 }
 
@@ -5442,20 +5489,26 @@ function renderKpis(){
     metricCard('Pendientes', metrics.pending, pctText(metrics.pending, metrics.total), 'neutral'),
     metricCard('Atrasados', metrics.overdue, metrics.overdue ? 'Casos vencidos abiertos' : 'Sin atrasos abiertos', metrics.overdue ? 'alert' : 'good'),
     metricCard('Próximos vencimientos', metrics.upcoming.length, metrics.upcoming.length ? 'Vence <= 15 días' : 'Sin presión inmediata', metrics.upcoming.length ? 'alert' : 'good'),
-    metricCard('Sin responsable', metrics.withoutResponsible, metrics.withoutResponsible ? 'Requiere asignación operativa' : 'Cobertura completa'),
-    metricCard('Sin seguimiento DGPPCS', metrics.withoutOwner, metrics.withoutOwner ? 'Pendiente de seguimiento' : 'Cobertura completa'),
-    metricCard('Bloque bajo mayor presión', metrics.priorityBlock ? metrics.priorityBlock.label : '—', metrics.priorityBlock ? blockSummaryLine(metrics.priorityBlock) : 'Sin bloques visibles'),
-    metricCard('Mayor carga responsable', metrics.topResponsible.count, metrics.topResponsible.label, 'neutral'),
-    metricCard('Mayor carga seguimiento', metrics.topOwner.count, metrics.topOwner.label, 'neutral')
+    metricCard('Sin responsable', metrics.withoutResponsible, metrics.withoutResponsible ? 'Requiere asignación operativa' : 'Cobertura completa', {compact:true}),
+    metricCard('Sin seguimiento DGPPCS', metrics.withoutOwner, metrics.withoutOwner ? 'Pendiente de seguimiento' : 'Cobertura completa', {compact:true}),
+    metricCard('Bloque bajo mayor presión', metrics.priorityBlock ? metrics.priorityBlock.label : '—', metrics.priorityBlock ? blockSummaryLine(metrics.priorityBlock) : 'Sin bloques visibles', {compact:true}),
+    metricCard('Mayor carga responsable', metrics.topResponsible.count, metrics.topResponsible.label, {tone:'neutral', compact:true}),
+    metricCard('Mayor carga seguimiento', metrics.topOwner.count, metrics.topOwner.label, {tone:'neutral', compact:true})
   ].join('');
   document.getElementById('kpiGrid').innerHTML = html;
   renderMissingOwnerQuickFilterState();
 }
 
-function metricCard(label, value, note, tone){
+function metricCard(label, value, note, toneOrOptions){
   const valueText = String(value == null ? '' : value);
   const isTextValue = /[A-Za-zÁÉÍÓÚáéíóúÑñ]/.test(valueText) || valueText.length > 10;
-  return '<article class="card ' + escapeHtml(tone || '') + '">' +
+  const options = typeof toneOrOptions === 'object' && toneOrOptions !== null
+    ? toneOrOptions
+    : {tone:toneOrOptions || ''};
+  const cardClasses = ['card'];
+  if(options.tone) cardClasses.push(options.tone);
+  if(options.compact) cardClasses.push('compact-card');
+  return '<article class="' + cardClasses.join(' ') + '">' +
     '<span>' + escapeHtml(label) + '</span>' +
     '<b class="' + (isTextValue ? 'metric-text' : 'metric-count') + '">' + escapeHtml(value) + '</b>' +
     '<small class="metric-note">' + escapeHtml(note) + '</small>' +
@@ -5705,6 +5758,10 @@ function blockSummaryLine(item){
   ].join(' | ');
 }
 
+function getBlockSummaryMap(records){
+  return new Map(summarizeBlocks(records).map(item => [text(item.edt), item]));
+}
+
 function setImportFeedback(title, detail, tone){
   appState.importFeedback = {
     title: text(title) || 'Fuente lista',
@@ -5767,6 +5824,7 @@ function renderTreeAffordance(recordId, hasChildren, level){
 
 function renderGantt(){
   const source = appState.filtered.filter(r => !isExcludedRecord(r) && !isCommentOnlyRecord(r));
+  const blockSummaryMap = getBlockSummaryMap(appState.raw.filter(record => !isExcludedRecord(record) && !isCommentOnlyRecord(record)));
   const monthsEl = document.getElementById('timelineMonths');
   const listEl = document.getElementById('ganttList');
   if(!source.length){
@@ -5796,6 +5854,9 @@ function renderGantt(){
     const kids = childrenMap.get(r.id) || [];
     const hasChildren = kids.length > 0;
     const level = visualHierarchyLevel(r);
+    const rootSummary = level === 1 ? blockSummaryMap.get(text(r.edt)) : null;
+    const rootCompleted = Boolean(rootSummary && rootSummary.total && rootSummary.completed === rootSummary.total);
+    const collapsedCompleted = rootCompleted && !appState.expanded[r.id];
     const hierarchyLabel = level === 1 ? getRootGroupLabel(text(r.edt), appState.raw) : hierarchyKindLabel(r) + ' ' + text(r.edt);
     const hierarchyClass = level === 1 ? 'root' : level === 2 ? 'phase' : 'milestone';
     const indent = (level - 1) * 18;
@@ -5810,18 +5871,32 @@ function renderGantt(){
     const stateCls = getTimelineStatusClass(r);
     const rowClasses = ['timeline-row', 'level-' + level];
     if(appState.highlightedId === r.id) rowClasses.push('reveal-highlight');
+    if(collapsedCompleted) rowClasses.push('collapsed-completed');
+    const avgProgress = rootSummary && rootSummary.total ? Math.round(rootSummary.progressTotal / rootSummary.total) : clamp(r.avance_estimado,0,100);
+    const primaryMeta = collapsedCompleted
+      ? ('Bloque completado | ' + rootSummary.total + ' casos | ' + avgProgress + '% de avance')
+      : ((r.seguimiento_dgppcs || r.responsable || 'Sin responsable') + ' | ' + fmtDate(startIso) + ' a ' + fmtDate(endIso) + (hasChildren ? ' | ' + kids.length + ' subactividad(es)' : ''));
+    const secondaryMeta = collapsedCompleted
+      ? ('Sin alertas activas | ' + rootSummary.completed + ' completados de ' + rootSummary.total)
+      : ((r.responsable ? 'Responsable: ' + r.responsable : 'Responsable pendiente') + ' | ' + (r.seguimiento_dgppcs ? 'Seguimiento: ' + r.seguimiento_dgppcs : 'Seguimiento DGPPCS pendiente') + (hasChildren ? ' | ' + kids.length + ' subactividad(es)' : ''));
+    const effectiveDisplayState = collapsedCompleted ? 'Completado' : displayState;
+    const effectiveStateCls = collapsedCompleted ? 'completed' : stateCls;
+    const progressValue = collapsedCompleted ? avgProgress : clamp(r.avance_estimado,0,100);
+    const alertChip = collapsedCompleted
+      ? '<span class="status-pill st-completado">Completado</span>'
+      : '<span class="alert-pill al-' + slugify(r.alerta) + '">' + escapeHtml(alertLabel(r.alerta)) + '</span>';
     return '<div class="' + rowClasses.join(' ') + '" data-open="' + escapeHtml(r.id) + '">' +
       '<div class="timeline-title"><div class="edt-cell" style="padding-left:' + indent + 'px">' +
       renderTreeAffordance(r.id, hasChildren, level) +
       '<div><div class="timeline-kickers">' +
       '<span class="timeline-kind ' + hierarchyClass + '">' + escapeHtml(hierarchyLabel) + '</span>' +
-      '<span class="alert-pill al-' + slugify(r.alerta) + '">' + escapeHtml(alertLabel(r.alerta)) + '</span>' +
+      alertChip +
       '</div><strong>' + escapeHtml(displayTitle(r)) + '</strong><span>' +
-      escapeHtml((r.seguimiento_dgppcs || r.responsable || 'Sin responsable') + ' | ' + fmtDate(startIso) + ' a ' + fmtDate(endIso) + (hasChildren ? ' | ' + kids.length + ' subactividad(es)' : '')) +
-      '</span><small>' + escapeHtml((r.responsable ? 'Responsable: ' + r.responsable : 'Responsable pendiente') + ' | ' + (r.seguimiento_dgppcs ? 'Seguimiento: ' + r.seguimiento_dgppcs : 'Seguimiento DGPPCS pendiente') + (hasChildren ? ' | ' + kids.length + ' subactividad(es)' : '')) + '</small></div></div></div>' +
-      '<div class="gantt-track"><div class="gantt-today" style="left:' + todayOffset + '%"></div><div class="gantt-bar ' + stateCls + '" style="left:' + left + '%;width:' + width + '%"></div></div>' +
-      '<div class="gantt-label"><span class="status-pill st-' + slugify(displayState) + '">' + escapeHtml(displayState) + '</span></div>' +
-      '<div class="gantt-progress"><div class="progress-track"><i style="width:' + clamp(r.avance_estimado,0,100) + '%"></i></div><span>' + escapeHtml(String(r.avance_estimado)) + '%</span></div>' +
+      escapeHtml(primaryMeta) +
+      '</span><small>' + escapeHtml(secondaryMeta) + '</small></div></div></div>' +
+      '<div class="gantt-track"><div class="gantt-today" style="left:' + todayOffset + '%"></div><div class="gantt-bar ' + effectiveStateCls + '" style="left:' + left + '%;width:' + width + '%"></div></div>' +
+      '<div class="gantt-label"><span class="status-pill st-' + slugify(effectiveDisplayState) + '">' + escapeHtml(effectiveDisplayState) + '</span></div>' +
+      '<div class="gantt-progress"><div class="progress-track"><i style="width:' + progressValue + '%"></i></div><span>' + escapeHtml(String(progressValue)) + '%</span></div>' +
     '</div>';
   }).join('');
 }

@@ -148,9 +148,10 @@ Si el estado compartido se daña:
 3. Crear o actualizar el HTML `Visor`.
 4. Pegar el contenido de `apps_script/Visor.html`.
 5. Configurar `PEC_VISOR_ADMIN_EMAILS` si corresponde.
-6. Desplegar como Web App.
-7. Probar la URL `.../exec?view=visor`.
-8. Validar:
+6. Si las alertas operativas deben llegar también al grupo completo DGPPCS, mantener actualizado `PEC_VISOR_NOTIFY_EMAILS_JSON` y usar `PEC_VISOR_NOTIFY_DGPPCS_EMAILS` solo para agregar destinatarios extra del consolidado.
+7. Desplegar como Web App.
+8. Probar la URL `.../exec?view=visor`.
+9. Validar:
    - carga inicial;
    - edición de ficha;
    - guardado compartido con actor identificado;

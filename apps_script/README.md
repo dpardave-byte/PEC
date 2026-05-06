@@ -193,6 +193,14 @@ Si el reporte se enviará por correo, verificar además que el Web App sea acces
 
 Si el campo de destinatarios queda vacío, el backend usa como respaldo los correos de `PEC_VISOR_ADMIN_EMAILS`.
 
+Para las alertas operativas a usuarios:
+
+- `PEC_VISOR_NOTIFY_EMAILS_JSON` sigue siendo el mapa nombre -> correo por persona de seguimiento.
+- `PEC_VISOR_NOTIFY_DGPPCS_EMAILS` permite definir un reparto colectivo para todo el equipo DGPPCS.
+- El backend envía un correo individual a cada persona mapeada. Si una persona no tiene alertas directas en el corte, recibe un correo con `0 alerta(s)`.
+- El consolidado DGPPCS se envía al conjunto de correos mapeados en `PEC_VISOR_NOTIFY_EMAILS_JSON`, más cualquier correo extra definido en `PEC_VISOR_NOTIFY_DGPPCS_EMAILS`.
+- El destinatario operativo por defecto del consolidado sigue existiendo como respaldo adicional.
+
 En la publicación validada en este repositorio, la URL pública responde con redirección a `accounts.google.com`, por lo que la comprobación final debe hacerse iniciando sesión con una cuenta DGPPCS autorizada.
 
 ## Flujo de trabajo recomendado

@@ -76,6 +76,8 @@ const OPERATIONAL_DEFAULTS = {
   dailyReportConfirmRealSend: true
 };
 
+const SHARED_VISOR_CANONICAL_WEBAPP_BASE = 'https://script.google.com/macros/s/AKfycbwDO41v2ncg7p2rjvEjTCICeu8fJoAySOgSNAPe5arZnkK-gYtCH-FioX-jexhfW0k0/exec';
+
 function doGet(e) {
   const params = e && e.parameter ? e.parameter : {};
   ensureOperationalDailyReportDelivery_();
@@ -98,7 +100,11 @@ function doGet(e) {
     return outputPayload_(getSharedTrackingDailyAuditReport(params.date, params.limit), params);
   }
   if (params.action === 'visor_send_daily_report_now') {
-    return outputPayload_(sendSharedTrackingDailyAuditReportEmail(params.date), params);
+    var sendDailyReportStatus = sendSharedTrackingDailyAuditReportEmail(params.date);
+    if (params.callback || String(params.format || '').trim().toLowerCase() === 'json') {
+      return outputPayload_(sendDailyReportStatus, params);
+    }
+    return buildSharedTrackingDailyReportActionHtml_(sendDailyReportStatus, getTrackingWebAppUrl_());
   }
   const payload = { updatedAt: new Date().toISOString(), records: getRecords_() };
   if (params.format === 'csv') {
@@ -124,6 +130,63 @@ function outputPayload_(payload, params) {
   return ContentService
     .createTextOutput(JSON.stringify(payload))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+function buildSharedTrackingDailyReportActionHtml_(status, webappUrl) {
+  var result = status && typeof status === 'object' ? status : {};
+  var ok = Boolean(result.ok && result.sent !== false);
+  var safeUrl = ensureSharedVisorViewUrl_(webappUrl || getTrackingWebAppUrl_());
+  var summary = result.message || (ok ? 'La acción se ejecutó correctamente.' : 'No se pudo completar el envío.');
+  var detailLines = [
+    'Modo: ' + String(result.mode || '-'),
+    'Fecha del reporte: ' + String(result.reportDate || '-'),
+    'Destinatarios efectivos: ' + ((Array.isArray(result.effectiveRecipients) && result.effectiveRecipients.length) ? result.effectiveRecipients.join(', ') : 'Sin destinatarios'),
+    'Enviado: ' + (ok ? 'Sí' : 'No')
+  ];
+  var html = [
+    '<!doctype html>',
+    '<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
+    '<title>Cierre diario del visor PEC</title>',
+    '<style>',
+    'body{margin:0;font-family:Arial,sans-serif;background:#eef5fb;color:#16324f;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;}',
+    '.card{max-width:720px;width:100%;background:#fff;border:1px solid #d7e2ef;border-radius:18px;box-shadow:0 24px 70px rgba(24,56,88,.12);padding:24px;}',
+    '.badge{display:inline-block;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:' + (ok ? '#e6f4ea;color:#166534' : '#fdeaea;color:#991b1b') + ';}',
+    'h1{margin:14px 0 8px;font-size:24px;}',
+    'p{margin:0 0 12px;line-height:1.5;color:#4d6379;}',
+    'ul{margin:0 0 18px;padding-left:18px;color:#16324f;}',
+    'li{margin:6px 0;}',
+    '.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:20px;}',
+    '.btn{display:inline-block;padding:11px 16px;border-radius:10px;text-decoration:none;font-weight:700;}',
+    '.btn-primary{background:#1d5f8f;color:#fff;}',
+    '.btn-secondary{background:#edf4fb;color:#16324f;border:1px solid #d7e2ef;}',
+    '.note{margin-top:14px;font-size:12px;color:#6b7d90;}',
+    '</style></head><body>',
+    '<div class="card">',
+    '<span class="badge">' + escapeHtmlEmail_(ok ? 'Operación completada' : 'Revisión requerida') + '</span>',
+    '<h1>' + escapeHtmlEmail_(ok ? 'Cierre diario procesado' : 'No se pudo procesar el cierre diario') + '</h1>',
+    '<p>' + escapeHtmlEmail_(summary) + '</p>',
+    '<ul>' + detailLines.map(function(line) { return '<li>' + escapeHtmlEmail_(line) + '</li>'; }).join('') + '</ul>',
+    '<div class="actions">',
+    '<a class="btn btn-primary" href="' + escapeHtmlEmail_(safeUrl) + '">Volver al visor</a>',
+    '<a class="btn btn-secondary" href="' + escapeHtmlEmail_(safeUrl) + '" onclick="window.close();return false;">Cerrar esta ventana</a>',
+    '</div>',
+    '<p class="note">Esta pantalla reemplaza la respuesta JSON cruda cuando la acción se abre desde el navegador.</p>',
+    '</div>',
+    '<script>',
+    '(function(){',
+    'var target=' + JSON.stringify(safeUrl) + ';',
+    'setTimeout(function(){',
+    'try{ window.close(); }catch(e){}',
+    'if(!window.closed){ window.location.replace(target); }',
+    '}, 2200);',
+    '})();',
+    '</script>',
+    '</body></html>'
+  ].join('');
+  return HtmlService
+    .createHtmlOutput(html)
+    .setTitle('Cierre diario del visor PEC')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 function setOpenAiConfig(apiKey, model, token) {
@@ -967,14 +1030,14 @@ function getAuditItemChangeTotal_(item) {
   return isFinite(summaryTotal) && summaryTotal > 0 ? summaryTotal : 0;
 }
 
-function getAuditItemDetailText_(item) {
+function getAuditItemDetailText_(item, recordLabels) {
   const detail = String(item && (item.detail || item.message) || '').trim();
   if (detail) return detail;
   const parts = [];
   const total = getAuditItemChangeTotal_(item);
-  const records = getAuditItemTouchedRecords_(item);
+  const records = Array.isArray(recordLabels) ? recordLabels.filter(Boolean) : [];
   if (total) parts.push('Impactos auditados: ' + total);
-  if (records.length) parts.push('Registros: ' + records.slice(0, 6).join(', '));
+  if (records.length) parts.push('Registros: ' + formatAuditRecordLabelListText_(records, 4));
   return parts.join(' | ') || 'Sin detalle.';
 }
 
@@ -1049,6 +1112,136 @@ function mapAuditSummaryPairs_(sourceMap) {
     .sort(function(a, b) { return b.count - a.count || a.name.localeCompare(b.name, 'es'); });
 }
 
+function buildSharedTrackingAuditRecordIndex_() {
+  const state = loadSharedTrackingState_();
+  const payload = state && state.payload && Array.isArray(state.payload.records) ? state.payload.records : [];
+  const customRecords = Array.isArray(state && state.customRecords) ? state.customRecords : [];
+  const edits = state && state.edits && typeof state.edits === 'object' ? state.edits : {};
+  const aliases = state && state.aliases && typeof state.aliases === 'object' ? state.aliases : {};
+  const notes = state && state.notes && typeof state.notes === 'object' ? state.notes : {};
+  const index = {};
+  payload.concat(customRecords).forEach(function(record) {
+    const id = String(record && record.id || '').trim();
+    if (!id) return;
+    const edit = edits[id] && typeof edits[id] === 'object' ? edits[id] : {};
+    const merged = Object.assign({}, record || {}, edit || {});
+    index[id] = buildSharedTrackingAuditRecordLabelMeta_(id, merged, aliases[id], Boolean(edit.__deleted));
+  });
+  Object.keys(edits).forEach(function(id) {
+    if (index[id]) return;
+    index[id] = buildSharedTrackingAuditRecordLabelMeta_(id, edits[id], aliases[id], Boolean(edits[id] && edits[id].__deleted));
+  });
+  Object.keys(aliases).forEach(function(id) {
+    if (index[id]) return;
+    index[id] = buildSharedTrackingAuditRecordLabelMeta_(id, null, aliases[id], false);
+  });
+  Object.keys(notes).forEach(function(id) {
+    if (index[id]) return;
+    index[id] = buildSharedTrackingAuditRecordLabelMeta_(id, notes[id], '', false);
+  });
+  return index;
+}
+
+function buildSharedTrackingAuditRecordLabelMeta_(id, record, alias, deleted) {
+  const safeRecord = record && typeof record === 'object' ? record : {};
+  const safeId = String(id || '').trim();
+  const edt = String(safeRecord.edt || '').trim();
+  const aliasText = String(alias || '').trim();
+  const activity = String(aliasText || safeRecord.actividad || safeRecord.resumen || safeRecord.note || safeRecord.action || '').trim();
+  let label = '';
+  if (edt && activity) {
+    label = edt + ' - ' + activity;
+  } else if (activity) {
+    label = activity;
+  } else if (edt) {
+    label = 'EDT ' + edt;
+  } else if (/^case-\d+/i.test(safeId)) {
+    label = 'Caso ' + safeId.replace(/^case-/i, '');
+  } else if (/^local-/i.test(safeId)) {
+    label = 'Registro local creado desde el visor';
+  } else {
+    label = safeId || 'Registro sin identificar';
+  }
+  if (deleted) label += ' [retirado]';
+  return {
+    id: safeId,
+    edt: edt,
+    activity: activity,
+    alias: aliasText,
+    deleted: Boolean(deleted),
+    label: label
+  };
+}
+
+function buildAuditItemRecordHintMap_(item) {
+  const hints = {};
+  (Array.isArray(item && item.changes) ? item.changes : []).forEach(function(change) {
+    const id = String(change && change.id || '').trim();
+    if (!id) return;
+    if (!hints[id]) hints[id] = { id: id, edt: '', actividad: '', resumen: '', alias: '', deleted: false };
+    const bucket = hints[id];
+    const section = String(change && change.section || '').trim();
+    const field = String(change && change.field || '').trim();
+    const before = String(change && change.before || '').trim();
+    const after = String(change && change.after || '').trim();
+    const candidate = after || before;
+    if (field === 'edt' && candidate && !bucket.edt) bucket.edt = candidate;
+    if (field === 'actividad' && candidate && !bucket.actividad) bucket.actividad = candidate;
+    if (field === 'resumen' && candidate && !bucket.resumen) bucket.resumen = candidate;
+    if (field === 'value' && section === 'aliases' && candidate && !bucket.alias) bucket.alias = candidate;
+    if (field === '__deleted' && String(after).trim().toLowerCase() === 'true') bucket.deleted = true;
+  });
+  return hints;
+}
+
+function resolveAuditRecordLabels_(recordIds, recordIndex, hintMap) {
+  return (Array.isArray(recordIds) ? recordIds : []).map(function(recordId) {
+    const id = String(recordId || '').trim();
+    if (!id) return '';
+    if (recordIndex && recordIndex[id] && recordIndex[id].label) return recordIndex[id].label;
+    const hint = hintMap && hintMap[id] ? hintMap[id] : null;
+    if (hint) {
+      return buildSharedTrackingAuditRecordLabelMeta_(id, {
+        edt: hint.edt,
+        actividad: hint.actividad || hint.resumen,
+        resumen: hint.resumen
+      }, hint.alias, hint.deleted).label;
+    }
+    if (/^local-/i.test(id)) return 'Registro local creado desde el visor';
+    if (/^case-\d+/i.test(id)) return 'Caso ' + id.replace(/^case-/i, '');
+    return id;
+  }).filter(Boolean);
+}
+
+function formatAuditRecordLabelListText_(labels, maxItems) {
+  const unique = Array.from(new Set((Array.isArray(labels) ? labels : []).map(function(label) {
+    return String(label || '').trim();
+  }).filter(Boolean)));
+  if (!unique.length) return 'Sin registros asociados';
+  const limit = Math.max(1, Number(maxItems || 6));
+  const visible = unique.slice(0, limit);
+  const hidden = unique.length - visible.length;
+  return visible.join('; ') + (hidden > 0 ? ' | +' + hidden + ' más' : '');
+}
+
+function renderSharedTrackingDailyAuditLabelListHtml_(labels, maxItems, emptyLabel) {
+  const unique = Array.from(new Set((Array.isArray(labels) ? labels : []).map(function(label) {
+    return String(label || '').trim();
+  }).filter(Boolean)));
+  if (!unique.length) return '<span style="color:#4d6379;">' + escapeHtmlEmail_(emptyLabel || 'Sin registros asociados') + '</span>';
+  const limit = Math.max(1, Number(maxItems || 6));
+  const visible = unique.slice(0, limit);
+  const hidden = unique.length - visible.length;
+  return [
+    '<div style="display:grid;gap:4px;">',
+    visible.map(function(label) {
+      return '<div style="line-height:1.35;">' + escapeHtmlEmail_(label) + '</div>';
+    }).join(''),
+    hidden > 0 ? '<div style="color:#4d6379;font-size:12px;">+' + hidden + ' registro(s) adicional(es)</div>' : '',
+    '</div>'
+  ].join('');
+}
+
 function buildDailyAuditReportPlainText_(report, timezone) {
   const summary = report && typeof report === 'object' ? report : {};
   const lines = [
@@ -1080,7 +1273,7 @@ function buildDailyAuditReportPlainText_(report, timezone) {
       }).join('; '));
     }
     if (Array.isArray(actor.touchedRecords) && actor.touchedRecords.length) {
-      lines.push('- Registros: ' + actor.touchedRecords.join(', '));
+      lines.push('- Registros: ' + formatAuditRecordLabelListText_(actor.touchedRecords, 6));
     }
     (Array.isArray(actor.entries) ? actor.entries : []).forEach(function(entry) {
       lines.push('  * ' + [
@@ -1096,6 +1289,7 @@ function buildDailyAuditReportPlainText_(report, timezone) {
 
 function buildAuditDailyReportFromItems_(items, reportDate, timezone, options) {
   const selectedDate = normalizeRequestedAuditReportDate_(reportDate, timezone);
+  const recordIndex = buildSharedTrackingAuditRecordIndex_();
   const grouped = new Map();
   const touchedRecords = new Map();
   const filteredItems = (Array.isArray(items) ? items : [])
@@ -1128,6 +1322,8 @@ function buildAuditDailyReportFromItems_(items, reportDate, timezone, options) {
     const action = String(item && item.action || 'cambio').trim() || 'cambio';
     const changeTotal = getAuditItemChangeTotal_(item);
     const records = getAuditItemTouchedRecords_(item);
+    const recordHints = buildAuditItemRecordHintMap_(item);
+    const recordLabels = resolveAuditRecordLabels_(records, recordIndex, recordHints);
     const sections = getAuditItemSections_(item);
     const actorSource = inferAuditActorSource_(item);
     const actorVerified = inferAuditActorVerified_(item, actorSource);
@@ -1141,9 +1337,10 @@ function buildAuditDailyReportFromItems_(items, reportDate, timezone, options) {
     sections.forEach(function(section) {
       bucket.sectionsMap.set(section.name, (bucket.sectionsMap.get(section.name) || 0) + section.count);
     });
-    records.forEach(function(record) {
-      bucket.recordsMap.set(record, true);
-      touchedRecords.set(record, true);
+    records.forEach(function(record, index) {
+      const label = recordLabels[index] || String(record || '').trim();
+      bucket.recordsMap.set(record, label);
+      touchedRecords.set(record, label);
     });
     if (String(item && item.at || '').trim() && (!bucket.lastChangeAt || String(item.at).trim() > bucket.lastChangeAt)) {
       bucket.lastChangeAt = String(item.at).trim();
@@ -1152,9 +1349,10 @@ function buildAuditDailyReportFromItems_(items, reportDate, timezone, options) {
       at: String(item && item.at || '').trim(),
       action: action,
       actionLabel: humanizeAuditAction_(action),
-      detail: getAuditItemDetailText_(item),
+      detail: getAuditItemDetailText_(item, recordLabels),
       changeCount: changeTotal,
-      touchedRecords: records,
+      touchedRecordIds: records,
+      touchedRecords: recordLabels,
       sections: sections
     });
   });
@@ -1174,7 +1372,8 @@ function buildAuditDailyReportFromItems_(items, reportDate, timezone, options) {
         verifiedEntries: identity.verifiedEntries,
         declaredEntries: identity.declaredEntries,
         unknownEntries: identity.unknownEntries,
-        touchedRecords: Array.from(bucket.recordsMap.keys()).slice(0, 18),
+        touchedRecordIds: Array.from(bucket.recordsMap.keys()).slice(0, 18),
+        touchedRecords: Array.from(bucket.recordsMap.values()).slice(0, 18),
         entries: bucket.entries
       };
     })
@@ -1617,7 +1816,11 @@ function dispatchSharedTrackingDailyAuditReportEmail_(options) {
       testRecipients: preview.testRecipients,
       realSendConfirmed: preview.realSendConfirmed,
       touchedRecords: preview.report.actors
-        .flatMap(function(actor) { return Array.isArray(actor.touchedRecords) ? actor.touchedRecords : []; })
+        .flatMap(function(actor) {
+          return Array.isArray(actor.touchedRecordIds)
+            ? actor.touchedRecordIds
+            : (Array.isArray(actor.touchedRecords) ? actor.touchedRecords : []);
+        })
         .slice(0, 20)
     },
     recipients: preview.effectiveRecipients,
@@ -1701,7 +1904,8 @@ function buildSharedTrackingDailyAuditEmailPlainText_(report, config, webappUrl)
 }
 
 function buildSharedTrackingDailyAuditEmailHtml_(report, config, webappUrl) {
-  const rows = (Array.isArray(report.actors) ? report.actors : []).map(function(actor) {
+  const actors = Array.isArray(report.actors) ? report.actors : [];
+  const rows = actors.map(function(actor) {
     return '<tr>' +
       '<td style="padding:6px 8px;border:1px solid #d7e2ef;">' + escapeHtmlEmail_(actor.actor || 'Usuario sin identificar') + '</td>' +
       '<td style="padding:6px 8px;border:1px solid #d7e2ef;">' + escapeHtmlEmail_(actor.identityLabel || 'Sin identificación confiable') + '</td>' +
@@ -1710,6 +1914,9 @@ function buildSharedTrackingDailyAuditEmailHtml_(report, config, webappUrl) {
       '<td style="padding:6px 8px;border:1px solid #d7e2ef;">' + escapeHtmlEmail_(formatTrackingDateTime_(actor.lastChangeAt) || 'Sin hora') + '</td>' +
     '</tr>';
   }).join('');
+  const detailSections = actors.length
+    ? actors.map(renderSharedTrackingDailyAuditActorSectionHtml_).join('')
+    : '<div style="padding:14px;border:1px solid #d7e2ef;border-radius:12px;background:#ffffff;color:#4d6379;">Sin cambios auditados para la fecha seleccionada.</div>';
   const introNotice = config && config.mode === 'TEST_REDIRECT'
     ? '<p style="margin:0 0 14px;padding:10px 12px;border:1px solid #e7d8a7;background:#fff7df;color:#6a4a00;border-radius:8px;"><strong>Correo de prueba.</strong> No enviado al destinatario final.</p>'
     : '';
@@ -1731,10 +1938,73 @@ function buildSharedTrackingDailyAuditEmailHtml_(report, config, webappUrl) {
     rows || '<tr><td colspan="5" style="padding:8px;border:1px solid #d7e2ef;">Sin cambios auditados para la fecha seleccionada.</td></tr>',
     '</tbody></table>',
     '<p style="margin:18px 0 0;"><a href="' + escapeHtmlEmail_(webappUrl) + '" style="display:inline-block;padding:10px 16px;border-radius:8px;background:#1d5f8f;color:#ffffff;text-decoration:none;font-weight:600;">Abrir visor compartido</a></p>',
-    '<pre style="margin:18px 0 0;padding:14px;border-radius:12px;background:#f7fbff;border:1px solid #d7e2ef;white-space:pre-wrap;">' + escapeHtmlEmail_(report.plainText || '') + '</pre>',
+    '<div style="margin:18px 0 0;padding:16px;border-radius:14px;background:#f7fbff;border:1px solid #d7e2ef;">',
+    '<h3 style="margin:0 0 6px;font-size:17px;color:#16324f;">Detalle del reporte</h3>',
+    '<p style="margin:0 0 14px;color:#4d6379;font-size:13px;">Se presenta el mismo contenido del cierre diario con formato estructurado por usuario, identidad, acciones y movimientos auditados.</p>',
+    detailSections,
+    '</div>',
     '<p style="margin:16px 0 0;color:#4d6379;font-size:12px;">Este mensaje fue generado automáticamente por el Visor de Seguimiento PEC.</p>',
     '</div>'
   ].join('');
+}
+
+function renderSharedTrackingDailyAuditActorSectionHtml_(actor) {
+  const safeActor = actor && typeof actor === 'object' ? actor : {};
+  const entries = Array.isArray(safeActor.entries) ? safeActor.entries : [];
+  const entryRows = entries.map(function(entry) {
+    return '<tr>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;vertical-align:top;white-space:nowrap;">' + escapeHtmlEmail_(formatTrackingDateTime_(entry.at) || 'Sin hora') + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;vertical-align:top;">' + escapeHtmlEmail_(entry.actionLabel || humanizeAuditAction_(entry.action)) + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;vertical-align:top;">' + escapeHtmlEmail_(entry.detail || 'Sin detalle.') + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;vertical-align:top;">' + renderSharedTrackingDailyAuditLabelListHtml_(entry.touchedRecords, 5, 'Sin registros asociados') + '</td>' +
+    '</tr>';
+  }).join('');
+  return [
+    '<div style="margin:0 0 14px;padding:14px;border:1px solid #d7e2ef;border-radius:12px;background:#ffffff;">',
+    '<h4 style="margin:0 0 10px;font-size:16px;color:#16324f;">' + escapeHtmlEmail_(safeActor.actor || 'Usuario sin identificar') + '</h4>',
+    '<table style="border-collapse:collapse;width:100%;font-size:13px;background:#ffffff;margin:0 0 12px;">',
+    '<tbody>',
+    renderSharedTrackingDailyAuditInfoRowHtml_('Identidad', safeActor.identityLabel || 'Sin identificación confiable'),
+    renderSharedTrackingDailyAuditInfoRowHtml_('Origen de identidad', (Array.isArray(safeActor.identitySources) && safeActor.identitySources.length) ? safeActor.identitySources.join(' | ') : 'Sin origen identificado'),
+    renderSharedTrackingDailyAuditInfoRowHtml_('Movimientos e impactos', Number(safeActor.totalEntries || 0) + ' movimientos | ' + Number(safeActor.totalChanges || 0) + ' impactos'),
+    renderSharedTrackingDailyAuditInfoRowHtml_('Último cambio', formatTrackingDateTime_(safeActor.lastChangeAt) || 'Sin hora'),
+    renderSharedTrackingDailyAuditInfoRowHtml_('Acciones registradas', renderSharedTrackingDailyAuditCountListText_(safeActor.actions, humanizeAuditAction_, 'Sin acciones registradas')),
+    renderSharedTrackingDailyAuditInfoRowHtml_('Secciones impactadas', renderSharedTrackingDailyAuditCountListText_(safeActor.sections, null, 'Sin secciones consolidadas')),
+    renderSharedTrackingDailyAuditInfoRowHtml_('Registros tocados', renderSharedTrackingDailyAuditLabelListHtml_(safeActor.touchedRecords, 8, 'Sin registros asociados'), { allowHtml: true }),
+    '</tbody></table>',
+    '<table style="border-collapse:collapse;width:100%;font-size:12px;background:#ffffff;">',
+    '<thead><tr style="background:#edf4fb;color:#16324f;">',
+    '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Hora</th>',
+    '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Acción</th>',
+    '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Detalle</th>',
+    '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Registros</th>',
+    '</tr></thead><tbody>',
+    entryRows || '<tr><td colspan="4" style="padding:8px;border:1px solid #d7e2ef;">Sin movimientos auditados para este usuario.</td></tr>',
+    '</tbody></table>',
+    '</div>'
+  ].join('');
+}
+
+function renderSharedTrackingDailyAuditInfoRowHtml_(label, value, options) {
+  const settings = options && typeof options === 'object' ? options : {};
+  const cellContent = settings.allowHtml ? String(value || '') : escapeHtmlEmail_(value);
+  return '<tr>' +
+    '<td style="padding:6px 8px;border:1px solid #d7e2ef;background:#f7fbff;color:#4d6379;width:180px;font-weight:700;vertical-align:top;">' + escapeHtmlEmail_(label) + '</td>' +
+    '<td style="padding:6px 8px;border:1px solid #d7e2ef;vertical-align:top;">' + cellContent + '</td>' +
+  '</tr>';
+}
+
+function renderSharedTrackingDailyAuditCountListText_(items, labelFormatter, fallback) {
+  const list = Array.isArray(items) ? items : [];
+  const rendered = list
+    .map(function(item) {
+      const rawName = String(item && item.name || '').trim();
+      const safeName = typeof labelFormatter === 'function' ? labelFormatter(rawName) : rawName;
+      const count = Number(item && item.count || 0);
+      return safeName ? (safeName + ' (' + count + ')') : '';
+    })
+    .filter(Boolean);
+  return rendered.length ? rendered.join('; ') : fallback;
 }
 
 function textOrDash_(value) {
@@ -2410,16 +2680,25 @@ function ensureOperationalDailyReportDelivery_() {
   });
 }
 
+function ensureSharedVisorViewUrl_(url) {
+  var raw = String(url || '').trim();
+  if (!raw) return '';
+  if (/[?&]view=visor(?:&|$)/i.test(raw)) return raw;
+  return raw + (raw.indexOf('?') >= 0 ? '&view=visor' : '?view=visor');
+}
+
+function isCanonicalSharedVisorUrl_(url) {
+  return String(url || '').trim().toLowerCase().indexOf(SHARED_VISOR_CANONICAL_WEBAPP_BASE.toLowerCase()) === 0;
+}
+
 function getTrackingWebAppUrl_() {
   var configured = String(PropertiesService.getScriptProperties().getProperty('PEC_VISOR_WEBAPP_URL') || '').trim();
-  if (configured) return configured;
+  if (isCanonicalSharedVisorUrl_(configured)) return ensureSharedVisorViewUrl_(configured);
   try {
     var serviceUrl = ScriptApp.getService().getUrl();
-    if (serviceUrl) {
-      return serviceUrl + (serviceUrl.indexOf('?') >= 0 ? '&view=visor' : '?view=visor');
-    }
+    if (isCanonicalSharedVisorUrl_(serviceUrl)) return ensureSharedVisorViewUrl_(serviceUrl);
   } catch (error) {}
-  return 'https://script.google.com/macros/s/AKfycbwDO41v2ncg7p2rjvEjTCICeu8fJoAySOgSNAPe5arZnkK-gYtCH-FioX-jexhfW0k0/exec?view=visor';
+  return ensureSharedVisorViewUrl_(SHARED_VISOR_CANONICAL_WEBAPP_BASE);
 }
 
 function splitTrackingPeople_(value) {

@@ -363,6 +363,9 @@ tbody tr:hover td{background:#f8fbfe}
 .admin-audit-section{display:grid;gap:12px}
 .admin-audit-section h4{margin:0;color:var(--brand)}
 .admin-audit-section p{margin:0;color:var(--muted);font-size:13px;line-height:1.4}
+.delivery-config-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.delivery-config-inline{display:flex;align-items:center;gap:10px;min-height:42px;padding:0 2px}
+.delivery-config-inline input{width:18px;height:18px;min-height:18px;margin:0}
 .admin-daily-report{display:grid;gap:14px}
 .audit-report-card{border:1px solid var(--line);border-radius:16px;background:linear-gradient(180deg,#ffffff 0,#f8fbfe 100%);padding:16px;display:grid;gap:12px;box-shadow:var(--shadow-soft)}
 .audit-report-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
@@ -853,6 +856,65 @@ tbody tr:hover td{background:#f8fbfe}
       </section>
       <section class="admin-audit-section">
         <div>
+          <h4>Entrega del reporte diario</h4>
+          <p id="adminDailyDeliveryMeta">Disponible solo en el visor compartido de Apps Script con correo configurado.</p>
+        </div>
+        <div class="audit-report-card">
+          <div class="audit-report-head">
+            <div>
+              <h4>Correo operativo</h4>
+              <p id="adminDailyDeliverySummary">Se mostrará el estado de destinatarios, verificación de identidad y envío automático.</p>
+            </div>
+            <span class="source-badge" id="adminDailyDeliveryBadge">Sin backend</span>
+          </div>
+          <div class="audit-report-tags" id="adminDailyDeliveryTags"></div>
+          <div class="delivery-config-grid">
+            <label class="field" for="dailyDeliveryModeSelect">
+              <span>Modo de envío</span>
+              <select id="dailyDeliveryModeSelect">
+                <option value="PREVIEW_ONLY">PREVIEW_ONLY</option>
+                <option value="TEST_REDIRECT">TEST_REDIRECT</option>
+                <option value="REAL">REAL</option>
+              </select>
+            </label>
+            <label class="field" for="dailyDeliveryHourInput">
+              <span>Hora diaria</span>
+              <input id="dailyDeliveryHourInput" type="number" min="0" max="23" step="1" inputmode="numeric">
+              <small class="field-help">Hora local del proyecto Apps Script.</small>
+            </label>
+            <label class="field" for="dailyDeliveryToInput">
+              <span>Destinatarios</span>
+              <input id="dailyDeliveryToInput" type="text" placeholder="correo1@dominio.com; correo2@dominio.com">
+              <small class="field-help">Si lo dejas vacío, se usarán los correos admin registrados.</small>
+            </label>
+            <label class="field" for="dailyDeliveryCcInput">
+              <span>CC</span>
+              <input id="dailyDeliveryCcInput" type="text" placeholder="control@dominio.com; seguimiento@dominio.com">
+            </label>
+            <label class="field" for="dailyDeliveryTestInput">
+              <span>Destinatarios de prueba</span>
+              <input id="dailyDeliveryTestInput" type="text" placeholder="pruebas@dominio.com">
+              <small class="field-help">Se usa solo en modo TEST_REDIRECT.</small>
+            </label>
+            <label class="field" for="dailyDeliveryConfirmReal">
+              <span>Confirmación REAL</span>
+              <div class="delivery-config-inline">
+                <input id="dailyDeliveryConfirmReal" type="checkbox">
+                <small class="field-help">Marcar solo cuando el envío final ya esté validado.</small>
+              </div>
+            </label>
+          </div>
+          <div class="toolbar-actions">
+            <button id="saveDailyDeliveryConfigBtn" class="secondary">Guardar entrega</button>
+            <button id="refreshDailyDeliveryBtn" class="secondary">Actualizar entrega</button>
+            <button id="sendDailyAuditMailBtn">Enviar reporte ahora</button>
+            <button id="createDailyAuditTriggerBtn" class="ghost">Activar envio diario</button>
+            <button id="deleteDailyAuditTriggerBtn" class="ghost">Eliminar trigger diario</button>
+          </div>
+        </div>
+      </section>
+      <section class="admin-audit-section">
+        <div>
           <h4>Detalle reciente de auditoría</h4>
           <p>Últimos movimientos registrados en la bitácora operativa del visor.</p>
         </div>
@@ -863,7 +925,6 @@ tbody tr:hover td{background:#f8fbfe}
 </div>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="./pec_tracking_data.js"></script>
 <script>
 if(!window.PEC_TRACKING_DATA){
 window.PEC_TRACKING_DATA = {
@@ -2538,6 +2599,7 @@ const appState = {
   customRecords: loadCustomRecords(),
   audit: loadAuditLog(),
   adminDailyReport: null,
+  dailyReportDelivery: null,
   selectedId: '',
   reportText: '',
   reportHtml: '',
@@ -2701,6 +2763,97 @@ function isAdminMode(){
   }
 }
 
+function looksLikeEmail(value){
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text(value));
+}
+
+function humanizeAuditActorSource(source){
+  switch(text(source)){
+    case 'session_email': return 'Correo verificado por Apps Script';
+    case 'client_query': return 'Actor declarado por URL';
+    case 'legacy_email': return 'Correo histórico del visor';
+    case 'legacy_actor': return 'Actor histórico del visor';
+    case 'missing': return 'Sin identificación confiable';
+    default: return 'Origen no especificado';
+  }
+}
+
+function inferAuditActorSource(item){
+  const explicit = text(item && item.actorSource);
+  if(explicit) return explicit;
+  const actor = text(item && item.actor);
+  if(item && item.actorVerified === true) return 'session_email';
+  if(looksLikeEmail(actor)) return 'legacy_email';
+  if(actor) return 'legacy_actor';
+  return 'missing';
+}
+
+function inferAuditActorVerified(item, source){
+  if(item && typeof item.actorVerified !== 'undefined') return Boolean(item.actorVerified);
+  return source === 'session_email' || source === 'legacy_email';
+}
+
+function summarizeAuditActorIdentity(bucket){
+  const verified = Number(bucket && bucket.verifiedEntries || 0);
+  const declared = Number(bucket && bucket.declaredEntries || 0);
+  const unknown = Number(bucket && bucket.unknownEntries || 0);
+  const sources = mapAuditSummaryPairs(bucket && bucket.sourcesMap instanceof Map ? bucket.sourcesMap : new Map())
+    .map(item => humanizeAuditActorSource(item.name) + ' (' + item.count + ')');
+  let label = 'Sin identificación confiable';
+  if(verified && !declared && !unknown){
+    label = 'Correo verificado por Apps Script';
+  }else if(!verified && declared && !unknown){
+    label = 'Actor declarado por URL';
+  }else if(verified || declared || unknown){
+    const parts = [];
+    if(verified) parts.push(verified + ' verificado(s)');
+    if(declared) parts.push(declared + ' declarado(s)');
+    if(unknown) parts.push(unknown + ' sin identificar');
+    label = 'Identidad mixta: ' + parts.join(' | ');
+  }
+  return {
+    label,
+    sources,
+    verifiedEntries: verified,
+    declaredEntries: declared,
+    unknownEntries: unknown
+  };
+}
+
+function getCurrentActorIdentity(){
+  const info = ensureServerInfo();
+  const serverActor = text(info && info.actor);
+  if(serverActor){
+    return {
+      actor: serverActor,
+      verified: typeof info.actorVerified === 'boolean' ? info.actorVerified : true,
+      source: text(info.actorSource) || 'session_email'
+    };
+  }
+  const declaredActor = text(getClientActorName());
+  if(declaredActor){
+    return {
+      actor: declaredActor,
+      verified: false,
+      source: 'client_query'
+    };
+  }
+  return {
+    actor: '',
+    verified: false,
+    source: 'missing'
+  };
+}
+
+function describeCurrentActorIdentity(identity){
+  const safe = identity && typeof identity === 'object' ? identity : getCurrentActorIdentity();
+  if(safe.verified) return 'Correo verificado';
+  if(safe.source === 'client_query') return 'Actor declarado por URL';
+  if(safe.source === 'legacy_email') return 'Correo histórico';
+  if(safe.source === 'legacy_actor') return 'Actor histórico';
+  return 'Sin identificar';
+}
+
 function loadAuditLog(){
   try{
     const rows = JSON.parse(localStorage.getItem(AUDIT_STORAGE_KEY) || '[]');
@@ -2716,10 +2869,13 @@ function saveAuditLog(){
 
 function appendAudit(action, detail){
   if(!appState.adminEnabled) return;
+  const identity = getCurrentActorIdentity();
   appState.audit = appState.audit || [];
   appState.audit.unshift({
     at: new Date().toISOString(),
-    actor: getAuditActorName(),
+    actor: identity.actor || 'Administrador local',
+    actorVerified: identity.verified,
+    actorSource: identity.source || 'missing',
     action,
     detail
   });
@@ -3006,13 +3162,15 @@ function getClientActorName(){
 }
 
 function getAuditActorName(){
-  return text(getClientActorName()) || text(appState.serverInfo && appState.serverInfo.actor) || 'Administrador local';
+  return text(getCurrentActorIdentity().actor) || 'Administrador local';
 }
 
 function getDefaultServerInfo(){
   return {
     mode: isSharedBackendMode() ? 'apps_script' : 'local',
     actor: '',
+    actorVerified: false,
+    actorSource: '',
     admin: false,
     pollIntervalSeconds: 30,
     savedAt: '',
@@ -3047,6 +3205,9 @@ function updateServerInfoFromEnvelope(result){
     : (typeof backend.admin !== 'undefined' ? Boolean(backend.admin) : null);
   info.mode = text(backend.mode) || text(info.mode) || (isSharedBackendMode() ? 'apps_script' : 'local');
   info.actor = text((result && result.actor) || backend.actor || info.actor);
+  if(result && typeof result.actorVerified !== 'undefined') info.actorVerified = Boolean(result.actorVerified);
+  else if(typeof backend.actorVerified !== 'undefined') info.actorVerified = Boolean(backend.actorVerified);
+  info.actorSource = text((result && result.actorSource) || backend.actorSource || info.actorSource);
   if(explicitAdmin !== null) info.admin = explicitAdmin;
   info.pollIntervalSeconds = Number(backend.pollIntervalSeconds || info.pollIntervalSeconds || 30);
   info.savedAt = text((result && result.savedAt) || (result && result.state && result.state.savedAt) || info.savedAt);
@@ -3110,11 +3271,14 @@ function syncStateLabel(){
 
 function renderAdminStatus(){
   const info = ensureServerInfo();
+  const identity = getCurrentActorIdentity();
   const actorHost = document.getElementById('adminActorValue');
   const modeHost = document.getElementById('adminModeValue');
   const syncHost = document.getElementById('adminSyncValue');
   const backupHost = document.getElementById('adminBackupValue');
-  if(actorHost) actorHost.textContent = info.actor || info.savedBy || getClientActorName() || 'Sin identificar';
+  if(actorHost) actorHost.textContent = identity.actor
+    ? identity.actor + ' | ' + describeCurrentActorIdentity(identity)
+    : (info.savedBy ? info.savedBy + ' | Último guardado' : 'Sin identificar');
   if(modeHost){
     modeHost.textContent = backendModeLabel() + (info.admin ? ' | Admin por correo o modo local' : ' | Usuario estándar');
   }
@@ -3249,6 +3413,12 @@ function buildDailyAuditReportPlainText(report){
   actors.forEach(actor => {
     lines.push(actor.actor || 'Usuario sin identificar');
     lines.push('- Movimientos: ' + Number(actor.totalEntries || 0) + ' | Impactos: ' + Number(actor.totalChanges || 0) + ' | Último cambio: ' + (formatIsoDisplay(actor.lastChangeAt) || 'Sin hora'));
+    if(actor.identityLabel){
+      lines.push('- Identidad: ' + actor.identityLabel);
+    }
+    if(Array.isArray(actor.identitySources) && actor.identitySources.length){
+      lines.push('- Origen de identidad: ' + actor.identitySources.join('; '));
+    }
     if(Array.isArray(actor.actions) && actor.actions.length){
       lines.push('- Acciones: ' + actor.actions.map(item => humanizeAuditAction(item.name) + ' (' + item.count + ')').join('; '));
     }
@@ -3285,7 +3455,11 @@ function buildDailyAuditReportFromItems(items, rawDate, options){
         lastChangeAt: '',
         actionsMap: new Map(),
         sectionsMap: new Map(),
+        sourcesMap: new Map(),
         recordsMap: new Map(),
+        verifiedEntries: 0,
+        declaredEntries: 0,
+        unknownEntries: 0,
         entries: []
       });
     }
@@ -3294,9 +3468,15 @@ function buildDailyAuditReportFromItems(items, rawDate, options){
     const changeTotal = getAuditItemChangeTotal(item);
     const records = getAuditItemTouchedRecords(item);
     const sections = getAuditItemSections(item);
+    const actorSource = inferAuditActorSource(item);
+    const actorVerified = inferAuditActorVerified(item, actorSource);
     bucket.totalEntries += 1;
     bucket.totalChanges += changeTotal;
     bucket.actionsMap.set(action, (bucket.actionsMap.get(action) || 0) + 1);
+    bucket.sourcesMap.set(actorSource, (bucket.sourcesMap.get(actorSource) || 0) + 1);
+    if(actorVerified) bucket.verifiedEntries += 1;
+    else if(actorSource === 'client_query' || actorSource === 'legacy_actor') bucket.declaredEntries += 1;
+    else bucket.unknownEntries += 1;
     sections.forEach(section => {
       bucket.sectionsMap.set(section.name, (bucket.sectionsMap.get(section.name) || 0) + section.count);
     });
@@ -3319,16 +3499,24 @@ function buildDailyAuditReportFromItems(items, rawDate, options){
   });
 
   const actors = Array.from(grouped.values())
-    .map(bucket => ({
-      actor: bucket.actor,
-      totalEntries: bucket.totalEntries,
-      totalChanges: bucket.totalChanges,
-      lastChangeAt: bucket.lastChangeAt,
-      actions: mapAuditSummaryPairs(bucket.actionsMap),
-      sections: mapAuditSummaryPairs(bucket.sectionsMap),
-      touchedRecords: Array.from(bucket.recordsMap.keys()).slice(0,18),
-      entries: bucket.entries
-    }))
+    .map(bucket => {
+      const identity = summarizeAuditActorIdentity(bucket);
+      return {
+        actor: bucket.actor,
+        totalEntries: bucket.totalEntries,
+        totalChanges: bucket.totalChanges,
+        lastChangeAt: bucket.lastChangeAt,
+        actions: mapAuditSummaryPairs(bucket.actionsMap),
+        sections: mapAuditSummaryPairs(bucket.sectionsMap),
+        identityLabel: identity.label,
+        identitySources: identity.sources,
+        verifiedEntries: identity.verifiedEntries,
+        declaredEntries: identity.declaredEntries,
+        unknownEntries: identity.unknownEntries,
+        touchedRecords: Array.from(bucket.recordsMap.keys()).slice(0,18),
+        entries: bucket.entries
+      };
+    })
     .sort((a,b) => b.totalEntries - a.totalEntries || text(b.lastChangeAt).localeCompare(text(a.lastChangeAt)) || a.actor.localeCompare(b.actor,'es'));
 
   const report = {
@@ -3394,6 +3582,9 @@ function renderAdminDailyAuditReport(report){
     const sectionsHtml = Array.isArray(actor.sections) && actor.sections.length
       ? '<div class="audit-report-tags">' + actor.sections.slice(0,8).map(item => '<span>' + escapeHtml(item.name + ' (' + item.count + ')') + '</span>').join('') + '</div>'
       : '';
+    const identityHtml = actor.identityLabel
+      ? '<div><p>Identidad</p><div class="audit-report-tags"><span>' + escapeHtml(actor.identityLabel) + '</span>' + (Array.isArray(actor.identitySources) ? actor.identitySources.slice(0,4).map(item => '<span>' + escapeHtml(item) + '</span>').join('') : '') + '</div></div>'
+      : '';
     const entriesHtml = (Array.isArray(actor.entries) ? actor.entries : []).map(entry => {
       const recordLine = Array.isArray(entry.touchedRecords) && entry.touchedRecords.length
         ? ' | Registros: ' + entry.touchedRecords.slice(0,8).join(', ')
@@ -3407,7 +3598,7 @@ function renderAdminDailyAuditReport(report){
       '<div class="audit-report-head">' +
         '<div>' +
           '<h4>' + escapeHtml(actor.actor || 'Usuario sin identificar') + '</h4>' +
-          '<p>' + escapeHtml(actor.lastChangeAt ? ('Último cambio: ' + formatIsoDisplay(actor.lastChangeAt)) : 'Sin hora de cierre registrada.') + '</p>' +
+          '<p>' + escapeHtml(actor.lastChangeAt ? ('Último cambio: ' + formatIsoDisplay(actor.lastChangeAt)) : 'Sin hora de cierre registrada.') + (actor.identityLabel ? ' | ' + actor.identityLabel : '') + '</p>' +
         '</div>' +
         '<span class="source-badge">Cierre diario</span>' +
       '</div>' +
@@ -3417,6 +3608,7 @@ function renderAdminDailyAuditReport(report){
         '<div class="audit-report-metric"><span>Registros</span><b>' + escapeHtml(String((actor.touchedRecords || []).length)) + '</b></div>' +
         '<div class="audit-report-metric"><span>Acciones únicas</span><b>' + escapeHtml(String((actor.actions || []).length)) + '</b></div>' +
       '</div>' +
+      identityHtml +
       (actionsHtml ? '<div><p>Acciones más frecuentes</p>' + actionsHtml + '</div>' : '') +
       (sectionsHtml ? '<div><p>Áreas impactadas</p>' + sectionsHtml + '</div>' : '') +
       (entriesHtml ? '<div class="audit-report-entry-list">' + entriesHtml + '</div>' : '<div class="empty">Sin detalle disponible.</div>') +
@@ -3450,6 +3642,239 @@ function loadAdminDailyAuditReport(rawDate){
     timezone: 'navegador'
   });
   renderAdminDailyAuditReport(appState.adminDailyReport);
+}
+
+function formatDeliveryHourLabel(hour){
+  const normalized = Number(hour);
+  const safeHour = Number.isFinite(normalized) ? Math.max(0, Math.min(23, Math.round(normalized))) : 18;
+  return String(safeHour).padStart(2,'0') + ':00';
+}
+
+function syncDailyAuditDeliveryForm(state){
+  const modeField = document.getElementById('dailyDeliveryModeSelect');
+  const hourField = document.getElementById('dailyDeliveryHourInput');
+  const toField = document.getElementById('dailyDeliveryToInput');
+  const ccField = document.getElementById('dailyDeliveryCcInput');
+  const testField = document.getElementById('dailyDeliveryTestInput');
+  const confirmField = document.getElementById('dailyDeliveryConfirmReal');
+  const saveBtn = document.getElementById('saveDailyDeliveryConfigBtn');
+  const hasState = Boolean(state && state.ok !== false);
+  if(modeField && hasState) modeField.value = text(state.mode) || 'PREVIEW_ONLY';
+  if(hourField && hasState) hourField.value = Number.isFinite(Number(state.sendHour)) ? String(Math.max(0, Math.min(23, Math.round(Number(state.sendHour))))) : '18';
+  if(toField && hasState) toField.value = Array.isArray(state.configuredRecipients) ? state.configuredRecipients.join('; ') : '';
+  if(ccField && hasState) ccField.value = Array.isArray(state.cc) ? state.cc.join('; ') : '';
+  if(testField && hasState) testField.value = Array.isArray(state.testRecipients) ? state.testRecipients.join('; ') : '';
+  if(confirmField && hasState) confirmField.checked = Boolean(state.realSendConfirmed);
+  const enabled = Boolean(appState.adminEnabled && isSharedBackendMode() && hasState);
+  const mode = text(modeField && modeField.value) || (hasState ? text(state.mode) : '') || 'PREVIEW_ONLY';
+  if(modeField) modeField.disabled = !enabled;
+  if(hourField) hourField.disabled = !enabled;
+  if(toField) toField.disabled = !enabled;
+  if(ccField) ccField.disabled = !enabled;
+  if(testField) testField.disabled = !enabled || mode !== 'TEST_REDIRECT';
+  if(confirmField) confirmField.disabled = !enabled;
+  if(saveBtn) saveBtn.disabled = !enabled;
+}
+
+function collectDailyAuditDeliveryForm(){
+  const hourField = document.getElementById('dailyDeliveryHourInput');
+  return {
+    mode: text(document.getElementById('dailyDeliveryModeSelect') && document.getElementById('dailyDeliveryModeSelect').value) || 'PREVIEW_ONLY',
+    to: text(document.getElementById('dailyDeliveryToInput') && document.getElementById('dailyDeliveryToInput').value),
+    cc: text(document.getElementById('dailyDeliveryCcInput') && document.getElementById('dailyDeliveryCcInput').value),
+    testRecipients: text(document.getElementById('dailyDeliveryTestInput') && document.getElementById('dailyDeliveryTestInput').value),
+    sendHour: Number(hourField && hourField.value),
+    realSendConfirmed: Boolean(document.getElementById('dailyDeliveryConfirmReal') && document.getElementById('dailyDeliveryConfirmReal').checked)
+  };
+}
+
+function renderDailyAuditDeliveryState(state){
+  const metaHost = document.getElementById('adminDailyDeliveryMeta');
+  const summaryHost = document.getElementById('adminDailyDeliverySummary');
+  const badgeHost = document.getElementById('adminDailyDeliveryBadge');
+  const tagsHost = document.getElementById('adminDailyDeliveryTags');
+  const saveBtn = document.getElementById('saveDailyDeliveryConfigBtn');
+  const refreshBtn = document.getElementById('refreshDailyDeliveryBtn');
+  const sendBtn = document.getElementById('sendDailyAuditMailBtn');
+  const createBtn = document.getElementById('createDailyAuditTriggerBtn');
+  const deleteBtn = document.getElementById('deleteDailyAuditTriggerBtn');
+  if(refreshBtn) refreshBtn.disabled = !appState.adminEnabled;
+  if(!metaHost || !summaryHost || !badgeHost || !tagsHost) return;
+  if(!appState.adminEnabled){
+    metaHost.textContent = 'Modo administrador no habilitado.';
+    summaryHost.textContent = 'El envío del reporte diario requiere acceso administrador.';
+    badgeHost.textContent = 'Sin acceso';
+    tagsHost.innerHTML = '<span>Modo administrador no habilitado</span>';
+    if(saveBtn) saveBtn.disabled = true;
+    if(sendBtn) sendBtn.disabled = true;
+    if(createBtn) createBtn.disabled = true;
+    if(deleteBtn) deleteBtn.disabled = true;
+    syncDailyAuditDeliveryForm({ok:false});
+    return;
+  }
+  if(!state){
+    metaHost.textContent = 'Consultando configuración de entrega...';
+    summaryHost.textContent = 'Consultando destinatarios, modo de envío y trigger diario.';
+    badgeHost.textContent = 'Cargando';
+    tagsHost.innerHTML = '<span>Preparando entrega</span>';
+    if(saveBtn) saveBtn.disabled = true;
+    if(sendBtn) sendBtn.disabled = true;
+    if(createBtn) createBtn.disabled = true;
+    if(deleteBtn) deleteBtn.disabled = true;
+    syncDailyAuditDeliveryForm({ok:false});
+    return;
+  }
+  if(state.ok === false){
+    const message = text(state.message) || 'No se pudo revisar la entrega del reporte diario.';
+    metaHost.textContent = message;
+    summaryHost.textContent = message;
+    badgeHost.textContent = 'Sin backend';
+    tagsHost.innerHTML = '<span>' + escapeHtml(message) + '</span>';
+    if(saveBtn) saveBtn.disabled = true;
+    if(sendBtn) sendBtn.disabled = true;
+    if(createBtn) createBtn.disabled = true;
+    if(deleteBtn) deleteBtn.disabled = true;
+    syncDailyAuditDeliveryForm(state);
+    return;
+  }
+  const recipients = Array.isArray(state.recipients) ? state.recipients : [];
+  const configuredRecipients = Array.isArray(state.configuredRecipients) ? state.configuredRecipients : [];
+  const adminRecipients = Array.isArray(state.adminRecipients) ? state.adminRecipients : [];
+  const effectiveRecipients = Array.isArray(state.effectiveRecipients) ? state.effectiveRecipients : [];
+  const cc = Array.isArray(state.cc) ? state.cc : [];
+  const testRecipients = Array.isArray(state.testRecipients) ? state.testRecipients : [];
+  metaHost.textContent = [
+    'Modo: ' + (text(state.mode) || 'PREVIEW_ONLY'),
+    'Hora diaria: ' + formatDeliveryHourLabel(state.sendHour),
+    'Trigger: ' + (state.triggerEnabled ? 'Activo' : 'Inactivo')
+  ].join(' | ');
+  summaryHost.textContent = text(state.message) || (
+    effectiveRecipients.length
+      ? ('Destino efectivo: ' + effectiveRecipients.join(', '))
+      : 'Sin destinatarios configurados para el reporte diario.'
+  );
+  badgeHost.textContent = text(state.mode) || 'PREVIEW_ONLY';
+  const tags = [];
+  tags.push('Actor actual: ' + (text(getCurrentActorIdentity().actor) || 'Sin identificar'));
+  tags.push('Identidad: ' + describeCurrentActorIdentity(getCurrentActorIdentity()));
+  tags.push('Destinatarios configurados: ' + (configuredRecipients.length ? configuredRecipients.join(', ') : 'Sin configurar'));
+  if(Boolean(state.usingAdminRecipients)) tags.push('Respaldo admin: ' + (adminRecipients.length ? adminRecipients.join(', ') : 'Sin admins configurados'));
+  tags.push('Destino efectivo: ' + (effectiveRecipients.length ? effectiveRecipients.join(', ') : 'Sin destino efectivo'));
+  if(cc.length) tags.push('CC: ' + cc.join(', '));
+  if(testRecipients.length) tags.push('Pruebas: ' + testRecipients.join(', '));
+  tags.push('Confirmación REAL: ' + (state.realSendConfirmed ? 'SI' : 'NO'));
+  tags.push('Trigger diario: ' + (state.triggerCount || 0));
+  tagsHost.innerHTML = tags.map(item => '<span>' + escapeHtml(item) + '</span>').join('');
+  const canSend = Boolean(isSharedBackendMode());
+  if(sendBtn) sendBtn.disabled = !canSend || (!effectiveRecipients.length && text(state.mode) !== 'PREVIEW_ONLY');
+  if(createBtn) createBtn.disabled = !canSend || text(state.mode) !== 'REAL' || !state.realSendConfirmed || !effectiveRecipients.length;
+  if(deleteBtn) deleteBtn.disabled = !canSend || !state.triggerEnabled;
+  if(saveBtn) saveBtn.disabled = !canSend;
+  syncDailyAuditDeliveryForm(state);
+}
+
+function loadDailyAuditDeliveryState(){
+  renderDailyAuditDeliveryState(null);
+  const info = ensureServerInfo();
+  if(isSharedBackendMode() && info.admin){
+    google.script.run
+      .withSuccessHandler(result => {
+        updateServerInfoFromEnvelope(result || {});
+        appState.dailyReportDelivery = result || {ok:false, message:'No se pudo leer la configuración de entrega.'};
+        renderDailyAuditDeliveryState(appState.dailyReportDelivery);
+      })
+      .withFailureHandler(error => {
+        console.error('No se pudo revisar la entrega del reporte diario.', error);
+        appState.dailyReportDelivery = {ok:false, message:'No se pudo revisar la entrega del reporte diario desde Apps Script.'};
+        renderDailyAuditDeliveryState(appState.dailyReportDelivery);
+      })
+      .getSharedTrackingDailyReportDeliveryStatus();
+    return;
+  }
+  appState.dailyReportDelivery = {
+    ok: false,
+    message: isSharedBackendMode()
+      ? 'La entrega por correo requiere acceso administrador en Apps Script.'
+      : 'La entrega por correo está disponible solo en la versión Apps Script compartida.'
+  };
+  renderDailyAuditDeliveryState(appState.dailyReportDelivery);
+}
+
+function sendDailyAuditReportNow(){
+  const info = ensureServerInfo();
+  const selectedDate = text(document.getElementById('adminAuditDate') && document.getElementById('adminAuditDate').value) || todayCalendarIso();
+  if(!(isSharedBackendMode() && info.admin)) return;
+  google.script.run
+    .withSuccessHandler(result => {
+      updateServerInfoFromEnvelope(result || {});
+      const ok = result && result.ok;
+      const message = text(result && result.message) || (ok ? 'Reporte diario procesado.' : 'No se pudo procesar el reporte diario.');
+      setImportFeedback(ok ? 'Reporte diario procesado' : 'No se envió el reporte diario', message, ok ? 'success' : 'warn');
+      loadDailyAuditDeliveryState();
+      loadAdminDailyAuditReport(selectedDate);
+    })
+    .withFailureHandler(error => {
+      console.error('No se pudo enviar el reporte diario.', error);
+      setImportFeedback('No se envió el reporte diario', 'Apps Script no pudo procesar el envío del reporte diario.', 'warn');
+      loadDailyAuditDeliveryState();
+    })
+    .sendSharedTrackingDailyAuditReportEmail(selectedDate);
+}
+
+function saveDailyAuditDeliveryConfig(){
+  const info = ensureServerInfo();
+  if(!(isSharedBackendMode() && info.admin)) return;
+  const payload = collectDailyAuditDeliveryForm();
+  google.script.run
+    .withSuccessHandler(result => {
+      updateServerInfoFromEnvelope(result || {});
+      appState.dailyReportDelivery = result || {ok:false, message:'No se pudo guardar la entrega diaria.'};
+      renderDailyAuditDeliveryState(appState.dailyReportDelivery);
+      const ok = result && result.ok;
+      setImportFeedback(ok ? 'Entrega diaria guardada' : 'No se guardó la entrega diaria', text(result && result.message) || 'No se pudo guardar la configuración del reporte diario.', ok ? 'success' : 'warn');
+    })
+    .withFailureHandler(error => {
+      console.error('No se pudo guardar la entrega diaria.', error);
+      setImportFeedback('No se guardó la entrega diaria', 'Apps Script no pudo guardar la configuración del reporte diario.', 'warn');
+      loadDailyAuditDeliveryState();
+    })
+    .updateSharedTrackingDailyReportConfig(payload);
+}
+
+function createDailyAuditDeliveryTrigger(){
+  const info = ensureServerInfo();
+  if(!(isSharedBackendMode() && info.admin)) return;
+  google.script.run
+    .withSuccessHandler(result => {
+      updateServerInfoFromEnvelope(result || {});
+      const ok = result && result.ok;
+      setImportFeedback(ok ? 'Trigger diario actualizado' : 'No se creó el trigger diario', text(result && result.message) || 'No se pudo crear el trigger diario.', ok ? 'success' : 'warn');
+      loadDailyAuditDeliveryState();
+    })
+    .withFailureHandler(error => {
+      console.error('No se pudo crear el trigger diario del reporte.', error);
+      setImportFeedback('No se creó el trigger diario', 'Apps Script no pudo crear el trigger diario del reporte.', 'warn');
+      loadDailyAuditDeliveryState();
+    })
+    .createDailyAuditReportTrigger();
+}
+
+function deleteDailyAuditDeliveryTrigger(){
+  const info = ensureServerInfo();
+  if(!(isSharedBackendMode() && info.admin)) return;
+  google.script.run
+    .withSuccessHandler(result => {
+      updateServerInfoFromEnvelope(result || {});
+      const ok = result && result.ok;
+      setImportFeedback(ok ? 'Trigger diario eliminado' : 'No se eliminaron triggers', text(result && result.message) || 'No se pudo eliminar el trigger diario.', ok ? 'success' : 'warn');
+      loadDailyAuditDeliveryState();
+    })
+    .withFailureHandler(error => {
+      console.error('No se pudo eliminar el trigger diario del reporte.', error);
+      setImportFeedback('No se eliminaron triggers', 'Apps Script no pudo eliminar el trigger diario del reporte.', 'warn');
+      loadDailyAuditDeliveryState();
+    })
+    .deleteDailyAuditReportTriggers();
 }
 
 function exportDailyAuditReport(){
@@ -3487,11 +3912,12 @@ function normalizeSharedStateBundle(bundle){
 }
 
 function buildSharedStateBundle(reason){
+  const identity = getCurrentActorIdentity();
   return {
     format: 'pec-shared-state-v1',
     revision: Number(appState.remoteRevision || 0),
     savedAt: new Date().toISOString(),
-    savedBy: getClientActorName(),
+    savedBy: identity.actor,
     reason: text(reason),
     sourceMode: appState.sourceMode || 'embedded',
     hero: normalizeHeroState(appState.hero),
@@ -3523,10 +3949,12 @@ function applySharedStateBundle(bundle, options){
   appState.serverInfo = {
     ...currentInfo,
     mode: text(currentInfo.mode) || (isSharedBackendMode() ? 'apps_script' : 'local'),
+    actor: text(currentInfo.actor),
+    actorVerified: typeof currentInfo.actorVerified === 'boolean' ? currentInfo.actorVerified : false,
+    actorSource: text(currentInfo.actorSource),
     savedAt: text(state.savedAt) || text(currentInfo.savedAt),
     savedBy: text(state.savedBy) || text(currentInfo.savedBy),
     revision: Number(state.revision || currentInfo.revision || 0),
-    actor: text(currentInfo.actor),
     admin: Boolean(currentInfo.admin),
     pollIntervalSeconds: Number(currentInfo.pollIntervalSeconds || 30),
     lastBackupAt: text(currentInfo.lastBackupAt),
@@ -3561,6 +3989,14 @@ function flushSharedSync(){
   const reason = pendingSharedSyncReason || 'actualizacion';
   pendingSharedSyncReason = '';
   sharedSyncInFlight = true;
+  const identity = getCurrentActorIdentity();
+  if(!identity.actor){
+    sharedSyncInFlight = false;
+    setSharedError('No se pudo identificar al usuario actual. Inicia sesión con una cuenta Google autorizada o abre el visor con ?actor=correo@dominio como respaldo declarado.', 'error');
+    setImportFeedback('Identificación requerida', 'El visor compartido bloqueó el guardado porque no existe un actor verificable ni declarado para esta sesión.', 'warn');
+    renderOperationsStatus();
+    return;
+  }
   updateServerInfoFromEnvelope({});
   setSharedSyncState('syncing', 'Guardando cambios en el estado compartido...');
   const drawerOpen = document.getElementById('drawer')?.classList.contains('open');
@@ -3594,7 +4030,7 @@ function flushSharedSync(){
       setSharedError('No se pudo sincronizar con Apps Script. Se mantiene la copia local.', 'error');
       if(pendingSharedSyncReason) flushSharedSync();
     })
-    .saveSharedTrackingState(buildSharedStateBundle(reason), getClientActorName(), reason);
+    .saveSharedTrackingState(buildSharedStateBundle(reason), identity.actor, reason);
 }
 
 function refreshSharedState(force){
@@ -5353,8 +5789,10 @@ function openAdminModal(){
   setSelectedAuditReportDate(text(document.getElementById('adminAuditDate') && document.getElementById('adminAuditDate').value) || todayCalendarIso());
   renderAdminAudit();
   renderAdminDailyAuditReport(appState.adminDailyReport);
+  renderDailyAuditDeliveryState(appState.dailyReportDelivery);
   document.getElementById('adminModal').classList.add('open');
   loadAdminDailyAuditReport();
+  loadDailyAuditDeliveryState();
   refreshSharedAudit(180);
 }
 
@@ -7456,6 +7894,12 @@ function bindEvents(){
   document.getElementById('adminAuditDate').addEventListener('change', () => loadAdminDailyAuditReport());
   document.getElementById('refreshAuditReportBtn').addEventListener('click', () => loadAdminDailyAuditReport());
   document.getElementById('exportDailyAuditBtn').addEventListener('click', exportDailyAuditReport);
+  document.getElementById('dailyDeliveryModeSelect').addEventListener('change', () => syncDailyAuditDeliveryForm(appState.dailyReportDelivery));
+  document.getElementById('refreshDailyDeliveryBtn').addEventListener('click', loadDailyAuditDeliveryState);
+  document.getElementById('saveDailyDeliveryConfigBtn').addEventListener('click', saveDailyAuditDeliveryConfig);
+  document.getElementById('sendDailyAuditMailBtn').addEventListener('click', sendDailyAuditReportNow);
+  document.getElementById('createDailyAuditTriggerBtn').addEventListener('click', createDailyAuditDeliveryTrigger);
+  document.getElementById('deleteDailyAuditTriggerBtn').addEventListener('click', deleteDailyAuditDeliveryTrigger);
   document.getElementById('exportAuditBtn').addEventListener('click', exportAuditLog);
   document.getElementById('exportBackupBtn').addEventListener('click', exportLatestBackup);
   document.getElementById('addChildBtn').addEventListener('click', addLocalChildRecord);

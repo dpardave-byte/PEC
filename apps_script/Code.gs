@@ -69,8 +69,16 @@ const CONFIG = {
   ]
 };
 
+const OPERATIONAL_DEFAULTS = {
+  sharedTrackingAdminEmails: ['dpardave@gmail.com'],
+  dailyReportMode: 'REAL',
+  dailyReportSendHour: 18,
+  dailyReportConfirmRealSend: true
+};
+
 function doGet(e) {
   const params = e && e.parameter ? e.parameter : {};
+  ensureOperationalDailyReportDelivery_();
   if (params.view === 'visor') {
     return renderSharedVisor_();
   }
@@ -88,6 +96,9 @@ function doGet(e) {
   }
   if (params.action === 'visor_audit_daily_report') {
     return outputPayload_(getSharedTrackingDailyAuditReport(params.date, params.limit), params);
+  }
+  if (params.action === 'visor_send_daily_report_now') {
+    return outputPayload_(sendSharedTrackingDailyAuditReportEmail(params.date), params);
   }
   const payload = { updatedAt: new Date().toISOString(), records: getRecords_() };
   if (params.format === 'csv') {
@@ -811,12 +822,29 @@ function getSharedTrackingState() {
 
 function saveSharedTrackingState(bundle, actorName, action) {
   const previous = loadSharedTrackingState_();
+  const actorInfo = resolveSharedTrackingActorInfo_(actorName);
+  if (!actorInfo.actor) {
+    return buildSharedTrackingEnvelope_(previous, {
+      ok: false,
+      missingActor: true,
+      message: 'No se pudo identificar al usuario que intenta guardar. Ingresa con una cuenta Google autorizada o usa ?actor=correo@dominio como respaldo declarado.',
+      actor: '',
+      actorVerified: false,
+      actorSource: 'missing',
+      declaredActor: '',
+      backend: getSharedTrackingBackendMeta_(actorInfo)
+    });
+  }
   const requestedRevision = Number(bundle && bundle.revision || 0);
   if (requestedRevision < Number(previous.revision || 0)) {
-    const conflictActor = String(actorName || getSharedTrackingActor_() || 'usuario_web').trim();
+    const conflictActor = buildAuditActorMeta_(actorInfo);
     appendSharedTrackingAudit_({
       at: new Date().toISOString(),
-      actor: conflictActor,
+      actor: conflictActor.actor,
+      actorEmail: conflictActor.actorEmail,
+      actorSource: conflictActor.actorSource,
+      actorVerified: conflictActor.actorVerified,
+      declaredActor: conflictActor.declaredActor,
       action: 'conflicto_guardado',
       origin: String(action || 'guardar_estado_compartido'),
       revision: Number(previous.revision || 0),
@@ -830,17 +858,28 @@ function saveSharedTrackingState(bundle, actorName, action) {
       conflict: true,
       message: 'El estado compartido cambió desde tu última sincronización. Revisa la versión más reciente antes de volver a guardar.',
       requestedRevision: requestedRevision,
-      currentRevision: Number(previous.revision || 0)
+      currentRevision: Number(previous.revision || 0),
+      actor: conflictActor.actor,
+      actorVerified: conflictActor.actorVerified,
+      actorSource: conflictActor.actorSource,
+      declaredActor: conflictActor.declaredActor,
+      backend: getSharedTrackingBackendMeta_(actorInfo)
     });
   }
   const next = normalizeSharedTrackingStateBundle_(bundle, previous);
   next.revision = Number(previous.revision || 0) + 1;
   next.savedAt = new Date().toISOString();
-  next.savedBy = String(actorName || getSharedTrackingActor_() || 'usuario_web').trim();
+  next.savedBy = actorInfo.actor;
   writeSharedTrackingState_(next);
-  appendSharedTrackingAudit_(buildSharedTrackingAuditEntry_(previous, next, next.savedBy, action, requestedRevision));
+  appendSharedTrackingAudit_(buildSharedTrackingAuditEntry_(previous, next, actorInfo, action, requestedRevision));
   writeSharedTrackingBackup_(next);
-  return buildSharedTrackingEnvelope_(next);
+  return buildSharedTrackingEnvelope_(next, {
+    actor: actorInfo.actor,
+    actorVerified: actorInfo.verified,
+    actorSource: actorInfo.source,
+    declaredActor: actorInfo.declaredActor,
+    backend: getSharedTrackingBackendMeta_(actorInfo)
+  });
 }
 
 function getSharedTrackingAudit(limit) {
@@ -857,6 +896,8 @@ function getSharedTrackingDailyAuditReport(date, limit) {
     return {
       ok: false,
       actor: getSharedTrackingActor_(),
+      actorVerified: Boolean(getSharedTrackingActor_()),
+      actorSource: getSharedTrackingActor_() ? 'session_email' : 'missing',
       admin: false,
       message: 'No autorizado para ver el reporte diario de cambios.'
     };
@@ -870,6 +911,8 @@ function getSharedTrackingDailyAuditReport(date, limit) {
     actor: getSharedTrackingActor_()
   });
   report.actor = getSharedTrackingActor_();
+  report.actorVerified = Boolean(getSharedTrackingActor_());
+  report.actorSource = getSharedTrackingActor_() ? 'session_email' : 'missing';
   report.admin = true;
   report.ok = true;
   return report;
@@ -940,6 +983,60 @@ function humanizeAuditAction_(action) {
   return label ? (label.charAt(0).toUpperCase() + label.slice(1)) : 'Cambio';
 }
 
+function humanizeAuditActorSource_(source) {
+  switch (String(source || '').trim()) {
+    case 'session_email': return 'Correo verificado por Apps Script';
+    case 'client_query': return 'Actor declarado por URL';
+    case 'legacy_email': return 'Correo histórico del visor';
+    case 'legacy_actor': return 'Actor histórico del visor';
+    case 'missing': return 'Sin identificación confiable';
+    default: return 'Origen no especificado';
+  }
+}
+
+function inferAuditActorSource_(item) {
+  const explicit = String(item && item.actorSource || '').trim();
+  if (explicit) return explicit;
+  const actor = String(item && item.actor || '').trim();
+  if (item && item.actorVerified === true) return 'session_email';
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(actor)) return 'legacy_email';
+  if (actor) return 'legacy_actor';
+  return 'missing';
+}
+
+function inferAuditActorVerified_(item, source) {
+  if (typeof (item && item.actorVerified) !== 'undefined') return Boolean(item.actorVerified);
+  const safeSource = String(source || '').trim();
+  return safeSource === 'session_email' || safeSource === 'legacy_email';
+}
+
+function summarizeAuditActorIdentity_(bucket) {
+  const verified = Number(bucket && bucket.verifiedEntries || 0);
+  const declared = Number(bucket && bucket.declaredEntries || 0);
+  const unknown = Number(bucket && bucket.unknownEntries || 0);
+  const sources = mapAuditSummaryPairs_(bucket && bucket.sourcesMap instanceof Map ? bucket.sourcesMap : new Map())
+    .map(function(item) { return humanizeAuditActorSource_(item.name) + ' (' + item.count + ')'; });
+  let label = 'Sin identificación confiable';
+  if (verified && !declared && !unknown) {
+    label = 'Correo verificado por Apps Script';
+  } else if (!verified && declared && !unknown) {
+    label = 'Actor declarado por URL';
+  } else if (verified || declared || unknown) {
+    const parts = [];
+    if (verified) parts.push(verified + ' verificado(s)');
+    if (declared) parts.push(declared + ' declarado(s)');
+    if (unknown) parts.push(unknown + ' sin identificar');
+    label = 'Identidad mixta: ' + parts.join(' | ');
+  }
+  return {
+    label: label,
+    sources: sources,
+    verifiedEntries: verified,
+    declaredEntries: declared,
+    unknownEntries: unknown
+  };
+}
+
 function mapAuditSummaryPairs_(sourceMap) {
   return Array.from(sourceMap.entries())
     .map(function(entry) {
@@ -971,6 +1068,12 @@ function buildDailyAuditReportPlainText_(report, timezone) {
   actors.forEach(function(actor) {
     lines.push(actor.actor || 'Usuario sin identificar');
     lines.push('- Movimientos: ' + Number(actor.totalEntries || 0) + ' | Impactos: ' + Number(actor.totalChanges || 0) + ' | Último cambio: ' + (formatTrackingDateTime_(actor.lastChangeAt) || 'Sin hora'));
+    if (actor.identityLabel) {
+      lines.push('- Identidad: ' + actor.identityLabel);
+    }
+    if (Array.isArray(actor.identitySources) && actor.identitySources.length) {
+      lines.push('- Origen de identidad: ' + actor.identitySources.join('; '));
+    }
     if (Array.isArray(actor.actions) && actor.actions.length) {
       lines.push('- Acciones: ' + actor.actions.map(function(item) {
         return humanizeAuditAction_(item.name) + ' (' + item.count + ')';
@@ -1013,7 +1116,11 @@ function buildAuditDailyReportFromItems_(items, reportDate, timezone, options) {
         lastChangeAt: '',
         actionsMap: new Map(),
         sectionsMap: new Map(),
+        sourcesMap: new Map(),
         recordsMap: new Map(),
+        verifiedEntries: 0,
+        declaredEntries: 0,
+        unknownEntries: 0,
         entries: []
       });
     }
@@ -1022,9 +1129,15 @@ function buildAuditDailyReportFromItems_(items, reportDate, timezone, options) {
     const changeTotal = getAuditItemChangeTotal_(item);
     const records = getAuditItemTouchedRecords_(item);
     const sections = getAuditItemSections_(item);
+    const actorSource = inferAuditActorSource_(item);
+    const actorVerified = inferAuditActorVerified_(item, actorSource);
     bucket.totalEntries += 1;
     bucket.totalChanges += changeTotal;
     bucket.actionsMap.set(action, (bucket.actionsMap.get(action) || 0) + 1);
+    bucket.sourcesMap.set(actorSource, (bucket.sourcesMap.get(actorSource) || 0) + 1);
+    if (actorVerified) bucket.verifiedEntries += 1;
+    else if (actorSource === 'client_query' || actorSource === 'legacy_actor') bucket.declaredEntries += 1;
+    else bucket.unknownEntries += 1;
     sections.forEach(function(section) {
       bucket.sectionsMap.set(section.name, (bucket.sectionsMap.get(section.name) || 0) + section.count);
     });
@@ -1048,6 +1161,7 @@ function buildAuditDailyReportFromItems_(items, reportDate, timezone, options) {
 
   const actors = Array.from(grouped.values())
     .map(function(bucket) {
+      const identity = summarizeAuditActorIdentity_(bucket);
       return {
         actor: bucket.actor,
         totalEntries: bucket.totalEntries,
@@ -1055,6 +1169,11 @@ function buildAuditDailyReportFromItems_(items, reportDate, timezone, options) {
         lastChangeAt: bucket.lastChangeAt,
         actions: mapAuditSummaryPairs_(bucket.actionsMap),
         sections: mapAuditSummaryPairs_(bucket.sectionsMap),
+        identityLabel: identity.label,
+        identitySources: identity.sources,
+        verifiedEntries: identity.verifiedEntries,
+        declaredEntries: identity.declaredEntries,
+        unknownEntries: identity.unknownEntries,
         touchedRecords: Array.from(bucket.recordsMap.keys()).slice(0, 18),
         entries: bucket.entries
       };
@@ -1098,6 +1217,529 @@ function getSharedTrackingLatestBackup() {
     backup: backup,
     backend: getSharedTrackingBackendMeta_()
   };
+}
+
+function getSharedTrackingDailyReportDeliveryStatus() {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para revisar la entrega del reporte diario.'
+    };
+  }
+  const config = getDailyAuditReportConfig_();
+  const triggers = getDailyAuditReportTriggers_();
+  const recipients = config.mode === 'TEST_REDIRECT' ? config.testRecipients : config.to;
+  return {
+    ok: true,
+    actor: getSharedTrackingActor_(),
+    actorVerified: Boolean(getSharedTrackingActor_()),
+    actorSource: getSharedTrackingActor_() ? 'session_email' : 'missing',
+    admin: true,
+    mode: config.mode,
+    recipients: config.to,
+    configuredRecipients: config.configuredTo,
+    adminRecipients: config.adminRecipients,
+    usingAdminRecipients: config.usingAdminFallback,
+    effectiveRecipients: recipients,
+    cc: config.cc,
+    testRecipients: config.testRecipients,
+    realSendConfirmed: config.realSendConfirmed,
+    sendHour: config.sendHour,
+    triggerCount: triggers.length,
+    triggerEnabled: triggers.length > 0,
+    hasConfiguredRecipients: config.to.length > 0,
+    webappUrl: getTrackingWebAppUrl_(),
+    message: recipients.length
+      ? ('Entrega diaria preparada para ' + recipients.join(', ') + (config.usingAdminFallback ? ' usando PEC_VISOR_ADMIN_EMAILS.' : '.'))
+      : 'Configura los destinatarios del reporte diario antes del envío operativo.'
+  };
+}
+
+function addSharedTrackingAdminEmails(adminEmails) {
+  const caller = String(getSharedTrackingActor_() || '').trim().toLowerCase();
+  const requested = splitEmailList_(adminEmails || '');
+  const current = getSharedTrackingAdminEmailList_();
+  const callerIsCurrentAdmin = Boolean(caller && current.indexOf(caller) >= 0);
+  const callerIncludedInBootstrap = Boolean(caller && requested.indexOf(caller) >= 0);
+  if (!requested.length) {
+    return {
+      ok: false,
+      actor: caller,
+      admin: callerIsCurrentAdmin,
+      message: 'No se recibió ningún correo administrador para agregar.'
+    };
+  }
+  if (current.length ? !callerIsCurrentAdmin : !callerIncludedInBootstrap) {
+    return {
+      ok: false,
+      actor: caller,
+      admin: callerIsCurrentAdmin,
+      message: current.length
+        ? 'Solo un administrador vigente puede agregar nuevos administradores.'
+        : 'La carga inicial de administradores debe incluir el correo del operador autenticado.'
+    };
+  }
+  const merged = Array.from(new Set(current.concat(requested)));
+  PropertiesService.getScriptProperties().setProperty('PEC_VISOR_ADMIN_EMAILS', merged.join(';'));
+  const actorMeta = buildAuditActorMeta_(resolveSharedTrackingActorInfo_(caller));
+  appendSharedTrackingAudit_({
+    at: new Date().toISOString(),
+    actor: actorMeta.actor || caller || 'admin_bootstrap',
+    actorEmail: actorMeta.actorEmail,
+    actorSource: actorMeta.actorSource,
+    actorVerified: actorMeta.actorVerified,
+    declaredActor: actorMeta.declaredActor,
+    action: 'configurar_admins_visores',
+    origin: 'addSharedTrackingAdminEmails',
+    detail: 'Administradores actualizados. Total: ' + merged.length + ' | Nuevos: ' + requested.join(', '),
+    summary: {
+      total: requested.length,
+      bySection: { adminEmails: requested.length },
+      adminEmails: merged
+    }
+  });
+  return {
+    ok: true,
+    actor: actorMeta.actor || caller,
+    admin: true,
+    added: requested,
+    adminEmails: merged,
+    message: 'Administradores actualizados: ' + merged.join(', ') + '.'
+  };
+}
+
+function updateSharedTrackingDailyReportConfig(config) {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para actualizar la entrega del reporte diario.'
+    };
+  }
+  const current = getDailyAuditReportConfig_();
+  const input = config && typeof config === 'object' ? config : {};
+  const allowed = { PREVIEW_ONLY: true, TEST_REDIRECT: true, REAL: true };
+  const rawMode = String(input.mode != null ? input.mode : current.mode || 'PREVIEW_ONLY').trim().toUpperCase();
+  const mode = allowed[rawMode] ? rawMode : 'PREVIEW_ONLY';
+  const to = Object.prototype.hasOwnProperty.call(input, 'to')
+    ? splitEmailList_(input.to)
+    : current.configuredTo.slice();
+  const cc = Object.prototype.hasOwnProperty.call(input, 'cc')
+    ? splitEmailList_(input.cc)
+    : current.cc.slice();
+  const testRecipients = Object.prototype.hasOwnProperty.call(input, 'testRecipients')
+    ? splitEmailList_(input.testRecipients)
+    : current.testRecipients.slice();
+  const realSendConfirmed = Object.prototype.hasOwnProperty.call(input, 'realSendConfirmed')
+    ? String(input.realSendConfirmed).trim().toUpperCase() === 'TRUE' || input.realSendConfirmed === true || String(input.realSendConfirmed).trim().toUpperCase() === 'SI'
+    : current.realSendConfirmed;
+  const parsedHour = Number(Object.prototype.hasOwnProperty.call(input, 'sendHour') ? input.sendHour : current.sendHour);
+  const sendHour = isFinite(parsedHour) ? Math.max(0, Math.min(23, Math.round(parsedHour))) : 18;
+  const properties = PropertiesService.getScriptProperties();
+  setOrDeleteScriptProperty_(properties, 'PEC_VISOR_DAILY_REPORT_MODE', mode);
+  setOrDeleteScriptProperty_(properties, 'PEC_VISOR_DAILY_REPORT_TO', to.join(';'));
+  setOrDeleteScriptProperty_(properties, 'PEC_VISOR_DAILY_REPORT_CC', cc.join(';'));
+  setOrDeleteScriptProperty_(properties, 'PEC_VISOR_DAILY_REPORT_TEST_RECIPIENTS', testRecipients.join(';'));
+  setOrDeleteScriptProperty_(properties, 'PEC_VISOR_DAILY_REPORT_CONFIRM_REAL_SEND', realSendConfirmed ? 'SI' : '');
+  setOrDeleteScriptProperty_(properties, 'PEC_VISOR_DAILY_REPORT_HOUR', String(sendHour));
+  const actorMeta = buildAuditActorMeta_(resolveSharedTrackingActorInfo_(getSharedTrackingActor_()));
+  appendSharedTrackingAudit_({
+    at: new Date().toISOString(),
+    actor: actorMeta.actor || getSharedTrackingActor_() || 'admin_config',
+    actorEmail: actorMeta.actorEmail,
+    actorSource: actorMeta.actorSource,
+    actorVerified: actorMeta.actorVerified,
+    declaredActor: actorMeta.declaredActor,
+    action: 'configurar_reporte_diario',
+    origin: 'updateSharedTrackingDailyReportConfig',
+    detail: 'Configuración de entrega diaria actualizada | Modo: ' + mode + ' | Destinatarios: ' + (to.join(', ') || 'usar admins') + ' | Hora: ' + String(sendHour).padStart(2, '0') + ':00',
+    summary: {
+      total: 1,
+      bySection: { dailyReportDelivery: 1 },
+      mode: mode,
+      recipients: to,
+      cc: cc,
+      testRecipients: testRecipients,
+      sendHour: sendHour,
+      realSendConfirmed: realSendConfirmed,
+      usingAdminFallback: !to.length
+    }
+  });
+  const status = getSharedTrackingDailyReportDeliveryStatus();
+  status.saved = true;
+  status.message = 'Configuración de entrega diaria guardada.';
+  return status;
+}
+
+function sendSharedTrackingDailyAuditReportEmail(date) {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para enviar el reporte diario por correo.'
+    };
+  }
+  return dispatchSharedTrackingDailyAuditReportEmail_({
+    actor: getSharedTrackingActor_() || 'admin_manual',
+    origin: 'envio_manual_reporte_diario',
+    reportDate: date
+  });
+}
+
+function createDailyAuditReportTrigger() {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para crear el trigger del reporte diario.'
+    };
+  }
+  const config = getDailyAuditReportConfig_();
+  if (config.mode !== 'REAL') {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: true,
+      created: false,
+      mode: config.mode,
+      realSendConfirmed: config.realSendConfirmed,
+      sendHour: config.sendHour,
+      message: 'No se creó el trigger diario porque PEC_VISOR_DAILY_REPORT_MODE no está en REAL.'
+    };
+  }
+  if (!config.realSendConfirmed) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: true,
+      created: false,
+      mode: config.mode,
+      realSendConfirmed: config.realSendConfirmed,
+      sendHour: config.sendHour,
+      message: 'No se creó el trigger diario porque falta PEC_VISOR_DAILY_REPORT_CONFIRM_REAL_SEND=SI.'
+    };
+  }
+  if (!config.to.length) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: true,
+      created: false,
+      mode: config.mode,
+      realSendConfirmed: config.realSendConfirmed,
+      sendHour: config.sendHour,
+      message: 'No se creó el trigger diario porque faltan destinatarios en PEC_VISOR_DAILY_REPORT_TO.'
+    };
+  }
+  const existing = getDailyAuditReportTriggers_();
+  if (existing.length) {
+    return {
+      ok: true,
+      actor: getSharedTrackingActor_(),
+      admin: true,
+      created: false,
+      mode: config.mode,
+      realSendConfirmed: config.realSendConfirmed,
+      sendHour: config.sendHour,
+      triggerCount: existing.length,
+      message: 'Ya existe al menos un trigger diario para runDailyAuditReportEmail_.'
+    };
+  }
+  ScriptApp.newTrigger('runDailyAuditReportEmail_')
+    .timeBased()
+    .everyDays(1)
+    .atHour(config.sendHour)
+    .create();
+  return {
+    ok: true,
+    actor: getSharedTrackingActor_(),
+    admin: true,
+    created: true,
+    mode: config.mode,
+    realSendConfirmed: config.realSendConfirmed,
+    sendHour: config.sendHour,
+    triggerCount: getDailyAuditReportTriggers_().length,
+    message: 'Trigger diario creado para las ' + String(config.sendHour).padStart(2, '0') + ':00.'
+  };
+}
+
+function deleteDailyAuditReportTriggers() {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para eliminar el trigger del reporte diario.'
+    };
+  }
+  let removed = 0;
+  getDailyAuditReportTriggers_().forEach(function(trigger) {
+    ScriptApp.deleteTrigger(trigger);
+    removed += 1;
+  });
+  return {
+    ok: true,
+    actor: getSharedTrackingActor_(),
+    admin: true,
+    removed: removed,
+    message: removed
+      ? 'Se eliminaron los triggers diarios del reporte.'
+      : 'No había triggers diarios del reporte para eliminar.'
+  };
+}
+
+function runDailyAuditReportEmail_() {
+  return dispatchSharedTrackingDailyAuditReportEmail_({
+    actor: getSharedTrackingActor_() || 'trigger_reporte_diario',
+    origin: 'trigger_diario_reporte'
+  });
+}
+
+function getDailyAuditReportTriggers_() {
+  return ScriptApp.getProjectTriggers().filter(function(trigger) {
+    return trigger.getHandlerFunction && trigger.getHandlerFunction() === 'runDailyAuditReportEmail_';
+  });
+}
+
+function dispatchSharedTrackingDailyAuditReportEmail_(options) {
+  const preview = buildSharedTrackingDailyAuditEmailPreview_(
+    options && options.reportDate,
+    { includeHtml: true }
+  );
+  if (!preview.ok) return preview;
+  if (preview.mode === 'PREVIEW_ONLY') {
+    return {
+      ok: true,
+      actor: String(options && options.actor || getSharedTrackingActor_() || 'admin_manual').trim(),
+      admin: isSharedTrackingAdmin_(),
+      sent: false,
+      mode: preview.mode,
+      recipients: preview.recipients,
+      effectiveRecipients: preview.effectiveRecipients,
+      cc: preview.cc,
+      testRecipients: preview.testRecipients,
+      realSendConfirmed: preview.realSendConfirmed,
+      sendHour: preview.sendHour,
+      reportDate: preview.report.date,
+      report: preview.report,
+      subject: preview.subject,
+      message: 'Modo PREVIEW_ONLY activo. No se envió el reporte diario.'
+    };
+  }
+  if (preview.mode === 'REAL' && !preview.realSendConfirmed) {
+    return {
+      ok: false,
+      actor: String(options && options.actor || getSharedTrackingActor_() || 'admin_manual').trim(),
+      admin: isSharedTrackingAdmin_(),
+      sent: false,
+      mode: preview.mode,
+      recipients: preview.recipients,
+      effectiveRecipients: preview.effectiveRecipients,
+      cc: preview.cc,
+      testRecipients: preview.testRecipients,
+      realSendConfirmed: preview.realSendConfirmed,
+      sendHour: preview.sendHour,
+      reportDate: preview.report.date,
+      report: preview.report,
+      subject: preview.subject,
+      message: 'Modo REAL solicitado, pero falta PEC_VISOR_DAILY_REPORT_CONFIRM_REAL_SEND=SI.'
+    };
+  }
+  if (preview.mode === 'TEST_REDIRECT' && !preview.testRecipients.length) {
+    return {
+      ok: false,
+      actor: String(options && options.actor || getSharedTrackingActor_() || 'admin_manual').trim(),
+      admin: isSharedTrackingAdmin_(),
+      sent: false,
+      mode: preview.mode,
+      recipients: preview.recipients,
+      effectiveRecipients: preview.effectiveRecipients,
+      cc: preview.cc,
+      testRecipients: preview.testRecipients,
+      realSendConfirmed: preview.realSendConfirmed,
+      sendHour: preview.sendHour,
+      reportDate: preview.report.date,
+      report: preview.report,
+      subject: preview.subject,
+      message: 'Modo TEST_REDIRECT activo, pero faltan destinatarios en PEC_VISOR_DAILY_REPORT_TEST_RECIPIENTS.'
+    };
+  }
+  if (!preview.to) {
+    return {
+      ok: false,
+      actor: String(options && options.actor || getSharedTrackingActor_() || 'admin_manual').trim(),
+      admin: isSharedTrackingAdmin_(),
+      sent: false,
+      mode: preview.mode,
+      recipients: preview.recipients,
+      effectiveRecipients: preview.effectiveRecipients,
+      cc: preview.cc,
+      testRecipients: preview.testRecipients,
+      realSendConfirmed: preview.realSendConfirmed,
+      sendHour: preview.sendHour,
+      reportDate: preview.report.date,
+      report: preview.report,
+      subject: preview.subject,
+      message: 'Faltan destinatarios del reporte diario en PEC_VISOR_DAILY_REPORT_TO.'
+    };
+  }
+  const mailOptions = {
+    htmlBody: preview.htmlBody,
+    name: 'Visor de Seguimiento PEC'
+  };
+  if (preview.cc.length) mailOptions.cc = preview.cc.join(',');
+  MailApp.sendEmail(preview.to, preview.subject, preview.plainBody, mailOptions);
+  const sentAt = new Date().toISOString();
+  const actorMeta = buildAuditActorMeta_(resolveSharedTrackingActorInfo_(options && options.actor));
+  appendSharedTrackingAudit_({
+    at: sentAt,
+    actor: actorMeta.actor || String(options && options.actor || 'trigger_reporte_diario').trim(),
+    actorEmail: actorMeta.actorEmail,
+    actorSource: actorMeta.actorSource,
+    actorVerified: actorMeta.actorVerified,
+    declaredActor: actorMeta.declaredActor,
+    action: 'enviar_reporte_diario_correo',
+    origin: String(options && options.origin || 'sendSharedTrackingDailyAuditReportEmail').trim(),
+    detail: 'Reporte diario enviado para ' + (preview.report.dateLabel || preview.report.date) + ' | Usuarios: ' + Number(preview.report.totalActors || 0) + ' | Movimientos: ' + Number(preview.report.totalEntries || 0) + ' | Modo: ' + preview.mode,
+    summary: {
+      total: Number(preview.report.totalEntries || 0),
+      totalActors: Number(preview.report.totalActors || 0),
+      totalChanges: Number(preview.report.totalChanges || 0),
+      reportDate: preview.report.date,
+      recipients: preview.effectiveRecipients.length,
+      effectiveRecipients: preview.effectiveRecipients,
+      mode: preview.mode,
+      testRecipients: preview.testRecipients,
+      realSendConfirmed: preview.realSendConfirmed,
+      touchedRecords: preview.report.actors
+        .flatMap(function(actor) { return Array.isArray(actor.touchedRecords) ? actor.touchedRecords : []; })
+        .slice(0, 20)
+    },
+    recipients: preview.effectiveRecipients,
+    effectiveRecipients: preview.effectiveRecipients,
+    mode: preview.mode,
+    isTest: preview.mode === 'TEST_REDIRECT',
+    reportDate: preview.report.date
+  });
+  return {
+    ok: true,
+    actor: actorMeta.actor || String(options && options.actor || 'trigger_reporte_diario').trim(),
+    admin: isSharedTrackingAdmin_(),
+    sent: true,
+    sentAt: sentAt,
+    mode: preview.mode,
+    recipients: preview.recipients,
+    effectiveRecipients: preview.effectiveRecipients,
+    cc: preview.cc,
+    testRecipients: preview.testRecipients,
+    realSendConfirmed: preview.realSendConfirmed,
+    sendHour: preview.sendHour,
+    reportDate: preview.report.date,
+    report: preview.report,
+    subject: preview.subject,
+    message: 'Reporte diario enviado a ' + preview.effectiveRecipients.join(', ') + '.'
+  };
+}
+
+function buildSharedTrackingDailyAuditEmailPreview_(date, options) {
+  const settings = options || {};
+  const config = getDailyAuditReportConfig_();
+  const timezone = Session.getScriptTimeZone();
+  const normalizedDate = normalizeRequestedAuditReportDate_(date, timezone);
+  const report = buildAuditDailyReportFromItems_(loadSharedTrackingAudit_(), normalizedDate, timezone, {
+    mode: 'apps_script',
+    actor: getSharedTrackingActor_()
+  });
+  report.actor = getSharedTrackingActor_();
+  report.admin = isSharedTrackingAdmin_();
+  const recipients = config.mode === 'TEST_REDIRECT' ? config.testRecipients.slice() : config.to.slice();
+  const prefix = config.mode === 'TEST_REDIRECT' ? '[PRUEBA PEC] ' : '';
+  const subject = prefix + 'PEC | Cierre diario de cambios | ' + (report.dateLabel || report.date || normalizedDate) + ' | ' + Number(report.totalActors || 0) + ' usuario(s)';
+  const plainBody = buildSharedTrackingDailyAuditEmailPlainText_(report, config, getTrackingWebAppUrl_());
+  const preview = {
+    ok: true,
+    actor: getSharedTrackingActor_(),
+    admin: isSharedTrackingAdmin_(),
+    preview: true,
+    mode: config.mode,
+    recipients: config.to.slice(),
+    effectiveRecipients: recipients,
+    to: recipients.join(','),
+    cc: config.cc.slice(),
+    testRecipients: config.testRecipients.slice(),
+    realSendConfirmed: config.realSendConfirmed,
+    sendHour: config.sendHour,
+    webappUrl: getTrackingWebAppUrl_(),
+    report: report,
+    subject: subject,
+    plainBody: plainBody
+  };
+  if (settings.includeHtml !== false) {
+    preview.htmlBody = buildSharedTrackingDailyAuditEmailHtml_(report, config, preview.webappUrl);
+  }
+  return preview;
+}
+
+function buildSharedTrackingDailyAuditEmailPlainText_(report, config, webappUrl) {
+  return [
+    'Visor de Seguimiento PEC',
+    config && config.mode === 'TEST_REDIRECT' ? 'Correo de prueba. No enviado al destinatario final.' : '',
+    'Cierre diario por usuario: ' + (report.dateLabel || report.date || ''),
+    'Generado: ' + formatTrackingDateTime_(report.generatedAt),
+    '',
+    textOrDash_(report.plainText),
+    '',
+    'Abrir visor compartido: ' + webappUrl,
+    '',
+    'Este mensaje fue generado automáticamente por el Visor de Seguimiento PEC.'
+  ].filter(Boolean).join('\n');
+}
+
+function buildSharedTrackingDailyAuditEmailHtml_(report, config, webappUrl) {
+  const rows = (Array.isArray(report.actors) ? report.actors : []).map(function(actor) {
+    return '<tr>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;">' + escapeHtmlEmail_(actor.actor || 'Usuario sin identificar') + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;">' + escapeHtmlEmail_(actor.identityLabel || 'Sin identificación confiable') + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;text-align:center;">' + escapeHtmlEmail_(String(actor.totalEntries || 0)) + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;text-align:center;">' + escapeHtmlEmail_(String(actor.totalChanges || 0)) + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;">' + escapeHtmlEmail_(formatTrackingDateTime_(actor.lastChangeAt) || 'Sin hora') + '</td>' +
+    '</tr>';
+  }).join('');
+  const introNotice = config && config.mode === 'TEST_REDIRECT'
+    ? '<p style="margin:0 0 14px;padding:10px 12px;border:1px solid #e7d8a7;background:#fff7df;color:#6a4a00;border-radius:8px;"><strong>Correo de prueba.</strong> No enviado al destinatario final.</p>'
+    : '';
+  return [
+    '<div style="font-family:Arial,sans-serif;color:#16324f;line-height:1.5;max-width:980px;">',
+    '<h2 style="margin:0 0 10px;font-size:20px;">Visor de Seguimiento PEC</h2>',
+    '<p style="margin:0 0 12px;">Se remite el cierre diario por usuario del visor compartido correspondiente al <strong>' + escapeHtmlEmail_(report.dateLabel || report.date || '') + '</strong>.</p>',
+    '<p style="margin:0 0 12px;">Usuarios con cambios: <strong>' + escapeHtmlEmail_(String(report.totalActors || 0)) + '</strong> | Movimientos auditados: <strong>' + escapeHtmlEmail_(String(report.totalEntries || 0)) + '</strong> | Registros tocados: <strong>' + escapeHtmlEmail_(String(report.totalTouchedRecords || 0)) + '</strong></p>',
+    introNotice,
+    '<p style="margin:0 0 12px;color:#4d6379;font-size:12px;">Generado: ' + escapeHtmlEmail_(formatTrackingDateTime_(report.generatedAt) || report.generatedAt || '') + '</p>',
+    '<table style="border-collapse:collapse;width:100%;font-size:13px;background:#ffffff;">',
+    '<thead><tr style="background:#edf4fb;color:#16324f;">',
+    '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Usuario</th>',
+    '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Identidad</th>',
+    '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:center;">Movimientos</th>',
+    '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:center;">Impactos</th>',
+    '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Último cambio</th>',
+    '</tr></thead><tbody>',
+    rows || '<tr><td colspan="5" style="padding:8px;border:1px solid #d7e2ef;">Sin cambios auditados para la fecha seleccionada.</td></tr>',
+    '</tbody></table>',
+    '<p style="margin:18px 0 0;"><a href="' + escapeHtmlEmail_(webappUrl) + '" style="display:inline-block;padding:10px 16px;border-radius:8px;background:#1d5f8f;color:#ffffff;text-decoration:none;font-weight:600;">Abrir visor compartido</a></p>',
+    '<pre style="margin:18px 0 0;padding:14px;border-radius:12px;background:#f7fbff;border:1px solid #d7e2ef;white-space:pre-wrap;">' + escapeHtmlEmail_(report.plainText || '') + '</pre>',
+    '<p style="margin:16px 0 0;color:#4d6379;font-size:12px;">Este mensaje fue generado automáticamente por el Visor de Seguimiento PEC.</p>',
+    '</div>'
+  ].join('');
+}
+
+function textOrDash_(value) {
+  const raw = String(value == null ? '' : value).trim();
+  return raw || '-';
 }
 
 function previewDueTrackingEmails() {
@@ -1685,9 +2327,99 @@ function getTrackingNotificationConfig_() {
   };
 }
 
+function splitEmailList_(value) {
+  var seen = {};
+  return String(value == null ? '' : value)
+    .split(/[;,]+/)
+    .map(function(item) { return String(item || '').trim().toLowerCase(); })
+    .filter(Boolean)
+    .filter(function(item) {
+      if (seen[item]) return false;
+      seen[item] = true;
+      return true;
+    });
+}
+
+function getSharedTrackingAdminEmailList_() {
+  const configured = splitEmailList_(PropertiesService.getScriptProperties().getProperty('PEC_VISOR_ADMIN_EMAILS') || '');
+  return Array.from(new Set(configured.concat(splitEmailList_(OPERATIONAL_DEFAULTS.sharedTrackingAdminEmails.join(';')))));
+}
+
+function setOrDeleteScriptProperty_(properties, key, value) {
+  if (value == null || value === '') {
+    properties.deleteProperty(key);
+    return;
+  }
+  properties.setProperty(key, String(value));
+}
+
+function getDailyAuditReportConfig_() {
+  var properties = PropertiesService.getScriptProperties();
+  var rawMode = String(properties.getProperty('PEC_VISOR_DAILY_REPORT_MODE') || '').trim().toUpperCase();
+  var allowed = { PREVIEW_ONLY: true, TEST_REDIRECT: true, REAL: true };
+  var mode = allowed[rawMode] ? rawMode : OPERATIONAL_DEFAULTS.dailyReportMode;
+  var configuredTo = splitEmailList_(properties.getProperty('PEC_VISOR_DAILY_REPORT_TO') || '');
+  var cc = splitEmailList_(properties.getProperty('PEC_VISOR_DAILY_REPORT_CC') || '');
+  var testRecipients = splitEmailList_(properties.getProperty('PEC_VISOR_DAILY_REPORT_TEST_RECIPIENTS') || '');
+  var adminRecipients = getSharedTrackingAdminEmailList_();
+  var usingAdminFallback = !configuredTo.length && adminRecipients.length > 0;
+  var to = usingAdminFallback ? adminRecipients.slice() : configuredTo.slice();
+  var rawConfirm = String(properties.getProperty('PEC_VISOR_DAILY_REPORT_CONFIRM_REAL_SEND') || '').trim().toUpperCase();
+  var realSendConfirmed = rawConfirm ? rawConfirm === 'SI' : Boolean(OPERATIONAL_DEFAULTS.dailyReportConfirmRealSend);
+  var rawHour = Number(properties.getProperty('PEC_VISOR_DAILY_REPORT_HOUR'));
+  var sendHour = isFinite(rawHour) ? Math.max(0, Math.min(23, Math.round(rawHour))) : OPERATIONAL_DEFAULTS.dailyReportSendHour;
+  return {
+    mode: mode,
+    to: to,
+    configuredTo: configuredTo,
+    adminRecipients: adminRecipients,
+    usingAdminFallback: usingAdminFallback,
+    cc: cc,
+    testRecipients: testRecipients,
+    realSendConfirmed: realSendConfirmed,
+    sendHour: sendHour
+  };
+}
+
+function ensureOperationalDailyReportDelivery_() {
+  const config = getDailyAuditReportConfig_();
+  const recipients = config.mode === 'TEST_REDIRECT' ? config.testRecipients : config.to;
+  if (config.mode !== 'REAL' || !config.realSendConfirmed || !recipients.length) return;
+  if (!getDailyAuditReportTriggers_().length) {
+    ScriptApp.newTrigger('runDailyAuditReportEmail_')
+      .timeBased()
+      .everyDays(1)
+      .atHour(config.sendHour)
+      .create();
+  }
+  const timezone = Session.getScriptTimeZone();
+  const now = new Date();
+  const currentHour = Number(Utilities.formatDate(now, timezone, 'H'));
+  if (!isFinite(currentHour) || currentHour < config.sendHour) return;
+  const today = Utilities.formatDate(now, timezone, 'yyyy-MM-dd');
+  const alreadySent = loadSharedTrackingAudit_().some(function(entry) {
+    if (!entry || entry.action !== 'enviar_reporte_diario_correo') return false;
+    const marker = entry.reportDate || entry.at || '';
+    return normalizeRequestedAuditReportDate_(marker, timezone) === today;
+  });
+  if (alreadySent) return;
+  dispatchSharedTrackingDailyAuditReportEmail_({
+    actor: 'operacion_automatica',
+    origin: 'operacion_diaria_recuperacion',
+    reportDate: today
+  });
+}
+
 function getTrackingWebAppUrl_() {
-  return String(PropertiesService.getScriptProperties().getProperty('PEC_VISOR_WEBAPP_URL') || '').trim() ||
-    'https://script.google.com/macros/s/AKfycbxLpfDE3-ttlXKlGgKto16_2RuLk5w1Kbpclf_BFtMQBdfUQZrZQomANDaZzIaeR2Yq/exec?view=visor';
+  var configured = String(PropertiesService.getScriptProperties().getProperty('PEC_VISOR_WEBAPP_URL') || '').trim();
+  if (configured) return configured;
+  try {
+    var serviceUrl = ScriptApp.getService().getUrl();
+    if (serviceUrl) {
+      return serviceUrl + (serviceUrl.indexOf('?') >= 0 ? '&view=visor' : '?view=visor');
+    }
+  } catch (error) {}
+  return 'https://script.google.com/macros/s/AKfycbwDO41v2ncg7p2rjvEjTCICeu8fJoAySOgSNAPe5arZnkK-gYtCH-FioX-jexhfW0k0/exec?view=visor';
 }
 
 function splitTrackingPeople_(value) {
@@ -1751,18 +2483,28 @@ function escapeHtmlEmail_(value) {
 
 function buildSharedTrackingEnvelope_(state, extra) {
   const safeState = normalizeSharedTrackingStateBundle_(state, buildDefaultSharedTrackingState_());
-  const meta = getSharedTrackingBackendMeta_();
+  const overrides = extra && typeof extra === 'object' ? extra : {};
+  const meta = Object.assign(
+    {},
+    getSharedTrackingBackendMeta_(),
+    overrides.backend && typeof overrides.backend === 'object' ? overrides.backend : {}
+  );
   const payload = {
     ok: true,
     mode: 'apps_script',
-    actor: meta.actor,
+    actor: String(overrides.actor != null ? overrides.actor : (meta.actor || '')).trim(),
+    actorVerified: typeof overrides.actorVerified !== 'undefined'
+      ? Boolean(overrides.actorVerified)
+      : Boolean(meta.actorVerified),
+    actorSource: String(overrides.actorSource != null ? overrides.actorSource : (meta.actorSource || '')).trim(),
+    declaredActor: String(overrides.declaredActor != null ? overrides.declaredActor : (meta.declaredActor || '')).trim(),
     admin: meta.admin,
     savedAt: safeState.savedAt || '',
     revision: Number(safeState.revision || 0),
     state: safeState,
     backend: meta
   };
-  return Object.assign(payload, extra || {});
+  return Object.assign(payload, overrides, { backend: meta });
 }
 
 function normalizeSharedTrackingStateBundle_(bundle, fallback) {
@@ -1982,22 +2724,84 @@ function getSharedTrackingActor_() {
   }
 }
 
+function normalizeSharedTrackingDeclaredActor_(value) {
+  const raw = String(value == null ? '' : value).trim().replace(/\s+/g, ' ');
+  if (!raw) return '';
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) return raw.toLowerCase();
+  return raw.slice(0, 160);
+}
+
+function resolveSharedTrackingActorInfo_(clientActorName) {
+  const serverActor = String(getSharedTrackingActor_() || '').trim().toLowerCase();
+  const declaredActor = normalizeSharedTrackingDeclaredActor_(clientActorName);
+  if (serverActor) {
+    return {
+      actor: serverActor,
+      email: serverActor,
+      source: 'session_email',
+      verified: true,
+      declaredActor: declaredActor
+    };
+  }
+  if (declaredActor) {
+    return {
+      actor: declaredActor,
+      email: '',
+      source: 'client_query',
+      verified: false,
+      declaredActor: declaredActor
+    };
+  }
+  return {
+    actor: '',
+    email: '',
+    source: 'missing',
+    verified: false,
+    declaredActor: ''
+  };
+}
+
+function buildAuditActorMeta_(actorInfo) {
+  const info = actorInfo && typeof actorInfo === 'object'
+    ? actorInfo
+    : {
+        actor: String(actorInfo == null ? '' : actorInfo).trim(),
+        email: '',
+        source: 'legacy_actor',
+        verified: false,
+        declaredActor: ''
+      };
+  return {
+    actor: String(info.actor || '').trim(),
+    actorEmail: String(info.email || '').trim(),
+    actorSource: String(info.source || 'legacy_actor').trim() || 'legacy_actor',
+    actorVerified: Boolean(info.verified),
+    declaredActor: String(info.declaredActor || '').trim()
+  };
+}
+
 function isSharedTrackingAdmin_() {
   const actor = String(getSharedTrackingActor_() || '').toLowerCase();
   if (!actor) return false;
-  const configured = String(PropertiesService.getScriptProperties().getProperty('PEC_VISOR_ADMIN_EMAILS') || '')
-    .split(/[;,]/)
-    .map(function(item) { return item.trim().toLowerCase(); })
-    .filter(Boolean);
-  return configured.indexOf(actor) >= 0;
+  return getSharedTrackingAdminEmailList_()
+    .map(function(item) { return String(item || '').trim().toLowerCase(); })
+    .filter(Boolean)
+    .indexOf(actor) >= 0;
 }
 
-function getSharedTrackingBackendMeta_() {
+function getSharedTrackingBackendMeta_(actorInfo) {
   const latestBackup = getLatestSharedTrackingBackupMeta_() || {};
+  const identity = actorInfo && typeof actorInfo === 'object'
+    ? actorInfo
+    : resolveSharedTrackingActorInfo_('');
   return {
     mode: 'apps_script',
     storage: 'drive_json',
-    actor: getSharedTrackingActor_(),
+    actor: String(identity.actor || '').trim(),
+    actorEmail: String(identity.email || '').trim(),
+    actorVerified: Boolean(identity.verified),
+    actorSource: String(identity.source || 'missing').trim() || 'missing',
+    declaredActor: String(identity.declaredActor || '').trim(),
     admin: isSharedTrackingAdmin_(),
     pollIntervalSeconds: 30,
     backendFolder: '_VisorSeguimientoPEC',
@@ -2010,9 +2814,14 @@ function getSharedTrackingBackendMeta_() {
 
 function buildSharedTrackingAuditEntry_(previous, next, actor, action, requestedRevision) {
   const changes = collectSharedTrackingAuditChanges_(previous, next);
+  const actorMeta = buildAuditActorMeta_(actor);
   return {
     at: next.savedAt,
-    actor: actor,
+    actor: actorMeta.actor,
+    actorEmail: actorMeta.actorEmail,
+    actorSource: actorMeta.actorSource,
+    actorVerified: actorMeta.actorVerified,
+    declaredActor: actorMeta.declaredActor,
     action: String(action || 'guardar_estado_compartido'),
     origin: String(action || 'guardar_estado_compartido'),
     revision: Number(next.revision || 0),

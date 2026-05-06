@@ -38,7 +38,7 @@ function Invoke-HeadlessCapture {
 
   $resolvedPath = (Resolve-Path -LiteralPath $TargetPath).Path
   $uri = [System.Uri]::new($resolvedPath).AbsoluteUri
-  $profileDir = Join-Path (Split-Path -Parent $DomFile) ([System.IO.Path]::GetFileNameWithoutExtension($DomFile) + '-profile')
+  $profileDir = Join-Path $env:TEMP ('pec-edge-profile-' + [System.Guid]::NewGuid().ToString('N'))
   New-Item -ItemType Directory -Force -Path $profileDir | Out-Null
   $commonArgs = @(
     '--headless',
@@ -79,6 +79,9 @@ function Invoke-HeadlessCapture {
       if(Test-Path -LiteralPath $_){
         Remove-Item -LiteralPath $_ -Force
       }
+    }
+    if(Test-Path -LiteralPath $profileDir){
+      Remove-Item -LiteralPath $profileDir -Recurse -Force
     }
   }
 
@@ -149,6 +152,8 @@ window.addEventListener('load', function(){
       {
         at: '2026-05-05T13:00:00.000Z',
         actor: 'alice@dgpccs.gob.pe',
+        actorVerified: true,
+        actorSource: 'session_email',
         action: 'guardar_ficha',
         detail: 'Actualizacion de nota operativa',
         summary: {
@@ -160,6 +165,8 @@ window.addEventListener('load', function(){
       {
         at: '2026-05-05T15:30:00.000Z',
         actor: 'bob@dgpccs.gob.pe',
+        actorVerified: false,
+        actorSource: 'client_query',
         action: 'agregar_subactividad',
         detail: 'Registro nuevo para seguimiento operativo',
         summary: {
@@ -171,6 +178,8 @@ window.addEventListener('load', function(){
       {
         at: '2026-05-05T18:10:00.000Z',
         actor: 'alice@dgpccs.gob.pe',
+        actorVerified: true,
+        actorSource: 'session_email',
         action: 'editar_portada',
         detail: 'Ajuste de portada ejecutiva',
         summary: {
@@ -182,6 +191,8 @@ window.addEventListener('load', function(){
       {
         at: '2026-05-04T18:10:00.000Z',
         actor: 'legacy@dgpccs.gob.pe',
+        actorVerified: false,
+        actorSource: 'legacy_actor',
         action: 'guardar_ficha',
         detail: 'Movimiento historico fuera del dia validado',
         summary: {
@@ -217,6 +228,18 @@ window.addEventListener('load', function(){
     if(typeof appState !== 'undefined'){
       appState.adminEnabled = true;
       appState.audit = sampleAudit;
+      appState.serverInfo = {
+        mode: 'apps_script',
+        actor: 'darwin@dgpccs.gob.pe',
+        actorVerified: true,
+        actorSource: 'session_email',
+        admin: true,
+        pollIntervalSeconds: 30,
+        savedAt: '2026-05-05T18:10:00.000Z',
+        savedBy: 'darwin@dgpccs.gob.pe',
+        syncState: 'synced',
+        syncMessage: 'QA sync ok'
+      };
     }
 
     if(typeof setSelectedAuditReportDate === 'function'){
@@ -233,6 +256,25 @@ window.addEventListener('load', function(){
       }
       renderAdminDailyAuditReport(report);
     }
+    if(typeof renderDailyAuditDeliveryState === 'function' && typeof appState !== 'undefined'){
+      appState.dailyReportDelivery = {
+        ok: true,
+        mode: 'PREVIEW_ONLY',
+        recipients: ['darwin@dgpccs.gob.pe'],
+        configuredRecipients: ['darwin@dgpccs.gob.pe'],
+        adminRecipients: ['darwin@dgpccs.gob.pe'],
+        usingAdminRecipients: false,
+        effectiveRecipients: ['darwin@dgpccs.gob.pe'],
+        cc: ['control@dgpccs.gob.pe'],
+        testRecipients: [],
+        realSendConfirmed: false,
+        sendHour: 18,
+        triggerCount: 0,
+        triggerEnabled: false,
+        message: 'QA delivery ready'
+      };
+      renderDailyAuditDeliveryState(appState.dailyReportDelivery);
+    }
     if(typeof renderAdminAudit === 'function'){
       renderAdminAudit();
     }
@@ -244,11 +286,20 @@ window.addEventListener('load', function(){
     var reportMeta = document.getElementById('adminDailyAuditMeta');
     var reportText = reportHost ? String(reportHost.innerText || '') : '';
     var reportMetaText = reportMeta ? String(reportMeta.textContent || '') : '';
+    var deliveryMeta = document.getElementById('adminDailyDeliveryMeta');
+    var deliverySummary = document.getElementById('adminDailyDeliverySummary');
+    var adminActor = document.getElementById('adminActorValue');
 
     mark('daily_report_present', !!reportHost);
     mark('daily_report_has_two_actors', /alice@dgpccs\.gob\.pe/i.test(reportText) && /bob@dgpccs\.gob\.pe/i.test(reportText));
     mark('daily_report_filters_selected_day', /3 movimiento\(s\)/i.test(reportMetaText));
     mark('daily_report_export_ready', typeof exportDailyAuditReport === 'function' && typeof appState !== 'undefined' && !!(appState.adminDailyReport && /Reporte diario de cambios/i.test(String(appState.adminDailyReport.plainText || ''))) && !document.getElementById('exportDailyAuditBtn').disabled);
+    mark('daily_report_identity_labels_visible', /Correo verificado por Apps Script/i.test(reportText) && /Actor declarado por URL/i.test(reportText));
+    mark('daily_delivery_panel_present', !!deliveryMeta && !!deliverySummary);
+    mark('daily_delivery_controls_present', !!document.getElementById('saveDailyDeliveryConfigBtn') && !!document.getElementById('sendDailyAuditMailBtn') && !!document.getElementById('createDailyAuditTriggerBtn') && !!document.getElementById('deleteDailyAuditTriggerBtn'));
+    mark('daily_delivery_form_present', !!document.getElementById('dailyDeliveryModeSelect') && !!document.getElementById('dailyDeliveryToInput') && !!document.getElementById('dailyDeliveryHourInput') && !!document.getElementById('dailyDeliveryConfirmReal'));
+    mark('daily_delivery_status_rendered', /QA delivery ready/i.test(String(deliverySummary && deliverySummary.textContent || '')) && /Hora diaria: 18:00/i.test(String(deliveryMeta && deliveryMeta.textContent || '')));
+    mark('shared_actor_identity_visible', /darwin@dgpccs\.gob\.pe/i.test(String(adminActor && adminActor.textContent || '')) && /Correo verificado/i.test(String(adminActor && adminActor.textContent || '')));
     mark('dgppcs_available_as_responsible', hasOption('responsibleFilter', /DGPPCS/i));
 
     if(typeof openPendingModal === 'function'){
@@ -425,6 +476,12 @@ $results = foreach($target in $targets){
       daily_report_has_two_actors = Get-QAFlag -Html $qaDom -Name 'daily_report_has_two_actors'
       daily_report_filters_selected_day = Get-QAFlag -Html $qaDom -Name 'daily_report_filters_selected_day'
       daily_report_export_ready = Get-QAFlag -Html $qaDom -Name 'daily_report_export_ready'
+      daily_report_identity_labels_visible = Get-QAFlag -Html $qaDom -Name 'daily_report_identity_labels_visible'
+      daily_delivery_panel_present = Get-QAFlag -Html $qaDom -Name 'daily_delivery_panel_present'
+      daily_delivery_controls_present = Get-QAFlag -Html $qaDom -Name 'daily_delivery_controls_present'
+      daily_delivery_form_present = Get-QAFlag -Html $qaDom -Name 'daily_delivery_form_present'
+      daily_delivery_status_rendered = Get-QAFlag -Html $qaDom -Name 'daily_delivery_status_rendered'
+      shared_actor_identity_visible = Get-QAFlag -Html $qaDom -Name 'shared_actor_identity_visible'
     }
     metrics = [PSCustomObject]@{
       gantt_rows = $ganttRows

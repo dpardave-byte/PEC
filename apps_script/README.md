@@ -78,6 +78,7 @@ En ese modo:
 - los cambios se guardan en un estado central JSON en Drive;
 - la auditoria compartida se guarda en un archivo separado;
 - el backup diario se guarda en la carpeta `backups`;
+- el guardado compartido exige actor identificado por correo de Apps Script o por `?actor=correo@dominio`;
 - el refresco es periodico, no tiempo real real.
 
 ### Donde se guarda cada cosa
@@ -112,6 +113,7 @@ Los administradores pueden:
 
 - ver la auditoria compartida;
 - ver el cierre diario por usuario;
+- configurar desde el visor la entrega diaria por correo;
 - exportar el reporte diario por usuario;
 - exportar la auditoria cargada en el panel admin;
 - descargar el backup mas reciente del estado compartido;
@@ -166,9 +168,10 @@ Checklist operativo detallado:
 10. Validar:
     - carga inicial;
     - edición de ficha;
-    - guardado compartido;
+    - guardado compartido con actor identificado;
     - auditoría;
     - cierre diario por usuario;
+    - configuración de entrega diaria desde panel admin;
     - exportación del reporte diario;
     - backup;
     - acceso admin;
@@ -181,9 +184,14 @@ En el panel administrador del visor compartido:
 - seleccionar la fecha del cierre;
 - revisar el bloque `Cierre diario por usuario`;
 - confirmar actores, movimientos, impactos y registros tocados;
+- revisar el bloque `Entrega del reporte diario`;
+- definir destinatarios, CC, lista de pruebas, modo y hora diaria;
+- guardar la configuración y activar el trigger solo cuando el envío REAL ya esté validado;
 - usar `Exportar reporte diario` antes del envío operativo a DGPPCS.
 
 Si el reporte se enviará por correo, verificar además que el Web App sea accesible para los destinatarios previstos con sus cuentas Google autorizadas.
+
+Si el campo de destinatarios queda vacío, el backend usa como respaldo los correos de `PEC_VISOR_ADMIN_EMAILS`.
 
 En la publicación validada en este repositorio, la URL pública responde con redirección a `accounts.google.com`, por lo que la comprobación final debe hacerse iniciando sesión con una cuenta DGPPCS autorizada.
 

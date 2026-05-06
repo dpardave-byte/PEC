@@ -116,7 +116,16 @@ En modo local:
 En Apps Script compartido:
 
 - el actor esperado es el correo del usuario autenticado cuando Apps Script lo expone;
+- el guardado compartido ya no acepta cambios anónimos; si el despliegue no expone correo de sesión, abrir con `?view=visor&actor=correo@dominio`;
 - el reporte diario se construye desde la bitácora central `shared_tracking_audit.json`.
+
+En el mismo panel administrador, el bloque `Entrega del reporte diario` permite:
+
+- definir el modo `PREVIEW_ONLY`, `TEST_REDIRECT` o `REAL`;
+- configurar destinatarios, CC, lista de pruebas y hora diaria;
+- guardar la configuración sin salir del visor;
+- activar o eliminar el trigger diario desde el mismo panel;
+- usar `PEC_VISOR_ADMIN_EMAILS` como respaldo si no se define un destinatario explícito.
 
 Si el estado compartido se daña:
 
@@ -144,9 +153,10 @@ Si el estado compartido se daña:
 8. Validar:
    - carga inicial;
    - edición de ficha;
-   - guardado compartido;
+   - guardado compartido con actor identificado;
    - auditoría;
    - cierre diario por usuario;
+   - configuración de entrega diaria desde panel admin;
    - exportación del reporte diario;
    - backup;
    - acceso admin y no admin.

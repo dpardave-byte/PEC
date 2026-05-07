@@ -80,7 +80,8 @@ const OPERATIONAL_DEFAULTS = {
   dgppcsSummaryRecipients: ['mmelletp@yahoo.com'],
   dailyReportMode: 'REAL',
   dailyReportSendHour: 18,
-  dailyReportConfirmRealSend: true
+  dailyReportConfirmRealSend: true,
+  weekdayAutoSendHour: 18
 };
 
 const SHARED_VISOR_CANONICAL_WEBAPP_BASE = 'https://script.google.com/macros/s/AKfycbwDO41v2ncg7p2rjvEjTCICeu8fJoAySOgSNAPe5arZnkK-gYtCH-FioX-jexhfW0k0/exec';
@@ -161,6 +162,17 @@ function doGet(e) {
       actionLabel: 'Configuración de CC operativos PEC',
       successTitle: 'CC restringido al consolidado DGPPCS',
       failureTitle: 'No se pudo ajustar el alcance del CC operativo'
+    });
+  }
+  if (params.action === 'visor_reset_due_tracking_weekday_trigger') {
+    var weekdayTriggerStatus = createDailyNotificationTrigger();
+    if (params.callback || String(params.format || '').trim().toLowerCase() === 'json') {
+      return outputPayload_(weekdayTriggerStatus, params);
+    }
+    return buildSharedTrackingActionHtml_(weekdayTriggerStatus, getTrackingWebAppUrl_(), {
+      actionLabel: 'Reconfiguración del trigger operativo PEC',
+      successTitle: 'Trigger operativo reconfigurado',
+      failureTitle: 'No se pudo reconfigurar el trigger operativo'
     });
   }
   if (/^visor_/i.test(String(params.action || ''))) {
@@ -1988,7 +2000,7 @@ function createDailyAuditReportTrigger() {
       realSendConfirmed: config.realSendConfirmed,
       sendHour: config.sendHour,
       triggerCount: existing.length,
-      message: 'Ya existe al menos un trigger diario para runDailyAuditReportEmail_.'
+      message: 'Ya existe al menos un trigger automático de lunes a viernes para runDailyAuditReportEmail_.'
     };
   }
   ScriptApp.newTrigger('runDailyAuditReportEmail_')
@@ -2005,7 +2017,7 @@ function createDailyAuditReportTrigger() {
     realSendConfirmed: config.realSendConfirmed,
     sendHour: config.sendHour,
     triggerCount: getDailyAuditReportTriggers_().length,
-    message: 'Trigger diario creado para las ' + String(config.sendHour).padStart(2, '0') + ':00.'
+    message: 'Trigger automático creado para las ' + String(config.sendHour).padStart(2, '0') + ':00 de lunes a viernes.'
   };
 }
 
@@ -2035,6 +2047,16 @@ function deleteDailyAuditReportTriggers() {
 }
 
 function runDailyAuditReportEmail_() {
+  if (!isOperationalWeekday_(new Date())) {
+    return {
+      ok: true,
+      actor: getSharedTrackingActor_() || 'trigger_reporte_diario',
+      admin: true,
+      skipped: true,
+      weekend: true,
+      message: 'El reporte diario automático no se envió porque hoy no es un día hábil.'
+    };
+  }
   return dispatchSharedTrackingDailyAuditReportEmail_({
     actor: getSharedTrackingActor_() || 'trigger_reporte_diario',
     origin: 'trigger_diario_reporte'
@@ -2565,22 +2587,15 @@ function createDailyNotificationTrigger() {
     };
   }
   var existing = getDueTrackingNotificationTriggers_();
-  if (existing.length) {
-    return {
-      ok: true,
-      actor: getSharedTrackingActor_(),
-      admin: true,
-      created: false,
-      mode: config.mode,
-      realSendConfirmed: config.realSendConfirmed,
-      triggerCount: existing.length,
-      message: 'Ya existe al menos un trigger diario para runDailyDueTrackingNotifications_.'
-    };
-  }
+  var removed = 0;
+  existing.forEach(function(trigger) {
+    ScriptApp.deleteTrigger(trigger);
+    removed += 1;
+  });
   ScriptApp.newTrigger('runDailyDueTrackingNotifications_')
     .timeBased()
     .everyDays(1)
-    .atHour(8)
+    .atHour(OPERATIONAL_DEFAULTS.weekdayAutoSendHour)
     .create();
   return {
     ok: true,
@@ -2589,8 +2604,11 @@ function createDailyNotificationTrigger() {
     created: true,
     mode: config.mode,
     realSendConfirmed: config.realSendConfirmed,
+    replacedTriggerCount: removed,
     triggerCount: getDueTrackingNotificationTriggers_().length,
-    message: 'Trigger diario creado para las 08:00.'
+    message: removed
+      ? 'Trigger automático reconfigurado para las ' + String(OPERATIONAL_DEFAULTS.weekdayAutoSendHour).padStart(2, '0') + ':00 de lunes a viernes.'
+      : 'Trigger automático creado para las ' + String(OPERATIONAL_DEFAULTS.weekdayAutoSendHour).padStart(2, '0') + ':00 de lunes a viernes.'
   };
 }
 
@@ -2621,6 +2639,37 @@ function deleteNotificationTriggers() {
 
 function runDailyDueTrackingNotifications_() {
   var config = getTrackingNotificationConfig_();
+  if (!isOperationalWeekday_(new Date())) {
+    var skippedWeekendAt = new Date().toISOString();
+    appendSharedTrackingAudit_({
+      at: skippedWeekendAt,
+      actor: String(getSharedTrackingActor_() || 'trigger_diario').trim(),
+      action: 'omitir_alertas_correo',
+      origin: 'trigger_diario_alertas',
+      detail: 'Envio automatico omitido | Motivo: fin de semana',
+      summary: {
+        mode: config.mode,
+        realSendConfirmed: config.realSendConfirmed,
+        testRecipients: config.testRecipients.slice()
+      },
+      recipients: [],
+      effectiveRecipients: [],
+      mode: config.mode,
+      skipped: true,
+      reason: 'automatic_weekend_guard'
+    });
+    return {
+      ok: true,
+      actor: String(getSharedTrackingActor_() || 'trigger_diario').trim(),
+      admin: true,
+      skipped: true,
+      weekend: true,
+      mode: config.mode,
+      testRecipients: config.testRecipients.slice(),
+      realSendConfirmed: config.realSendConfirmed,
+      message: 'El trigger automático no envió alertas porque hoy no es un día hábil.'
+    };
+  }
   // El trigger diario nunca debe comportarse como buzón de pruebas: si el modo
   // no está listo para envío real confirmado, se omite el despacho.
   if (!isLiveDueTrackingNotificationMode_(config)) {
@@ -3332,6 +3381,7 @@ function ensureOperationalDailyReportDelivery_() {
       .atHour(config.sendHour)
       .create();
   }
+  if (!isOperationalWeekday_(new Date())) return;
   const timezone = Session.getScriptTimeZone();
   const now = new Date();
   const currentHour = Number(Utilities.formatDate(now, timezone, 'H'));
@@ -3348,6 +3398,13 @@ function ensureOperationalDailyReportDelivery_() {
     origin: 'operacion_diaria_recuperacion',
     reportDate: today
   });
+}
+
+function isOperationalWeekday_(date, timezone) {
+  var safeDate = date instanceof Date ? date : new Date();
+  var safeTimezone = String(timezone || Session.getScriptTimeZone() || 'America/Lima');
+  var weekday = Number(Utilities.formatDate(safeDate, safeTimezone, 'u'));
+  return weekday >= 1 && weekday <= 5;
 }
 
 function ensureSharedVisorViewUrl_(url) {

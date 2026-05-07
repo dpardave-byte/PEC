@@ -87,6 +87,7 @@ const OPERATIONAL_DEFAULTS = {
 const SHARED_VISOR_CANONICAL_WEBAPP_BASE = 'https://script.google.com/macros/s/AKfycbwDO41v2ncg7p2rjvEjTCICeu8fJoAySOgSNAPe5arZnkK-gYtCH-FioX-jexhfW0k0/exec';
 const PANEL_PUBLIC_URL = 'https://dpardave-byte.github.io/PEC/';
 const PANEL_PUBLIC_VISOR_URL = 'https://dpardave-byte.github.io/PEC/visor_seguimiento_pec.html';
+const PANEL_PUBLIC_VISOR_GUIDE_URL = 'https://dpardave-byte.github.io/PEC/guia-rapida-visor-pec-dgppcs.html';
 
 function doGet(e) {
   const params = e && e.parameter ? e.parameter : {};
@@ -129,6 +130,17 @@ function doGet(e) {
       actionLabel: 'Correos operativos del visor PEC',
       successTitle: 'Correos operativos procesados',
       failureTitle: 'No se pudieron procesar los correos operativos'
+    });
+  }
+  if (params.action === 'visor_send_access_guide_now') {
+    var sendAccessGuideStatus = sendSharedVisorAccessGuideEmail_();
+    if (params.callback || String(params.format || '').trim().toLowerCase() === 'json') {
+      return outputPayload_(sendAccessGuideStatus, params);
+    }
+    return buildSharedTrackingActionHtml_(sendAccessGuideStatus, getTrackingWebAppUrl_(), {
+      actionLabel: 'Acceso y guía del visor PEC',
+      successTitle: 'Correo de acceso enviado',
+      failureTitle: 'No se pudo enviar el correo de acceso'
     });
   }
   if (params.action === 'visor_due_tracking_status') {
@@ -2403,6 +2415,75 @@ function sendDueTrackingEmails() {
   });
 }
 
+// Correo manual de orientación para que el equipo DGPPCS entre al visor con el
+// enlace compartido y una guía ligera alojada en GitHub Pages.
+function sendSharedVisorAccessGuideEmail_() {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para enviar la guía de acceso al visor.'
+    };
+  }
+  var emailDirectory = getTrackingNotificationEmailDirectory_();
+  var emailMap = getTrackingNotificationEmailMap_();
+  var recipients = Array.from(new Set(
+    emailDirectory.map(function(entry) { return String(entry && entry.email || '').trim().toLowerCase(); })
+      .concat(getTrackingNotificationDgppcsRecipients_(emailMap))
+      .filter(Boolean)
+  ));
+  if (!recipients.length) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: true,
+      sentCount: 0,
+      recipients: [],
+      message: 'No hay correos configurados para enviar la guía de acceso al visor.'
+    };
+  }
+  var webappUrl = getTrackingWebAppUrl_();
+  var guideUrl = PANEL_PUBLIC_VISOR_GUIDE_URL;
+  var sentAt = new Date();
+  var generatedAtLabel = formatTrackingDateTime_(sentAt);
+  var subject = 'PEC | Acceso al visor compartido y guía rápida de uso';
+  var htmlBody = buildSharedVisorAccessGuideHtml_(webappUrl, guideUrl, generatedAtLabel);
+  var plainBody = buildSharedVisorAccessGuidePlainText_(webappUrl, guideUrl, generatedAtLabel);
+  recipients.forEach(function(recipient) {
+    MailApp.sendEmail(recipient, subject, plainBody, {
+      htmlBody: htmlBody,
+      name: 'Visor de Seguimiento PEC'
+    });
+  });
+  appendSharedTrackingAudit_({
+    at: sentAt.toISOString(),
+    actor: String(getSharedTrackingActor_() || 'admin_manual').trim(),
+    action: 'enviar_guia_acceso_visor',
+    origin: 'sendSharedVisorAccessGuideEmail',
+    detail: 'Guía de acceso al visor enviada | Destinatarios: ' + recipients.length,
+    summary: {
+      total: recipients.length,
+      recipients: recipients,
+      webappUrl: webappUrl,
+      guideUrl: guideUrl
+    },
+    recipients: recipients,
+    effectiveRecipients: recipients
+  });
+  return {
+    ok: true,
+    actor: String(getSharedTrackingActor_() || 'admin_manual').trim(),
+    admin: true,
+    sentAt: sentAt.toISOString(),
+    sentCount: recipients.length,
+    recipients: recipients,
+    webappUrl: webappUrl,
+    guideUrl: guideUrl,
+    message: 'Se envió el acceso al visor y la guía rápida a los correos DGPPCS configurados.'
+  };
+}
+
 function getDueTrackingNotificationStatus() {
   if (!isSharedTrackingAdmin_()) {
     return {
@@ -3211,6 +3292,77 @@ function buildDueTrackingEmailPlainText_(person, items, generatedAt, webappUrl, 
     '',
     'Este mensaje fue generado automáticamente por el Visor de Seguimiento PEC.'
   ].filter(Boolean).join('\n');
+}
+
+function buildSharedVisorAccessGuideHtml_(webappUrl, guideUrl, generatedAtLabel) {
+  var safeVisorUrl = ensureSharedVisorViewUrl_(webappUrl || getTrackingWebAppUrl_());
+  var safeGuideUrl = String(guideUrl || PANEL_PUBLIC_VISOR_GUIDE_URL).trim();
+  return ''
+    + '<div style="font-family:Arial,Helvetica,sans-serif;color:#1f2937;line-height:1.6;background:#f5f7fb;padding:24px;">'
+    + '<div style="max-width:760px;margin:0 auto;background:#ffffff;border:1px solid #dbe5f0;border-radius:16px;overflow:hidden;">'
+    + '<div style="padding:22px 24px;background:linear-gradient(135deg,#173c5d,#1f6b67);color:#ffffff;">'
+    + '<div style="font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.9;">Visor de Seguimiento PEC</div>'
+    + '<h1 style="margin:10px 0 8px;font-size:28px;line-height:1.15;">Acceso compartido para actualización operativa</h1>'
+    + '<p style="margin:0;font-size:15px;opacity:.95;">Este mensaje te permite ingresar al visor, revisar los pendientes de tu ámbito y registrar actualizaciones en la ficha correspondiente.</p>'
+    + '</div>'
+    + '<div style="padding:22px 24px;">'
+    + '<p style="margin:0 0 14px;">Fecha de envío: <b>' + escapeHtmlEmail_(generatedAtLabel) + '</b></p>'
+    + '<div style="padding:14px 16px;border-left:4px solid #1d4ed8;background:#eff6ff;border-radius:12px;margin-bottom:18px;">'
+    + '<b>Cómo entrar</b>'
+    + '<ol style="margin:10px 0 0 18px;padding:0;">'
+    + '<li>Abre el visor compartido desde el botón inferior.</li>'
+    + '<li>Si Google solicita autenticación, ingresa con tu cuenta institucional autorizada.</li>'
+    + '<li>Ubica tu caso con filtros, abre la ficha, actualiza la información y guarda hasta ver la confirmación de sincronización.</li>'
+    + '</ol>'
+    + '</div>'
+    + '<div style="margin:18px 0 18px;">'
+    + '<a href="' + escapeHtmlEmail_(safeVisorUrl) + '" style="display:inline-block;margin:0 10px 10px 0;padding:12px 18px;border-radius:999px;background:#185fa5;color:#ffffff;text-decoration:none;font-weight:700;">Abrir visor compartido</a>'
+    + '<a href="' + escapeHtmlEmail_(safeGuideUrl) + '" style="display:inline-block;margin:0 10px 10px 0;padding:12px 18px;border-radius:999px;background:#0f766e;color:#ffffff;text-decoration:none;font-weight:700;">Ver guía rápida</a>'
+    + '</div>'
+    + '<div style="display:grid;gap:12px;">'
+    + '<div style="padding:14px 16px;border:1px solid #dbe5f0;border-radius:12px;background:#fbfdff;">'
+    + '<b>Qué encontrarás en el visor</b>'
+    + '<ul style="margin:10px 0 0 18px;padding:0;">'
+    + '<li>Resumen ejecutivo con vencimientos, atrasos y presión por bloque.</li>'
+    + '<li>Filtros por bloque, estado, alerta, responsable y seguimiento DGPPCS.</li>'
+    + '<li>Fichas por caso para registrar responsable, seguimiento, notas y próximas acciones.</li>'
+    + '</ul>'
+    + '</div>'
+    + '<div style="padding:14px 16px;border:1px solid #dbe5f0;border-radius:12px;background:#fffbeb;">'
+    + '<b>Importante</b>'
+    + '<div style="margin-top:8px;">Si el visor no confirma <i>Estado compartido guardado</i>, la actualización puede quedar solo en tu navegador y no en el estado central.</div>'
+    + '</div>'
+    + '</div>'
+    + '<p style="margin:18px 0 0;color:#475569;font-size:13px;">Enlace directo al visor: <a href="' + escapeHtmlEmail_(safeVisorUrl) + '">' + escapeHtmlEmail_(safeVisorUrl) + '</a><br>'
+    + 'Guía rápida pública: <a href="' + escapeHtmlEmail_(safeGuideUrl) + '">' + escapeHtmlEmail_(safeGuideUrl) + '</a></p>'
+    + '</div></div></div>';
+}
+
+function buildSharedVisorAccessGuidePlainText_(webappUrl, guideUrl, generatedAtLabel) {
+  var safeVisorUrl = ensureSharedVisorViewUrl_(webappUrl || getTrackingWebAppUrl_());
+  var safeGuideUrl = String(guideUrl || PANEL_PUBLIC_VISOR_GUIDE_URL).trim();
+  return [
+    'ACCESO AL VISOR COMPARTIDO PEC',
+    'Fecha de envio: ' + generatedAtLabel,
+    '',
+    'Como entrar:',
+    '1. Abre el visor compartido desde este enlace: ' + safeVisorUrl,
+    '2. Si Google solicita autenticacion, ingresa con tu cuenta institucional autorizada.',
+    '3. Ubica tu caso con filtros, abre la ficha, actualiza la informacion y guarda hasta ver la confirmacion de sincronizacion.',
+    '',
+    'Guia rapida:',
+    safeGuideUrl,
+    '',
+    'Que encontraras en el visor:',
+    '- Resumen ejecutivo con vencimientos, atrasos y presion por bloque.',
+    '- Filtros por bloque, estado, alerta, responsable y seguimiento DGPPCS.',
+    '- Fichas por caso para registrar responsable, seguimiento, notas y proximas acciones.',
+    '',
+    'Importante:',
+    'Si el visor no confirma "Estado compartido guardado", la actualizacion puede quedar solo en tu navegador y no en el estado central.',
+    '',
+    'Este mensaje fue generado automaticamente por el Visor de Seguimiento PEC.'
+  ].join('\n');
 }
 
 function getTrackingNotificationEmailDirectory_() {

@@ -69,6 +69,12 @@ const CONFIG = {
   ]
 };
 
+const LOADER_PROPERTY_KEYS = {
+  rootFolderId: 'PEC_LOADER_ROOT_FOLDER_ID',
+  spreadsheetId: 'PEC_LOADER_SPREADSHEET_ID',
+  seedExampleRows: 'PEC_LOADER_SEED_EXAMPLE_ROWS'
+};
+
 const OPERATIONAL_DEFAULTS = {
   sharedTrackingAdminEmails: ['dpardave@gmail.com'],
   dgppcsSummaryRecipients: ['mmelletp@yahoo.com'],
@@ -78,6 +84,8 @@ const OPERATIONAL_DEFAULTS = {
 };
 
 const SHARED_VISOR_CANONICAL_WEBAPP_BASE = 'https://script.google.com/macros/s/AKfycbwDO41v2ncg7p2rjvEjTCICeu8fJoAySOgSNAPe5arZnkK-gYtCH-FioX-jexhfW0k0/exec';
+const PANEL_PUBLIC_URL = 'https://dpardave-byte.github.io/PEC/';
+const PANEL_PUBLIC_VISOR_URL = 'https://dpardave-byte.github.io/PEC/visor_seguimiento_pec.html';
 
 function doGet(e) {
   const params = e && e.parameter ? e.parameter : {};
@@ -122,14 +130,6 @@ function doGet(e) {
       failureTitle: 'No se pudieron procesar los correos operativos'
     });
   }
-  if (/^visor_/i.test(String(params.action || ''))) {
-    var unsupportedVisorAction = {
-      ok: false,
-      sent: false,
-      mode: 'app_script',
-      reportDate: formatDate_(new Date()),
-      message: 'La acción solicitada del visor no está disponible en este despliegue.'
-    };
   if (params.action === 'visor_due_tracking_status') {
     var dueTrackingStatus = getDueTrackingNotificationStatus();
     if (params.callback || String(params.format || '').trim().toLowerCase() === 'json') {
@@ -163,6 +163,14 @@ function doGet(e) {
       failureTitle: 'No se pudo ajustar el alcance del CC operativo'
     });
   }
+  if (/^visor_/i.test(String(params.action || ''))) {
+    var unsupportedVisorAction = {
+      ok: false,
+      sent: false,
+      mode: 'app_script',
+      reportDate: formatDate_(new Date()),
+      message: 'La acción solicitada del visor no está disponible en este despliegue.'
+    };
     if (params.callback || String(params.format || '').trim().toLowerCase() === 'json') {
       return outputPayload_(unsupportedVisorAction, params);
     }
@@ -171,6 +179,57 @@ function doGet(e) {
       successTitle: 'Acción del visor procesada',
       failureTitle: 'Acción del visor no disponible',
       note: 'Esta ruta del visor no debe redirigir al PEC Drive Loader.'
+    });
+  }
+  if (params.action === 'loader_status') {
+    var loaderStatus = getEnvironmentStatus();
+    if (params.callback || String(params.format || '').trim().toLowerCase() === 'json') {
+      return outputPayload_(loaderStatus, params);
+    }
+    return buildLoaderActionHtml_(loaderStatus, {
+      actionLabel: 'PEC Drive Loader',
+      successTitle: 'Estado del loader consultado',
+      summary: 'Se consultó el estado actual del entorno Drive + Google Sheets.'
+    });
+  }
+  if (params.action === 'loader_setup') {
+    var setupStatus = setupEnvironment();
+    if (params.callback || String(params.format || '').trim().toLowerCase() === 'json') {
+      return outputPayload_(setupStatus, params);
+    }
+    return buildLoaderActionHtml_(setupStatus, {
+      actionLabel: 'PEC Drive Loader',
+      successTitle: 'Estructura base preparada',
+      summary: 'Se creó o reutilizó la carpeta raíz, el spreadsheet y la pestaña operativa del índice.'
+    });
+  }
+  if (params.action === 'loader_scan') {
+    var scanStatus = scanDriveToIndex();
+    if (params.callback || String(params.format || '').trim().toLowerCase() === 'json') {
+      return outputPayload_(scanStatus, params);
+    }
+    return buildLoaderActionHtml_(scanStatus, {
+      actionLabel: 'PEC Drive Loader',
+      successTitle: 'Escaneo de Drive completado',
+      summary: 'Se escaneó la carpeta raíz y se actualizaron registros nuevos del índice maestro.'
+    });
+  }
+  if (params.action === 'loader_setup_and_scan') {
+    var preparedStatus = setupEnvironment();
+    var scannedStatus = scanDriveToIndex();
+    var combinedStatus = Object.assign({}, scannedStatus, {
+      ok: true,
+      setupCompleted: true,
+      scanCompleted: true,
+      seedRowsInserted: preparedStatus.seedRowsInserted || 0
+    });
+    if (params.callback || String(params.format || '').trim().toLowerCase() === 'json') {
+      return outputPayload_(combinedStatus, params);
+    }
+    return buildLoaderActionHtml_(combinedStatus, {
+      actionLabel: 'PEC Drive Loader',
+      successTitle: 'Estructura y escaneo completados',
+      summary: 'Se preparó el entorno y luego se ejecutó el escaneo de Drive sobre el índice maestro.'
     });
   }
   const payload = { updatedAt: new Date().toISOString(), records: getRecords_() };
@@ -269,6 +328,74 @@ function buildSharedTrackingDailyReportActionHtml_(status, webappUrl) {
   });
 }
 
+function buildLoaderActionHtml_(status, options) {
+  var result = status && typeof status === 'object' ? status : {};
+  var uiOptions = options && typeof options === 'object' ? options : {};
+  var actionLabel = String(uiOptions.actionLabel || 'PEC Drive Loader');
+  var successTitle = String(uiOptions.successTitle || 'Operación del loader completada');
+  var failureTitle = String(uiOptions.failureTitle || 'No se pudo completar la operación del loader');
+  var summary = String(uiOptions.summary || result.message || 'La operación del loader finalizó.');
+  var rootUrl = String(result.rootFolderUrl || '').trim();
+  var spreadsheetUrl = String(result.spreadsheetUrl || '').trim();
+  var safeLoaderUrl = String(ScriptApp.getService().getUrl() || '').trim();
+  var safePanelUrl = PANEL_PUBLIC_URL;
+  var safePublishedVisorUrl = PANEL_PUBLIC_VISOR_URL;
+  var safeSharedVisorUrl = String(getTrackingWebAppUrl_() || '').trim();
+  var detailLines = [
+    'Carpeta raíz: ' + String(result.rootFolderName || CONFIG.rootFolderName),
+    'Root folder ID: ' + String(result.rootFolderId || '-'),
+    'Fuente de resolución carpeta: ' + String(result.rootFolderSource || '-'),
+    'Spreadsheet: ' + String(result.spreadsheetName || CONFIG.sheetName),
+    'Spreadsheet ID: ' + String(result.spreadsheetId || '-'),
+    'Fuente de resolución spreadsheet: ' + String(result.spreadsheetSource || '-'),
+    'Pestaña operativa: ' + String(result.indexTabName || CONFIG.indexTabName),
+    'Filas semilla habilitadas: ' + (result.seedExampleRowsEnabled ? 'Sí' : 'No'),
+    'Filas semilla insertadas: ' + String(result.seedRowsInserted == null ? 0 : result.seedRowsInserted),
+    'Registros en índice: ' + String(result.records == null ? '-' : result.records),
+    'Registros importados: ' + String(result.importedFiles == null ? '-' : result.importedFiles)
+  ];
+  var html = [
+    '<!doctype html>',
+    '<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
+    '<title>' + escapeHtmlEmail_(actionLabel) + '</title>',
+    '<style>',
+    'body{margin:0;font-family:Arial,sans-serif;background:#eef5fb;color:#16324f;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;}',
+    '.card{max-width:780px;width:100%;background:#fff;border:1px solid #d7e2ef;border-radius:18px;box-shadow:0 24px 70px rgba(24,56,88,.12);padding:24px;}',
+    '.badge{display:inline-block;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:#e6f4ea;color:#166534;}',
+    'h1{margin:14px 0 8px;font-size:24px;}',
+    'p{margin:0 0 12px;line-height:1.5;color:#4d6379;}',
+    'ul{margin:0 0 18px;padding-left:18px;color:#16324f;}',
+    'li{margin:6px 0;}',
+    '.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:20px;}',
+    '.btn{display:inline-block;padding:11px 16px;border-radius:10px;text-decoration:none;font-weight:700;}',
+    '.btn-primary{background:#1d5f8f;color:#fff;}',
+    '.btn-secondary{background:#edf4fb;color:#16324f;border:1px solid #d7e2ef;}',
+    '.warn{margin:0 0 16px;padding:12px 14px;border-left:4px solid #b45309;border-radius:10px;background:#fff7ed;color:#7c2d12;}',
+    '.note{margin-top:14px;font-size:12px;color:#6b7d90;}',
+    '</style></head><body>',
+    '<div class="card">',
+    '<span class="badge">Operación completada</span>',
+    '<h1>' + escapeHtmlEmail_(successTitle || failureTitle) + '</h1>',
+    '<p>' + escapeHtmlEmail_(summary) + '</p>',
+    '<p class="warn">Esta pantalla pertenece al backend administrativo del PEC Drive Loader. No reemplaza el panel público del programa ni el visor ejecutivo.</p>',
+    '<ul>' + detailLines.map(function(line) { return '<li>' + escapeHtmlEmail_(line) + '</li>'; }).join('') + '</ul>',
+    '<div class="actions">',
+    safePanelUrl ? '<a class="btn btn-primary" href="' + escapeHtmlEmail_(safePanelUrl) + '">Abrir panel público</a>' : '',
+    safePublishedVisorUrl ? '<a class="btn btn-secondary" href="' + escapeHtmlEmail_(safePublishedVisorUrl) + '">Abrir visor publicado</a>' : '',
+    safeSharedVisorUrl ? '<a class="btn btn-secondary" href="' + escapeHtmlEmail_(safeSharedVisorUrl) + '">Abrir visor compartido</a>' : '',
+    safeLoaderUrl ? '<a class="btn btn-primary" href="' + escapeHtmlEmail_(safeLoaderUrl) + '">Volver al loader</a>' : '',
+    rootUrl ? '<a class="btn btn-secondary" href="' + escapeHtmlEmail_(rootUrl) + '">Abrir carpeta raíz</a>' : '',
+    spreadsheetUrl ? '<a class="btn btn-secondary" href="' + escapeHtmlEmail_(spreadsheetUrl) + '">Abrir spreadsheet</a>' : '',
+    '</div>',
+    '<p class="note">La operación se ejecutó en el backend del PEC Drive Loader usando tu sesión autenticada actual.</p>',
+    '</div></body></html>'
+  ].join('');
+  return HtmlService
+    .createHtmlOutput(html)
+    .setTitle(actionLabel)
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
 function setOpenAiConfig(apiKey, model, token) {
   const props = PropertiesService.getScriptProperties();
   if (apiKey) props.setProperty('OPENAI_API_KEY', apiKey);
@@ -321,18 +448,22 @@ function runAiAnalysis_(params) {
     const body = {
       model,
       store: false,
-      reasoning: { effort: 'low' },
+      reasoning: { effort: 'medium' },
       max_output_tokens: 7000,
       tools: [{ type: 'web_search' }],
       include: ['web_search_call.action.sources'],
       instructions: [
-        'Eres el analista senior del Programa de Economia Circular PEC para Puno y Lima.',
-        'Responde en espanol, con tono tecnico-gerencial y recomendaciones accionables.',
+        'Eres el Copiloto LLM especializado en investigacion documental del Programa de Economia Circular del MVCS, con foco en trazabilidad, evidencia, riesgos, brechas de informacion, priorizacion ejecutiva y lenguaje institucional.',
+        'Responde en espanol, con tono tecnico-gerencial claro y orientado a decisiones para alta direccion y equipos tecnicos.',
+        'Distingue siempre entre evidencia disponible del panel PEC, evidencia web citada, evidencia local de sesion e inferencia controlada del modelo.',
         'Separa claramente informacion nueva 2026 (MOP, donacion, prestamo, UGP-PEC) de informacion historica Titicaca anterior a 2020.',
-        'Cuando uses informacion mundial o reciente de tecnologias, usa busqueda web y deja citas visibles.',
-        'No inventes datos, costos ni fechas. Si falta evidencia, declara el supuesto o la brecha.',
-        'No devuelvas solo listados de especialidades o variables: responde la pregunta con analisis tecnico por especialidad.',
-        'Incluye matriz comparativa, analisis por especialidad, decision recomendada y siguientes pasos accionables.'
+        'Cuando uses informacion mundial o reciente de tecnologias, usa busqueda web y deja citas visibles por afirmacion relevante.',
+        'Penaliza fuentes debiles, grises o comerciales: puedes usarlas, pero etiquetalas como referencia secundaria y no como sustento principal.',
+        'No inventes datos, costos, fechas, enlaces, lecturas de archivo ni supuestos tecnicos. Si falta evidencia, declaralo de forma explicita y propone el dato que debe levantarse.',
+        'No afirmes que revisaste un archivo si solo existe el registro del indice. Si un registro no tiene url_drive, advierte que no es verificable desde Drive.',
+        'Cuando existan registros, cita IDs, EDT, actividades o enlaces disponibles para sostener la respuesta.',
+        'No devuelvas solo listados de variables: responde con lectura ejecutiva, evidencia encontrada, analisis, riesgos, acciones y preguntas pendientes.',
+        'La salida debe ayudar a un equipo directivo a decidir o a pedir informacion adicional con precision.'
       ].join('\n'),
       input: buildAiPrompt_(request)
     };
@@ -496,12 +627,23 @@ function defaultAiProgramRows_() {
 function buildAiPrompt_(request) {
   const variables = request.variables || CONFIG.aiVariables;
   const specialties = request.specialties || CONFIG.aiSpecialties;
+  const filters = request.filters || {};
+  const counts = request.counts || {};
+  const modeLabel = request.modeLabel || request.type || 'analisis documental';
+  const modeHint = request.modeHint || '';
   return [
-    'Objetivo del usuario:',
+    'Pregunta de decision del usuario:',
     request.question || 'Analizar los siguientes pasos del Programa de Economia Circular.',
     '',
-    'Tipo de producto solicitado:',
-    request.type || 'gerencial',
+    'Modo de analisis solicitado:',
+    modeLabel,
+    modeHint ? 'Descripcion del modo: ' + modeHint : '',
+    '',
+    'Contexto filtrado actualmente en el panel:',
+    JSON.stringify({
+      filters: filters,
+      counts: counts
+    }, null, 2),
     '',
     'Variables que deben razonarse:',
     JSON.stringify(variables, null, 2),
@@ -512,13 +654,17 @@ function buildAiPrompt_(request) {
     'Registros filtrados del tablero PEC:',
     JSON.stringify(request.records || [], null, 2),
     '',
-    'Entrega requerida:',
-    '- Responde de forma directa la pregunta del usuario.',
-    '- Incluye matriz comparativa de tecnologias o alternativas si aplica (CAPEX, OPEX, energia, O&M, permisos, riesgo social, plazo).',
-    '- Analisis desarrollado por especialidad (no solo listado): sanitaria/PTAR, O&M, ambiental/salvaguardas, social/predial, legal/contrataciones y financiera.',
+    'Contrato de salida obligatorio:',
+    '- Usa exactamente estas secciones en mayusculas cuando apliquen: PREGUNTA / DECISION, CONTEXTO FILTRADO ACTUALMENTE EN EL PANEL, RESUMEN EJECUTIVO, EVIDENCIA ENCONTRADA, ANALISIS, RIESGOS O ALERTAS, ACCIONES RECOMENDADAS, PREGUNTAS PENDIENTES, FUENTES Y CITAS.',
+    '- Responde de forma directa la pregunta del usuario y evita introducciones largas.',
+    '- En EVIDENCIA ENCONTRADA distingue claramente: evidencia del panel, evidencia web citada, evidencias locales de sesion e inferencias controladas cuando sea necesario.',
+    '- Incluye matriz comparativa de tecnologias o alternativas dentro de ANALISIS si aplica (CAPEX, OPEX, energia, O&M, permisos, riesgo social, plazo, madurez, facilidad operativa).',
+    '- Desarrolla el analisis por especialidad, no como simple listado: sanitaria/PTAR, O&M, ambiental/salvaguardas, social/predial, legal/contrataciones y financiera.',
     '- Ajusta el analisis al contexto Puno/Lima y separa claramente informacion 2026 vs historico.',
-    '- Cierra con recomendacion concreta, supuestos y siguientes pasos con responsables.',
-    '- Incluye fuentes/citas cuando se use informacion mundial.'
+    '- Si counts.withoutLink o documentos sin enlace son mayores a cero, advierte expresamente que esos registros no son verificables desde Drive.',
+    '- Si falta evidencia, no cierres una recomendacion tajante: marca la brecha, el supuesto y el siguiente dato requerido.',
+    '- Cierra con acciones concretas, responsables sugeridos y preguntas pendientes para el siguiente corte.',
+    '- Incluye fuentes/citas visibles cuando uses informacion web o mundial.'
   ].join('\n');
 }
 
@@ -554,8 +700,8 @@ function setupEnvironment() {
   const root = getOrCreateRoot_();
   CONFIG.folders.forEach(path => getOrCreatePath_(root, path));
   const sheet = getOrCreateIndexSheet_();
-  seedIndexIfEmpty_(sheet);
-  return getEnvironmentStatus();
+  const seedRowsInserted = seedIndexIfEmpty_(sheet) ? CONFIG.seedRows.length : 0;
+  return Object.assign(getEnvironmentStatus(), { seedRowsInserted: seedRowsInserted });
 }
 
 function scanDriveToIndex() {
@@ -733,14 +879,23 @@ function backupAndRemoveAutoScanRows() {
 }
 
 function getEnvironmentStatus() {
-  const root = findFolderByName_(CONFIG.rootFolderName);
-  const sheetFile = findSpreadsheetByName_(CONFIG.sheetName);
-  const records = sheetFile ? getRecords_() : [];
+  const loaderConfig = getLoaderEnvironmentConfig_();
+  const rootState = resolveLoaderRootFolder_({ createIfMissing: false, persist: false });
+  const sheetState = resolveLoaderSpreadsheet_({ createIfMissing: false, persist: false });
+  const records = sheetState.spreadsheet ? getRecords_() : [];
   return {
     rootFolderName: CONFIG.rootFolderName,
-    rootFolderUrl: root ? root.getUrl() : '',
+    rootFolderId: rootState.folder ? rootState.folder.getId() : '',
+    rootFolderUrl: rootState.folder ? rootState.folder.getUrl() : '',
+    rootFolderSource: rootState.source || '',
+    configuredRootFolderId: loaderConfig.rootFolderId || '',
     spreadsheetName: CONFIG.sheetName,
-    spreadsheetUrl: sheetFile ? sheetFile.getUrl() : '',
+    spreadsheetId: sheetState.spreadsheet ? sheetState.spreadsheet.getId() : '',
+    spreadsheetUrl: sheetState.spreadsheet ? sheetState.spreadsheet.getUrl() : '',
+    spreadsheetSource: sheetState.source || '',
+    configuredSpreadsheetId: loaderConfig.spreadsheetId || '',
+    indexTabName: CONFIG.indexTabName,
+    seedExampleRowsEnabled: loaderConfig.seedExampleRows,
     records: records.length,
     webJsonHint: ScriptApp.getService().getUrl() ? ScriptApp.getService().getUrl() + '?format=json' : 'Deploy as Web App first',
     webCsvHint: ScriptApp.getService().getUrl() ? ScriptApp.getService().getUrl() + '?format=csv' : 'Deploy as Web App first'
@@ -760,7 +915,7 @@ function getRecords_() {
 }
 
 function getOrCreateRoot_() {
-  return findFolderByName_(CONFIG.rootFolderName) || DriveApp.createFolder(CONFIG.rootFolderName);
+  return resolveLoaderRootFolder_({ createIfMissing: true, persist: true }).folder;
 }
 
 function getOrCreatePath_(root, path) {
@@ -785,7 +940,7 @@ function findSpreadsheetByName_(name) {
 }
 
 function getOrCreateIndexSheet_() {
-  const spreadsheet = findSpreadsheetByName_(CONFIG.sheetName) || SpreadsheetApp.create(CONFIG.sheetName);
+  const spreadsheet = resolveLoaderSpreadsheet_({ createIfMissing: true, persist: true }).spreadsheet;
   const sheet = spreadsheet.getSheetByName(CONFIG.indexTabName) || spreadsheet.insertSheet(CONFIG.indexTabName);
   if (sheet.getLastRow() === 0) sheet.appendRow(CONFIG.headers);
   const currentHeaders = sheet.getRange(1, 1, 1, CONFIG.headers.length).getValues()[0];
@@ -796,8 +951,115 @@ function getOrCreateIndexSheet_() {
 }
 
 function seedIndexIfEmpty_(sheet) {
+  if (!shouldSeedLoaderExampleRows_()) return false;
   if (sheet.getLastRow() > 1) return;
   sheet.getRange(2, 1, CONFIG.seedRows.length, CONFIG.headers.length).setValues(CONFIG.seedRows);
+  return true;
+}
+
+function setLoaderResourceIds(rootFolderId, spreadsheetId) {
+  const props = PropertiesService.getScriptProperties();
+  const safeRootFolderId = String(rootFolderId == null ? '' : rootFolderId).trim();
+  const safeSpreadsheetId = String(spreadsheetId == null ? '' : spreadsheetId).trim();
+  if (safeRootFolderId) {
+    const folder = DriveApp.getFolderById(safeRootFolderId);
+    props.setProperty(LOADER_PROPERTY_KEYS.rootFolderId, folder.getId());
+  } else if (rootFolderId === '') {
+    props.deleteProperty(LOADER_PROPERTY_KEYS.rootFolderId);
+  }
+  if (safeSpreadsheetId) {
+    const spreadsheet = SpreadsheetApp.openById(safeSpreadsheetId);
+    props.setProperty(LOADER_PROPERTY_KEYS.spreadsheetId, spreadsheet.getId());
+  } else if (spreadsheetId === '') {
+    props.deleteProperty(LOADER_PROPERTY_KEYS.spreadsheetId);
+  }
+  return getEnvironmentStatus();
+}
+
+function setLoaderSeedExampleRows(enabled) {
+  const parsed = parseBooleanFlag_(enabled, null);
+  if (parsed == null) {
+    throw new Error('El valor de seedExampleRows debe ser true o false.');
+  }
+  PropertiesService.getScriptProperties().setProperty(LOADER_PROPERTY_KEYS.seedExampleRows, parsed ? 'true' : 'false');
+  return getEnvironmentStatus();
+}
+
+function getLoaderEnvironmentConfig_() {
+  const props = PropertiesService.getScriptProperties();
+  return {
+    rootFolderId: String(props.getProperty(LOADER_PROPERTY_KEYS.rootFolderId) || '').trim(),
+    spreadsheetId: String(props.getProperty(LOADER_PROPERTY_KEYS.spreadsheetId) || '').trim(),
+    seedExampleRows: parseBooleanFlag_(props.getProperty(LOADER_PROPERTY_KEYS.seedExampleRows), false)
+  };
+}
+
+function shouldSeedLoaderExampleRows_() {
+  return getLoaderEnvironmentConfig_().seedExampleRows;
+}
+
+function resolveLoaderRootFolder_(options) {
+  const settings = options && typeof options === 'object' ? options : {};
+  const createIfMissing = Boolean(settings.createIfMissing);
+  const persist = settings.persist !== false;
+  const configuredId = getLoaderEnvironmentConfig_().rootFolderId;
+  if (configuredId) {
+    try {
+      const folderById = DriveApp.getFolderById(configuredId);
+      if (persist) persistLoaderRootFolderId_(folderById);
+      return { folder: folderById, source: 'script_property_id' };
+    } catch (error) {}
+  }
+  const namedFolder = findFolderByName_(CONFIG.rootFolderName);
+  if (namedFolder) {
+    if (persist) persistLoaderRootFolderId_(namedFolder);
+    return { folder: namedFolder, source: 'name_match' };
+  }
+  if (!createIfMissing) return { folder: null, source: '' };
+  const createdFolder = DriveApp.createFolder(CONFIG.rootFolderName);
+  if (persist) persistLoaderRootFolderId_(createdFolder);
+  return { folder: createdFolder, source: 'created' };
+}
+
+function resolveLoaderSpreadsheet_(options) {
+  const settings = options && typeof options === 'object' ? options : {};
+  const createIfMissing = Boolean(settings.createIfMissing);
+  const persist = settings.persist !== false;
+  const configuredId = getLoaderEnvironmentConfig_().spreadsheetId;
+  if (configuredId) {
+    try {
+      const spreadsheetById = SpreadsheetApp.openById(configuredId);
+      if (persist) persistLoaderSpreadsheetId_(spreadsheetById);
+      return { spreadsheet: spreadsheetById, source: 'script_property_id' };
+    } catch (error) {}
+  }
+  const namedSpreadsheet = findSpreadsheetByName_(CONFIG.sheetName);
+  if (namedSpreadsheet) {
+    if (persist) persistLoaderSpreadsheetId_(namedSpreadsheet);
+    return { spreadsheet: namedSpreadsheet, source: 'name_match' };
+  }
+  if (!createIfMissing) return { spreadsheet: null, source: '' };
+  const createdSpreadsheet = SpreadsheetApp.create(CONFIG.sheetName);
+  if (persist) persistLoaderSpreadsheetId_(createdSpreadsheet);
+  return { spreadsheet: createdSpreadsheet, source: 'created' };
+}
+
+function persistLoaderRootFolderId_(folder) {
+  if (!folder || !folder.getId) return;
+  PropertiesService.getScriptProperties().setProperty(LOADER_PROPERTY_KEYS.rootFolderId, folder.getId());
+}
+
+function persistLoaderSpreadsheetId_(spreadsheet) {
+  if (!spreadsheet || !spreadsheet.getId) return;
+  PropertiesService.getScriptProperties().setProperty(LOADER_PROPERTY_KEYS.spreadsheetId, spreadsheet.getId());
+}
+
+function parseBooleanFlag_(value, fallback) {
+  if (value == null || value === '') return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'si', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  return fallback;
 }
 
 function getExistingIds_(sheet) {
@@ -2119,275 +2381,6 @@ function sendDueTrackingEmails() {
   });
 }
 
-function createDailyNotificationTrigger() {
-  if (!isSharedTrackingAdmin_()) {
-    return {
-      ok: false,
-      actor: getSharedTrackingActor_(),
-      admin: false,
-      message: 'No autorizado para crear triggers de notificacion.'
-    };
-  }
-  var config = getTrackingNotificationConfig_();
-  if (config.mode !== 'REAL') {
-    return {
-      ok: false,
-      actor: getSharedTrackingActor_(),
-      admin: true,
-      created: false,
-      mode: config.mode,
-      realSendConfirmed: config.realSendConfirmed,
-      message: 'No se creo el trigger diario porque PEC_VISOR_NOTIFY_MODE no esta en REAL.'
-    };
-  }
-  if (!config.realSendConfirmed) {
-    return {
-      ok: false,
-      actor: getSharedTrackingActor_(),
-      admin: true,
-      created: false,
-      mode: config.mode,
-      realSendConfirmed: config.realSendConfirmed,
-      message: 'No se creo el trigger diario porque falta PEC_VISOR_CONFIRM_REAL_SEND=SI.'
-    };
-  }
-  var existing = getDueTrackingNotificationTriggers_();
-  if (existing.length) {
-    return {
-      ok: true,
-      actor: getSharedTrackingActor_(),
-      admin: true,
-      created: false,
-      mode: config.mode,
-      realSendConfirmed: config.realSendConfirmed,
-      triggerCount: existing.length,
-      message: 'Ya existe al menos un trigger diario para runDailyDueTrackingNotifications_.'
-    };
-  }
-  ScriptApp.newTrigger('runDailyDueTrackingNotifications_')
-    .timeBased()
-    .everyDays(1)
-    .atHour(8)
-    .create();
-  return {
-    ok: true,
-    actor: getSharedTrackingActor_(),
-    admin: true,
-    created: true,
-    mode: config.mode,
-    realSendConfirmed: config.realSendConfirmed,
-    triggerCount: getDueTrackingNotificationTriggers_().length,
-    message: 'Trigger diario creado para las 08:00.'
-  };
-}
-
-function deleteNotificationTriggers() {
-  if (!isSharedTrackingAdmin_()) {
-    return {
-      ok: false,
-      actor: getSharedTrackingActor_(),
-      admin: false,
-      message: 'No autorizado para eliminar triggers de notificacion.'
-    };
-  }
-  var removed = 0;
-  getDueTrackingNotificationTriggers_().forEach(function(trigger) {
-    ScriptApp.deleteTrigger(trigger);
-    removed += 1;
-  });
-  return {
-    ok: true,
-    actor: getSharedTrackingActor_(),
-    admin: true,
-    removed: removed,
-    message: removed
-      ? 'Se eliminaron los triggers diarios de notificacion.'
-      : 'No habia triggers diarios de notificacion para eliminar.'
-  };
-}
-
-function runDailyDueTrackingNotifications_() {
-  return dispatchDueTrackingEmails_({
-    actor: getSharedTrackingActor_() || 'trigger_diario',
-    origin: 'trigger_diario_alertas'
-  });
-}
-
-function getDueTrackingNotificationTriggers_() {
-  return ScriptApp.getProjectTriggers().filter(function(trigger) {
-    return trigger.getHandlerFunction && trigger.getHandlerFunction() === 'runDailyDueTrackingNotifications_';
-  });
-}
-
-function dispatchDueTrackingEmails_(options) {
-  var preview = buildDueTrackingNotifications_({ preview: false, includeHtml: true });
-  if (!preview.ok) return preview;
-  if (preview.mode === 'PREVIEW_ONLY') {
-    return {
-      ok: true,
-      actor: String(safeOptions.actor || getSharedTrackingActor_() || 'admin_manual').trim(),
-      admin: isSharedTrackingAdmin_(),
-      preview: false,
-      mode: preview.mode,
-      testRecipients: preview.testRecipients,
-      realSendConfirmed: preview.realSendConfirmed,
-      sentCount: 0,
-      notifiedActivities: 0,
-      groups: preview.groups.map(function(group) {
-        return {
-          person: group.person,
-          to: group.to,
-          realTo: group.realTo,
-          itemCount: group.items.length,
-          subject: group.subject
-        };
-      }),
-      missingEmails: preview.missingEmails,
-      cc: preview.cc,
-      webappUrl: preview.webappUrl,
-      message: 'Modo PREVIEW_ONLY activo. No se enviaron correos.'
-    };
-  }
-  if (preview.mode === 'REAL' && !preview.realSendConfirmed) {
-    return {
-      ok: false,
-      actor: String(safeOptions.actor || getSharedTrackingActor_() || 'admin_manual').trim(),
-      admin: isSharedTrackingAdmin_(),
-      preview: false,
-      mode: preview.mode,
-      testRecipients: preview.testRecipients,
-      realSendConfirmed: preview.realSendConfirmed,
-      sentCount: 0,
-      notifiedActivities: 0,
-      groups: preview.groups.map(function(group) {
-        return {
-          person: group.person,
-          to: group.to,
-          realTo: group.realTo,
-          itemCount: group.items.length,
-          subject: group.subject
-        };
-      }),
-      missingEmails: preview.missingEmails,
-      cc: preview.cc,
-      webappUrl: preview.webappUrl,
-      message: 'Modo REAL solicitado, pero falta PEC_VISOR_CONFIRM_REAL_SEND=SI.'
-    };
-  }
-  if (preview.mode === 'TEST_REDIRECT' && !preview.testRecipients.length) {
-    return {
-      ok: false,
-      actor: String(safeOptions.actor || getSharedTrackingActor_() || 'admin_manual').trim(),
-      admin: isSharedTrackingAdmin_(),
-      preview: false,
-      mode: preview.mode,
-      testRecipients: preview.testRecipients,
-      realSendConfirmed: preview.realSendConfirmed,
-      sentCount: 0,
-      notifiedActivities: 0,
-      groups: preview.groups.map(function(group) {
-        return {
-          person: group.person,
-          to: group.to,
-          realTo: group.realTo,
-          itemCount: group.items.length,
-          subject: group.subject
-        };
-      }),
-      missingEmails: preview.missingEmails,
-      cc: preview.cc,
-      webappUrl: preview.webappUrl,
-      message: 'Modo TEST_REDIRECT activo, pero faltan destinatarios en PEC_VISOR_NOTIFY_TEST_RECIPIENTS.'
-    };
-  }
-  var recipients = [];
-  var mailCount = 0;
-  var totalActivities = 0;
-  preview.groups.forEach(function(group) {
-    if (!group.to) return;
-    var mailOptions = {
-      htmlBody: group.htmlBody,
-      name: 'Visor de Seguimiento PEC'
-    };
-    if (preview.cc.length && shouldApplyTrackingNotificationCc_(preview.ccScope, group)) {
-      mailOptions.cc = preview.cc.join(',');
-    }
-    MailApp.sendEmail(group.to, group.subject, group.plainBody, mailOptions);
-    (Array.isArray(group.effectiveRecipients) ? group.effectiveRecipients : String(group.to || '').split(/[;,]/))
-      .map(function(item) { return String(item || '').trim(); })
-      .filter(Boolean)
-      .forEach(function(item) { recipients.push(item); });
-    mailCount += 1;
-    totalActivities += group.items.length;
-  });
-  var sentAt = new Date().toISOString();
-  var effectiveRecipients = Array.from(new Set(recipients));
-  var auditEntry = {
-    at: sentAt,
-    actor: String(safeOptions.actor || getSharedTrackingActor_() || 'trigger_diario').trim(),
-    action: 'enviar_alertas_correo',
-    origin: String(safeOptions.origin || 'sendDueTrackingEmails').trim(),
-    detail: 'Correos enviados: ' + mailCount + ' | Actividades notificadas: ' + totalActivities + ' | Modo: ' + preview.mode,
-    summary: {
-      total: totalActivities,
-      recipients: mailCount,
-      effectiveRecipients: effectiveRecipients,
-      mode: preview.mode,
-      testRecipients: preview.testRecipients,
-      realSendConfirmed: preview.realSendConfirmed,
-      missingEmails: preview.missingEmails.map(function(item) { return item.person; }),
-      touchedRecords: preview.groups.flatMap(function(group) {
-        return group.items.map(function(item) { return item.edt; });
-      }).slice(0, 20)
-    },
-    recipients: effectiveRecipients,
-    effectiveRecipients: effectiveRecipients,
-    mode: preview.mode,
-    isTest: preview.mode === 'TEST_REDIRECT',
-    notifiedActivities: totalActivities
-  };
-  appendSharedTrackingAudit_(auditEntry);
-  return {
-    ok: true,
-    actor: auditEntry.actor,
-    admin: isSharedTrackingAdmin_(),
-    preview: false,
-    sentAt: sentAt,
-    mode: preview.mode,
-    testRecipients: preview.testRecipients,
-    realSendConfirmed: preview.realSendConfirmed,
-    groups: preview.groups.map(function(group) {
-      return {
-        person: group.person,
-        to: group.to,
-        realTo: group.realTo,
-        itemCount: group.items.length,
-        subject: group.subject
-      };
-    }),
-    sentCount: mailCount,
-    notifiedActivities: totalActivities,
-    missingEmails: preview.missingEmails,
-    cc: preview.cc,
-    webappUrl: preview.webappUrl,
-    redirectModeActive: preview.mode === 'TEST_REDIRECT',
-    message: preview.mode === 'TEST_REDIRECT'
-      ? ('Correos de prueba enviados solo a ' + preview.testRecipients.join(', ') + '. Los responsables DGPPCS finales no recibieron este envio.')
-      : 'Correos enviados a responsables y consolidado DGPPCS segun la configuracion activa.'
-  };
-}
-
-// Script Properties requeridas para notificaciones:
-// - PEC_VISOR_NOTIFY_EMAILS_JSON: {"Darwin Pardave":"correo@dominio", ...}
-// - PEC_VISOR_NOTIFY_DGPPCS_EMAILS: correos del grupo DGPPCS separados por coma o punto y coma (opcional)
-// - PEC_VISOR_NOTIFY_CC: correos en copia separados por coma o punto y coma
-// - PEC_VISOR_NOTIFY_CC_SCOPE: SUMMARY_ONLY | ALL | NONE (por defecto SUMMARY_ONLY)
-// - PEC_VISOR_NOTIFY_MODE: PREVIEW_ONLY | TEST_REDIRECT | REAL
-// - PEC_VISOR_NOTIFY_TEST_RECIPIENTS: correos de prueba separados por coma o punto y coma
-// - PEC_VISOR_CONFIRM_REAL_SEND: SI para habilitar envios reales
-// - PEC_VISOR_WEBAPP_URL: URL publica del visor compartido
-function buildDueTrackingNotifications_(options) {
-  var settings = options || {};
 function getDueTrackingNotificationStatus() {
   if (!isSharedTrackingAdmin_()) {
     return {
@@ -2539,6 +2532,338 @@ function activateLiveDueTrackingNotificationsAndSendNow_() {
   };
 }
 
+function createDailyNotificationTrigger() {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para crear triggers de notificacion.'
+    };
+  }
+  var config = getTrackingNotificationConfig_();
+  if (config.mode !== 'REAL') {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: true,
+      created: false,
+      mode: config.mode,
+      realSendConfirmed: config.realSendConfirmed,
+      message: 'No se creo el trigger diario porque PEC_VISOR_NOTIFY_MODE no esta en REAL.'
+    };
+  }
+  if (!config.realSendConfirmed) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: true,
+      created: false,
+      mode: config.mode,
+      realSendConfirmed: config.realSendConfirmed,
+      message: 'No se creo el trigger diario porque falta PEC_VISOR_CONFIRM_REAL_SEND=SI.'
+    };
+  }
+  var existing = getDueTrackingNotificationTriggers_();
+  if (existing.length) {
+    return {
+      ok: true,
+      actor: getSharedTrackingActor_(),
+      admin: true,
+      created: false,
+      mode: config.mode,
+      realSendConfirmed: config.realSendConfirmed,
+      triggerCount: existing.length,
+      message: 'Ya existe al menos un trigger diario para runDailyDueTrackingNotifications_.'
+    };
+  }
+  ScriptApp.newTrigger('runDailyDueTrackingNotifications_')
+    .timeBased()
+    .everyDays(1)
+    .atHour(8)
+    .create();
+  return {
+    ok: true,
+    actor: getSharedTrackingActor_(),
+    admin: true,
+    created: true,
+    mode: config.mode,
+    realSendConfirmed: config.realSendConfirmed,
+    triggerCount: getDueTrackingNotificationTriggers_().length,
+    message: 'Trigger diario creado para las 08:00.'
+  };
+}
+
+function deleteNotificationTriggers() {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para eliminar triggers de notificacion.'
+    };
+  }
+  var removed = 0;
+  getDueTrackingNotificationTriggers_().forEach(function(trigger) {
+    ScriptApp.deleteTrigger(trigger);
+    removed += 1;
+  });
+  return {
+    ok: true,
+    actor: getSharedTrackingActor_(),
+    admin: true,
+    removed: removed,
+    message: removed
+      ? 'Se eliminaron los triggers diarios de notificacion.'
+      : 'No habia triggers diarios de notificacion para eliminar.'
+  };
+}
+
+function runDailyDueTrackingNotifications_() {
+  var config = getTrackingNotificationConfig_();
+  // El trigger diario nunca debe comportarse como buzón de pruebas: si el modo
+  // no está listo para envío real confirmado, se omite el despacho.
+  if (!isLiveDueTrackingNotificationMode_(config)) {
+    var skippedAt = new Date().toISOString();
+    appendSharedTrackingAudit_({
+      at: skippedAt,
+      actor: String(getSharedTrackingActor_() || 'trigger_diario').trim(),
+      action: 'omitir_alertas_correo',
+      origin: 'trigger_diario_alertas',
+      detail: 'Envio automatico omitido | Modo: ' + config.mode + ' | Confirmacion REAL: ' + (config.realSendConfirmed ? 'SI' : 'NO'),
+      summary: {
+        mode: config.mode,
+        realSendConfirmed: config.realSendConfirmed,
+        testRecipients: config.testRecipients.slice()
+      },
+      recipients: [],
+      effectiveRecipients: [],
+      mode: config.mode,
+      skipped: true,
+      reason: 'automatic_mode_guard'
+    });
+    return {
+      ok: false,
+      actor: String(getSharedTrackingActor_() || 'trigger_diario').trim(),
+      admin: true,
+      skipped: true,
+      mode: config.mode,
+      testRecipients: config.testRecipients.slice(),
+      realSendConfirmed: config.realSendConfirmed,
+      message: 'El trigger diario no envio correos porque el modo operativo no esta en REAL confirmado.'
+    };
+  }
+  return dispatchDueTrackingEmails_({
+    actor: getSharedTrackingActor_() || 'trigger_diario',
+    origin: 'trigger_diario_alertas'
+  });
+}
+
+function getDueTrackingNotificationTriggers_() {
+  return ScriptApp.getProjectTriggers().filter(function(trigger) {
+    return trigger.getHandlerFunction && trigger.getHandlerFunction() === 'runDailyDueTrackingNotifications_';
+  });
+}
+
+function dispatchDueTrackingEmails_(options) {
+  var safeOptions = options || {};
+  var preview = buildDueTrackingNotifications_({ preview: false, includeHtml: true });
+  if (!preview.ok) return preview;
+  if (isAutomaticDueTrackingOrigin_(safeOptions) && !isLiveDueTrackingNotificationMode_(preview)) {
+    return {
+      ok: false,
+      actor: String(safeOptions.actor || getSharedTrackingActor_() || 'trigger_diario').trim(),
+      admin: isSharedTrackingAdmin_(),
+      preview: false,
+      skipped: true,
+      mode: preview.mode,
+      testRecipients: preview.testRecipients,
+      realSendConfirmed: preview.realSendConfirmed,
+      sentCount: 0,
+      notifiedActivities: 0,
+      groups: preview.groups.map(function(group) {
+        return {
+          person: group.person,
+          to: group.to,
+          realTo: group.realTo,
+          itemCount: group.items.length,
+          subject: group.subject
+        };
+      }),
+      missingEmails: preview.missingEmails,
+      cc: preview.cc,
+      webappUrl: preview.webappUrl,
+      message: 'Envio automatico bloqueado: PEC_VISOR_NOTIFY_MODE debe estar en REAL y PEC_VISOR_CONFIRM_REAL_SEND=SI.'
+    };
+  }
+  if (preview.mode === 'PREVIEW_ONLY') {
+    return {
+      ok: true,
+      actor: String(safeOptions.actor || getSharedTrackingActor_() || 'admin_manual').trim(),
+      admin: isSharedTrackingAdmin_(),
+      preview: false,
+      mode: preview.mode,
+      testRecipients: preview.testRecipients,
+      realSendConfirmed: preview.realSendConfirmed,
+      sentCount: 0,
+      notifiedActivities: 0,
+      groups: preview.groups.map(function(group) {
+        return {
+          person: group.person,
+          to: group.to,
+          realTo: group.realTo,
+          itemCount: group.items.length,
+          subject: group.subject
+        };
+      }),
+      missingEmails: preview.missingEmails,
+      cc: preview.cc,
+      webappUrl: preview.webappUrl,
+      message: 'Modo PREVIEW_ONLY activo. No se enviaron correos.'
+    };
+  }
+  if (preview.mode === 'REAL' && !preview.realSendConfirmed) {
+    return {
+      ok: false,
+      actor: String(safeOptions.actor || getSharedTrackingActor_() || 'admin_manual').trim(),
+      admin: isSharedTrackingAdmin_(),
+      preview: false,
+      mode: preview.mode,
+      testRecipients: preview.testRecipients,
+      realSendConfirmed: preview.realSendConfirmed,
+      sentCount: 0,
+      notifiedActivities: 0,
+      groups: preview.groups.map(function(group) {
+        return {
+          person: group.person,
+          to: group.to,
+          realTo: group.realTo,
+          itemCount: group.items.length,
+          subject: group.subject
+        };
+      }),
+      missingEmails: preview.missingEmails,
+      cc: preview.cc,
+      webappUrl: preview.webappUrl,
+      message: 'Modo REAL solicitado, pero falta PEC_VISOR_CONFIRM_REAL_SEND=SI.'
+    };
+  }
+  if (preview.mode === 'TEST_REDIRECT' && !preview.testRecipients.length) {
+    return {
+      ok: false,
+      actor: String(safeOptions.actor || getSharedTrackingActor_() || 'admin_manual').trim(),
+      admin: isSharedTrackingAdmin_(),
+      preview: false,
+      mode: preview.mode,
+      testRecipients: preview.testRecipients,
+      realSendConfirmed: preview.realSendConfirmed,
+      sentCount: 0,
+      notifiedActivities: 0,
+      groups: preview.groups.map(function(group) {
+        return {
+          person: group.person,
+          to: group.to,
+          realTo: group.realTo,
+          itemCount: group.items.length,
+          subject: group.subject
+        };
+      }),
+      missingEmails: preview.missingEmails,
+      cc: preview.cc,
+      webappUrl: preview.webappUrl,
+      message: 'Modo TEST_REDIRECT activo, pero faltan destinatarios en PEC_VISOR_NOTIFY_TEST_RECIPIENTS.'
+    };
+  }
+  var recipients = [];
+  var mailCount = 0;
+  var totalActivities = 0;
+  preview.groups.forEach(function(group) {
+    if (!group.to) return;
+    var mailOptions = {
+      htmlBody: group.htmlBody,
+      name: 'Visor de Seguimiento PEC'
+    };
+    if (preview.cc.length && shouldApplyTrackingNotificationCc_(preview.ccScope, group)) {
+      mailOptions.cc = preview.cc.join(',');
+    }
+    MailApp.sendEmail(group.to, group.subject, group.plainBody, mailOptions);
+    (Array.isArray(group.effectiveRecipients) ? group.effectiveRecipients : String(group.to || '').split(/[;,]/))
+      .map(function(item) { return String(item || '').trim(); })
+      .filter(Boolean)
+      .forEach(function(item) { recipients.push(item); });
+    mailCount += 1;
+    totalActivities += group.items.length;
+  });
+  var sentAt = new Date().toISOString();
+  var effectiveRecipients = Array.from(new Set(recipients));
+  var auditEntry = {
+    at: sentAt,
+    actor: String(safeOptions.actor || getSharedTrackingActor_() || 'trigger_diario').trim(),
+    action: 'enviar_alertas_correo',
+    origin: String(safeOptions.origin || 'sendDueTrackingEmails').trim(),
+    detail: 'Correos enviados: ' + mailCount + ' | Actividades notificadas: ' + totalActivities + ' | Modo: ' + preview.mode,
+    summary: {
+      total: totalActivities,
+      recipients: mailCount,
+      effectiveRecipients: effectiveRecipients,
+      mode: preview.mode,
+      testRecipients: preview.testRecipients,
+      realSendConfirmed: preview.realSendConfirmed,
+      missingEmails: preview.missingEmails.map(function(item) { return item.person; }),
+      touchedRecords: preview.groups.flatMap(function(group) {
+        return group.items.map(function(item) { return item.edt; });
+      }).slice(0, 20)
+    },
+    recipients: effectiveRecipients,
+    effectiveRecipients: effectiveRecipients,
+    mode: preview.mode,
+    isTest: preview.mode === 'TEST_REDIRECT',
+    notifiedActivities: totalActivities
+  };
+  appendSharedTrackingAudit_(auditEntry);
+  return {
+    ok: true,
+    actor: auditEntry.actor,
+    admin: isSharedTrackingAdmin_(),
+    preview: false,
+    sentAt: sentAt,
+    mode: preview.mode,
+    testRecipients: preview.testRecipients,
+    realSendConfirmed: preview.realSendConfirmed,
+    redirectModeActive: preview.mode === 'TEST_REDIRECT',
+    groups: preview.groups.map(function(group) {
+      return {
+        person: group.person,
+        to: group.to,
+        realTo: group.realTo,
+        itemCount: group.items.length,
+        subject: group.subject
+      };
+    }),
+    sentCount: mailCount,
+    notifiedActivities: totalActivities,
+    missingEmails: preview.missingEmails,
+    cc: preview.cc,
+    webappUrl: preview.webappUrl,
+    redirectModeActive: preview.mode === 'TEST_REDIRECT',
+    message: preview.mode === 'TEST_REDIRECT'
+      ? ('Correos de prueba enviados solo a ' + preview.testRecipients.join(', ') + '. Los responsables DGPPCS finales no recibieron este envio.')
+      : 'Correos enviados a responsables y consolidado DGPPCS segun la configuracion activa.'
+  };
+}
+
+// Script Properties requeridas para notificaciones:
+// - PEC_VISOR_NOTIFY_EMAILS_JSON: {"Darwin Pardave":"correo@dominio", ...}
+// - PEC_VISOR_NOTIFY_DGPPCS_EMAILS: correos del grupo DGPPCS separados por coma o punto y coma (opcional)
+// - PEC_VISOR_NOTIFY_CC: correos en copia separados por coma o punto y coma
+// - PEC_VISOR_NOTIFY_CC_SCOPE: SUMMARY_ONLY | ALL | NONE (por defecto SUMMARY_ONLY)
+// - PEC_VISOR_NOTIFY_MODE: PREVIEW_ONLY | TEST_REDIRECT | REAL
+// - PEC_VISOR_NOTIFY_TEST_RECIPIENTS: correos de prueba separados por coma o punto y coma
+// - PEC_VISOR_CONFIRM_REAL_SEND: SI para habilitar envios reales
+// - PEC_VISOR_WEBAPP_URL: URL publica del visor compartido
+// - TEST_REDIRECT sirve para pruebas manuales; el trigger automático queda bloqueado fuera de REAL confirmado.
+function buildDueTrackingNotifications_(options) {
+  var settings = options || {};
   var config = getTrackingNotificationConfig_();
   var state = loadSharedTrackingState_();
   var records = getEffectiveTrackingRecordsForNotifications_(state);
@@ -2627,39 +2952,6 @@ function activateLiveDueTrackingNotificationsAndSendNow_() {
   return {
     ok: true,
     actor: getSharedTrackingActor_(),
-  var config = getTrackingNotificationConfig_();
-  // El trigger diario nunca debe comportarse como buzón de pruebas: si el modo
-  // no está listo para envío real confirmado, se omite el despacho.
-  if (!isLiveDueTrackingNotificationMode_(config)) {
-    var skippedAt = new Date().toISOString();
-    appendSharedTrackingAudit_({
-      at: skippedAt,
-      actor: String(getSharedTrackingActor_() || 'trigger_diario').trim(),
-      action: 'omitir_alertas_correo',
-      origin: 'trigger_diario_alertas',
-      detail: 'Envio automatico omitido | Modo: ' + config.mode + ' | Confirmacion REAL: ' + (config.realSendConfirmed ? 'SI' : 'NO'),
-      summary: {
-        mode: config.mode,
-        realSendConfirmed: config.realSendConfirmed,
-        testRecipients: config.testRecipients.slice()
-      },
-      recipients: [],
-      effectiveRecipients: [],
-      mode: config.mode,
-      skipped: true,
-      reason: 'automatic_mode_guard'
-    });
-    return {
-      ok: false,
-      actor: String(getSharedTrackingActor_() || 'trigger_diario').trim(),
-      admin: true,
-      skipped: true,
-      mode: config.mode,
-      testRecipients: config.testRecipients.slice(),
-      realSendConfirmed: config.realSendConfirmed,
-      message: 'El trigger diario no envio correos porque el modo operativo no esta en REAL confirmado.'
-    };
-  }
     admin: isSharedTrackingAdmin_(),
     preview: Boolean(settings.preview),
     mode: config.mode,
@@ -2673,36 +2965,9 @@ function activateLiveDueTrackingNotificationsAndSendNow_() {
     unassignedActivities: unassigned.sort(compareDueTrackingItems_),
     dgppcsRecipients: dgppcsRecipients,
     cc: cc,
-  var safeOptions = options || {};
+    ccScope: getTrackingNotificationCcScope_(),
     webappUrl: webappUrl
   };
-  if (isAutomaticDueTrackingOrigin_(safeOptions) && !isLiveDueTrackingNotificationMode_(preview)) {
-    return {
-      ok: false,
-      actor: String(safeOptions.actor || getSharedTrackingActor_() || 'trigger_diario').trim(),
-      admin: isSharedTrackingAdmin_(),
-      preview: false,
-      skipped: true,
-      mode: preview.mode,
-      testRecipients: preview.testRecipients,
-      realSendConfirmed: preview.realSendConfirmed,
-      sentCount: 0,
-      notifiedActivities: 0,
-      groups: preview.groups.map(function(group) {
-        return {
-          person: group.person,
-          to: group.to,
-          realTo: group.realTo,
-          itemCount: group.items.length,
-          subject: group.subject
-        };
-      }),
-      missingEmails: preview.missingEmails,
-      cc: preview.cc,
-      webappUrl: preview.webappUrl,
-      message: 'Envio automatico bloqueado: PEC_VISOR_NOTIFY_MODE debe estar en REAL y PEC_VISOR_CONFIRM_REAL_SEND=SI.'
-    };
-  }
 }
 
 function getEffectiveTrackingRecordsForNotifications_(state) {
@@ -2835,7 +3100,6 @@ function buildDueTrackingEmailHtml_(person, items, generatedAt, webappUrl, confi
   var actionText = mailOptions.isTeamSummary
     ? 'Agradeceremos revisar el consolidado y coordinar la actualización del seguimiento correspondiente en el visor compartido.'
     : 'Agradeceremos revisar el estado y actualizar el seguimiento correspondiente en el visor compartido.';
-    redirectModeActive: preview.mode === 'TEST_REDIRECT',
   return [
     '<div style="font-family:Arial,sans-serif;color:#16324f;line-height:1.5;max-width:980px;">',
     '<h2 style="margin:0 0 10px;font-size:20px;">Visor de Seguimiento PEC</h2>',
@@ -2861,7 +3125,6 @@ function buildDueTrackingEmailHtml_(person, items, generatedAt, webappUrl, confi
     '<p style="margin:16px 0 0;color:#4d6379;font-size:12px;">Este mensaje fue generado automáticamente por el Visor de Seguimiento PEC.</p>',
     '</div>'
   ].join('');
-// - TEST_REDIRECT sirve para pruebas manuales; el trigger automático queda bloqueado fuera de REAL confirmado.
 }
 
 function buildDueTrackingEmailPlainText_(person, items, generatedAt, webappUrl, config, options) {
@@ -2946,6 +3209,31 @@ function getTrackingNotificationCcList_() {
     .filter(Boolean);
 }
 
+function getTrackingNotificationCcScope_() {
+  var raw = String(PropertiesService.getScriptProperties().getProperty('PEC_VISOR_NOTIFY_CC_SCOPE') || '')
+    .trim()
+    .toUpperCase();
+  var allowed = { SUMMARY_ONLY: true, ALL: true, NONE: true };
+  return allowed[raw] ? raw : 'SUMMARY_ONLY';
+}
+
+function shouldApplyTrackingNotificationCc_(scope, group) {
+  var normalizedScope = String(scope || 'SUMMARY_ONLY').trim().toUpperCase();
+  if (normalizedScope === 'NONE') return false;
+  if (normalizedScope === 'ALL') return true;
+  return Boolean(group && group.summaryKind === 'dgppcs_team');
+}
+
+function isAutomaticDueTrackingOrigin_(options) {
+  var origin = String(options && options.origin || '').trim().toLowerCase();
+  return origin === 'trigger_diario_alertas';
+}
+
+function isLiveDueTrackingNotificationMode_(config) {
+  var safeConfig = config || getTrackingNotificationConfig_();
+  return safeConfig.mode === 'REAL' && Boolean(safeConfig.realSendConfirmed);
+}
+
 function buildDueTrackingNotificationSubject_(person, itemCount, config, options) {
   var safeOptions = options || {};
   var prefix = config && config.mode === 'TEST_REDIRECT' ? '[PRUEBA PEC] ' : '';
@@ -2965,7 +3253,6 @@ function resolveTrackingNotificationRecipients_(config, realEmail) {
 function getTrackingNotificationConfig_() {
   var properties = PropertiesService.getScriptProperties();
   var rawMode = String(properties.getProperty('PEC_VISOR_NOTIFY_MODE') || '').trim().toUpperCase();
-    ccScope: getTrackingNotificationCcScope_(),
   var allowed = { PREVIEW_ONLY: true, TEST_REDIRECT: true, REAL: true };
   var mode = allowed[rawMode] ? rawMode : 'PREVIEW_ONLY';
   var testRecipients = String(properties.getProperty('PEC_VISOR_NOTIFY_TEST_RECIPIENTS') || '')
@@ -3209,31 +3496,6 @@ function normalizeSharedPayload_(payload) {
     summary: payload.summary && typeof payload.summary === 'object' ? payload.summary : {},
     records: Array.isArray(payload.records) ? payload.records : []
   };
-function getTrackingNotificationCcScope_() {
-  var raw = String(PropertiesService.getScriptProperties().getProperty('PEC_VISOR_NOTIFY_CC_SCOPE') || '')
-    .trim()
-    .toUpperCase();
-  var allowed = { SUMMARY_ONLY: true, ALL: true, NONE: true };
-  return allowed[raw] ? raw : 'SUMMARY_ONLY';
-}
-
-function shouldApplyTrackingNotificationCc_(scope, group) {
-  var normalizedScope = String(scope || 'SUMMARY_ONLY').trim().toUpperCase();
-  if (normalizedScope === 'NONE') return false;
-  if (normalizedScope === 'ALL') return true;
-  return Boolean(group && group.summaryKind === 'dgppcs_team');
-}
-
-function isAutomaticDueTrackingOrigin_(options) {
-  var origin = String(options && options.origin || '').trim().toLowerCase();
-  return origin === 'trigger_diario_alertas';
-}
-
-function isLiveDueTrackingNotificationMode_(config) {
-  var safeConfig = config || getTrackingNotificationConfig_();
-  return safeConfig.mode === 'REAL' && Boolean(safeConfig.realSendConfirmed);
-}
-
 }
 
 function normalizeStringArray_(values) {

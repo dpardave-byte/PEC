@@ -12,19 +12,88 @@
     button.secondary { background: #3b6d11; }
     .card { border: 1px solid #d8dde6; border-radius: 8px; padding: 14px; background: #f8fafc; }
     .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .hero-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 14px; }
     .label { color: #667085; font-size: 12px; text-transform: uppercase; letter-spacing: .4px; }
     .value { font-size: 14px; overflow-wrap: anywhere; margin-top: 4px; }
     .status { font-size: 13px; color: #667085; }
+    .pill { display: inline-block; margin-bottom: 10px; padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.24); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+    .hero-note { border-left: 4px solid #854f0b; background: #fff7ed; color: #7c2d12; }
+    .accent-card { border-left: 4px solid #185fa5; background: linear-gradient(180deg, #f8fbff, #f4f8fc); }
+    .surface-list, .capability-list { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 7px; }
+    .surface-list li, .capability-list li { line-height: 1.45; }
+    .surface-list code, .capability-list code { background: #edf4fb; color: #1a3a5c; padding: 2px 6px; border-radius: 999px; font-size: 12px; }
+    .connector-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .connector-card { border: 1px solid #d8dde6; border-radius: 8px; padding: 12px; background: white; }
+    .connector-card h4 { margin: 0 0 8px; color: #1a3a5c; }
+    .connector-card p { margin: 0; line-height: 1.45; }
+    .connector-badge { display: inline-block; margin-bottom: 8px; padding: 4px 8px; border-radius: 999px; background: #edf4fb; color: #185fa5; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+    .quick-links { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+    .quick-links a { display: inline-block; padding: 10px 14px; border-radius: 8px; text-decoration: none; font-weight: 700; }
+    .quick-links .primary-link { background: #185fa5; color: white; }
+    .quick-links .secondary-link { background: white; color: #185fa5; border: 1px solid #d8dde6; }
+    .helper { font-size: 12px; color: #667085; margin-top: 8px; line-height: 1.45; }
     a { color: #185fa5; font-weight: 700; }
+    @media (max-width: 900px) {
+      .hero-grid { grid-template-columns: 1fr; }
+      .grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
     <header>
+      <div class="pill">Backend operativo</div>
       <h2>PEC Drive Loader</h2>
-      <div>Crear carpetas, escanear Drive y publicar datos para el panel GitHub Pages.</div>
+      <div>Crear carpetas, escanear Drive y publicar datos para el panel GitHub Pages, dejando claro que esta superficie administra fuentes y no reemplaza el panel público ni el visor.</div>
     </header>
     <main>
+      <div class="hero-grid">
+        <div class="card hero-note">
+          <div class="label">Atención</div>
+          <div class="value">Esta pantalla es administrativa. Su función es preparar Drive, la Sheet índice y los endpoints de datos. No es la web pública de consulta ni el visor ejecutivo que se comparte con usuarios finales.</div>
+          <div class="quick-links">
+            <a class="primary-link" href="https://dpardave-byte.github.io/PEC/" target="_blank" rel="noopener noreferrer">Abrir panel público</a>
+            <a class="secondary-link" href="https://dpardave-byte.github.io/PEC/visor_seguimiento_pec.html" target="_blank" rel="noopener noreferrer">Abrir visor publicado</a>
+          </div>
+          <div class="helper">Si abres la URL base del Web App, estás entrando al backend del loader. Para el visor compartido se usa la misma Web App con <code>?view=visor</code>.</div>
+        </div>
+        <div class="card accent-card">
+          <div class="label">Capacidades LLM asociadas</div>
+          <div class="value">El loader no ejecuta investigación por sí mismo, pero alimenta al panel público y al copiloto LLM con la estructura documental, el índice maestro y los endpoints vivos.</div>
+          <ul class="capability-list">
+            <li><code>Contexto</code> ordena carpeta raíz, subcarpetas y spreadsheet operativo.</li>
+            <li><code>Fuentes</code> publica JSON/CSV para que el panel lea evidencia documental actualizada.</li>
+            <li><code>Copiloto LLM</code> habilita síntesis, comparación tecnológica y borradores técnicos desde el panel.</li>
+            <li><code>Trazabilidad</code> mantiene separadas la capa administrativa, la capa pública y el visor compartido.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card accent-card">
+        <div class="label">Superficies publicadas</div>
+        <ul class="surface-list">
+          <li><code>Panel público</code> GitHub Pages para consulta ejecutiva y copiloto LLM: <a href="https://dpardave-byte.github.io/PEC/" target="_blank" rel="noopener noreferrer">https://dpardave-byte.github.io/PEC/</a></li>
+          <li><code>Visor publicado</code> lectura ejecutiva del seguimiento PEC: <a href="https://dpardave-byte.github.io/PEC/visor_seguimiento_pec.html" target="_blank" rel="noopener noreferrer">visor_seguimiento_pec.html</a></li>
+          <li><code>Visor compartido</code> misma Web App con <code>?view=visor</code> para edición centralizada.</li>
+          <li><code>Loader</code> esta vista base, orientada a estructura, escaneo e índices.</li>
+        </ul>
+        <div class="connector-grid">
+          <div class="connector-card">
+            <div class="connector-badge">Preparado para integración</div>
+            <h4>ChatGPT Apps</h4>
+            <p>Análisis ejecutivo, preguntas sobre documentos y redacción institucional desde el copiloto LLM, sin integración adicional activa en esta vista.</p>
+          </div>
+          <div class="connector-card">
+            <div class="connector-badge">Repositorio activo</div>
+            <h4>GitHub</h4>
+            <p>Versionamiento, control de cambios y despliegue del panel PEC. Referencia actual: <a href="https://github.com/dpardave-byte/PEC" target="_blank" rel="noopener noreferrer">dpardave-byte/PEC</a>.</p>
+          </div>
+          <div class="connector-card">
+            <div class="connector-badge">Conector referencial</div>
+            <h4>Hugging Face</h4>
+            <p>Espacio preparado para futuros prototipos de clasificación documental, embeddings o experimentación con modelos, sin endpoint activo en esta versión.</p>
+          </div>
+        </div>
+      </div>
       <div>
         <button onclick="setup()">Crear estructura Drive + Sheet</button>
         <button class="secondary" onclick="scan()">Escanear Drive y actualizar indice</button>

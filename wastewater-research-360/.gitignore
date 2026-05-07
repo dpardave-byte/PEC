@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyc.*
+data/jobs.json
+data/artifacts/*
+data/research_cache/*
+data/uploads/*
+!data/artifacts/.gitkeep
+!data/research_cache/.gitkeep
+!data/uploads/.gitkeep

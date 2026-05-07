@@ -1,6 +1,9 @@
-# Panel PEC - Drive + Google Sheets
+# PEC - Panel, Drive Loader y Visor de Seguimiento
 
-Sitio publico del Programa de Economia Circular. El panel se aloja en GitHub Pages y la informacion viva se administra desde Google Drive y Google Sheets.
+Este repositorio contiene dos superficies funcionales principales y un backend Apps Script que hoy puede soportar ambas:
+
+- `Panel PEC / GitHub Pages`, orientado a publicar y consumir datos desde Google Drive y Google Sheets.
+- `Visor PEC`, orientado al seguimiento ejecutivo y operativo de bloques, fases, hitos, responsables, alertas, Gantt y reportes.
 
 URL esperada:
 
@@ -16,6 +19,23 @@ Si necesitas forzar recarga por caché, usa:
 https://dpardave-byte.github.io/PEC/visor_seguimiento_pec.html?v=<commit>
 ```
 
+## Mapa del proyecto
+
+- `Panel PEC - Drive + Google Sheets`
+  - URL: <https://dpardave-byte.github.io/PEC/>
+  - uso: consumir una fuente publicada en CSV o JSON desde Google Sheets o Apps Script.
+- `Visor PEC`
+  - URL: <https://dpardave-byte.github.io/PEC/visor_seguimiento_pec.html>
+  - uso: seguimiento ejecutivo y operativo del portafolio, con modo local y modo compartido.
+- `PEC Drive Loader / Apps Script`
+  - uso: crear estructura Drive + Sheet, escanear Drive, publicar `?format=json` o `?format=csv` y, si se desea, exponer tambien el visor compartido con `?view=visor`.
+
+Nota operativa: hoy el mismo Apps Script puede exponer tanto el `PEC Drive Loader` como el `Visor PEC Compartido`. Aunque conviven en un mismo despliegue, deben tratarse como superficies distintas.
+
+## Panel PEC - GitHub Pages
+
+El panel publico se aloja en GitHub Pages y espera una fuente viva publicada desde Google Sheets o Apps Script.
+
 ## Estructura recomendada en Drive
 
 Crear la carpeta raiz `PEC - Programa Economia Circular` con estas subcarpetas:
@@ -29,7 +49,9 @@ Crear la carpeta raiz `PEC - Programa Economia Circular` con estas subcarpetas:
 
 ## Indice maestro en Google Sheets
 
-Crear una hoja llamada `PEC_indice_maestro` usando la plantilla `PEC_indice_maestro_plantilla.csv`.
+Crear un spreadsheet llamado `PEC_indice_maestro` usando la plantilla `PEC_indice_maestro_plantilla.csv`.
+
+Dentro de ese archivo, la pestaña operativa esperada por el loader es `indice`.
 
 Columnas esperadas:
 
@@ -54,12 +76,24 @@ Se agrego un proyecto listo en `apps_script/` para automatizar la carga desde Dr
 1. Crear un proyecto en <https://script.google.com/> llamado `PEC Drive Loader`.
 2. Copiar `apps_script/Code.gs`, `apps_script/Index.html` y `apps_script/appsscript.json`.
 3. Ejecutar `setupEnvironment` y autorizar permisos.
+   - `setupEnvironment` crea la estructura base.
+   - Las filas semilla de ejemplo ahora son opcionales y vienen desactivadas por defecto.
+   - Si quieres habilitarlas temporalmente, usar `setLoaderSeedExampleRows(true)` en el editor de Apps Script o definir `PEC_LOADER_SEED_EXAMPLE_ROWS=true` en `Script Properties`.
 4. Desplegar como Web App.
 5. Abrir la Web App y usar:
    - `Crear estructura Drive + Sheet`
    - `Escanear Drive y actualizar indice`
 6. Copiar la URL del Web App con `?format=json` o `?format=csv`.
 7. Pegar esa URL en el panel GitHub Pages.
+
+Si se abre la Web App base sin `?view=visor` ni una accion del visor, la interfaz visible corresponde al `PEC Drive Loader`.
+
+Para evitar enlazar por error otra carpeta o spreadsheet con el mismo nombre, el loader puede fijar en `Script Properties`:
+
+- `PEC_LOADER_ROOT_FOLDER_ID`
+- `PEC_LOADER_SPREADSHEET_ID`
+
+Tambien puede hacerse desde el editor con `setLoaderResourceIds(rootFolderId, spreadsheetId)`.
 
 El endpoint JSON devuelve una forma compatible con el panel:
 

@@ -1,20 +1,41 @@
-# Apps Script - PEC Drive Loader
+# Apps Script - PEC Drive Loader y Visor PEC Compartido
 
-Este proyecto crea el entorno pesado para trabajar con Google Drive como repositorio documental y Google Sheets como indice maestro.
+Este proyecto Apps Script hoy publica dos superficies distintas:
 
-## Que hace
+- `PEC Drive Loader`, para crear estructura en Drive, mantener el indice maestro y exponer endpoints `json/csv`.
+- `Visor PEC Compartido`, para seguimiento operativo con estado centralizado, auditoria, backup y panel administrador.
+
+Ambas conviven en la misma Web App, pero deben entenderse como componentes funcionales diferentes.
+
+## Dos superficies publicadas desde el mismo Apps Script
+
+- `.../exec`
+  - muestra la interfaz `PEC Drive Loader`.
+- `.../exec?format=json`
+  - expone el endpoint JSON compatible con el panel GitHub Pages.
+- `.../exec?format=csv`
+  - expone el endpoint CSV compatible con el panel GitHub Pages.
+- `.../exec?view=visor`
+  - abre el `Visor PEC Compartido`.
+- `.../exec?action=visor_state&format=json`
+  - expone diagnostico del estado compartido del visor.
+
+## Que hace el PEC Drive Loader
 
 - Crea la carpeta raiz `PEC - Programa Economia Circular`.
 - Crea subcarpetas para donacion, efectividad, Puno, Lima, comparacion tecnologica y evidencias.
-- Crea la Google Sheet `PEC_indice_maestro` con las columnas esperadas por el panel.
-- Inserta filas base de ejemplo.
+- Crea un spreadsheet `PEC_indice_maestro` y trabaja sobre la pestaña `indice`.
+- Puede insertar filas base de ejemplo si el indice esta vacio y la siembra fue habilitada explicitamente.
 - Escanea la carpeta raiz de Drive y agrega documentos nuevos al indice.
-- Publica endpoints:
-  - `?format=json`
-  - `?format=csv`
-  - `?action=ai&format=json` para analisis IA protegido con token
-  - `?view=visor` para el visor compartido de seguimiento
-  - `?action=visor_state&format=json` para diagnostico del estado compartido
+
+## Que hace el Visor PEC Compartido
+
+- Publica `?view=visor` para el seguimiento compartido.
+- Guarda estado centralizado en Drive.
+- Mantiene auditoria y backup diario.
+- Expone acciones y endpoints auxiliares del visor.
+- Soporta cierre diario por usuario, entrega diaria y correos operativos.
+- Puede convivir con el loader en el mismo despliegue sin que eso implique que sean el mismo producto.
 
 ## Instalacion manual
 
@@ -23,6 +44,9 @@ Este proyecto crea el entorno pesado para trabajar con Google Drive como reposit
 3. Copia `Code.gs`, `Index.html` y `appsscript.json` en el proyecto.
 4. Guarda.
 5. Ejecuta `setupEnvironment` una vez y autoriza permisos.
+   - Este paso crea la estructura base.
+   - Las filas de ejemplo del indice ahora son opcionales y vienen desactivadas por defecto.
+   - Si quieres habilitarlas temporalmente, usa `setLoaderSeedExampleRows(true)` o define `PEC_LOADER_SEED_EXAMPLE_ROWS=true` en `Script Properties`.
 6. Si vas a usar la capa IA, ejecuta una vez en el editor:
 
    ```javascript
@@ -37,6 +61,7 @@ Este proyecto crea el entorno pesado para trabajar con Google Drive como reposit
    - Execute as: `Me`
    - Who has access: `Anyone with the link` o el nivel que prefieras.
 8. Abre la URL del Web App.
+   - Si la abres sin `?view=visor`, veras la interfaz del `PEC Drive Loader`.
 9. Usa los botones para crear estructura y escanear Drive.
 10. Copia la URL con `?format=json` o `?format=csv` y pegala en el panel GitHub Pages.
 11. En la pestana `Inteligencia PEC`, usa `Configurar token IA` y pega el token privado PEC.
@@ -51,6 +76,19 @@ Este proyecto crea el entorno pesado para trabajar con Google Drive como reposit
    - estado central del visor
    - bitacora compartida de cambios
    - backup diario JSON en Drive
+
+14. Si quieres fijar de forma determinista la carpeta y el spreadsheet del loader, define en `Script Properties`:
+
+   ```text
+   PEC_LOADER_ROOT_FOLDER_ID=<folderId>
+   PEC_LOADER_SPREADSHEET_ID=<spreadsheetId>
+   ```
+
+   Tambien puedes usar en el editor:
+
+   ```javascript
+   setLoaderResourceIds('folderId', 'spreadsheetId')
+   ```
 
 ## Visor compartido PEC
 

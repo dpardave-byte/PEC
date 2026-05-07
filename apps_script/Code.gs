@@ -127,9 +127,42 @@ function doGet(e) {
       ok: false,
       sent: false,
       mode: 'app_script',
-      reportDate: formatDateForUi_(new Date()),
+      reportDate: formatDate_(new Date()),
       message: 'La acción solicitada del visor no está disponible en este despliegue.'
     };
+  if (params.action === 'visor_due_tracking_status') {
+    var dueTrackingStatus = getDueTrackingNotificationStatus();
+    if (params.callback || String(params.format || '').trim().toLowerCase() === 'json') {
+      return outputPayload_(dueTrackingStatus, params);
+    }
+    return buildSharedTrackingActionHtml_(dueTrackingStatus, getTrackingWebAppUrl_(), {
+      actionLabel: 'Configuración de correos operativos PEC',
+      successTitle: 'Estado de correos operativos consultado',
+      failureTitle: 'No se pudo consultar la configuración de correos operativos'
+    });
+  }
+  if (params.action === 'visor_activate_due_tracking_live_now') {
+    var liveDueTrackingStatus = activateLiveDueTrackingNotificationsAndSendNow_();
+    if (params.callback || String(params.format || '').trim().toLowerCase() === 'json') {
+      return outputPayload_(liveDueTrackingStatus, params);
+    }
+    return buildSharedTrackingActionHtml_(liveDueTrackingStatus, getTrackingWebAppUrl_(), {
+      actionLabel: 'Activación real de correos operativos PEC',
+      successTitle: 'Configuración real aplicada',
+      failureTitle: 'No se pudo activar el envío real de correos operativos'
+    });
+  }
+  if (params.action === 'visor_apply_due_tracking_summary_cc_only') {
+    var summaryOnlyStatus = setDueTrackingNotificationCcScope_('SUMMARY_ONLY');
+    if (params.callback || String(params.format || '').trim().toLowerCase() === 'json') {
+      return outputPayload_(summaryOnlyStatus, params);
+    }
+    return buildSharedTrackingActionHtml_(summaryOnlyStatus, getTrackingWebAppUrl_(), {
+      actionLabel: 'Configuración de CC operativos PEC',
+      successTitle: 'CC restringido al consolidado DGPPCS',
+      failureTitle: 'No se pudo ajustar el alcance del CC operativo'
+    });
+  }
     if (params.callback || String(params.format || '').trim().toLowerCase() === 'json') {
       return outputPayload_(unsupportedVisorAction, params);
     }
@@ -2192,7 +2225,7 @@ function dispatchDueTrackingEmails_(options) {
   if (preview.mode === 'PREVIEW_ONLY') {
     return {
       ok: true,
-      actor: String(options && options.actor || getSharedTrackingActor_() || 'admin_manual').trim(),
+      actor: String(safeOptions.actor || getSharedTrackingActor_() || 'admin_manual').trim(),
       admin: isSharedTrackingAdmin_(),
       preview: false,
       mode: preview.mode,
@@ -2218,7 +2251,7 @@ function dispatchDueTrackingEmails_(options) {
   if (preview.mode === 'REAL' && !preview.realSendConfirmed) {
     return {
       ok: false,
-      actor: String(options && options.actor || getSharedTrackingActor_() || 'admin_manual').trim(),
+      actor: String(safeOptions.actor || getSharedTrackingActor_() || 'admin_manual').trim(),
       admin: isSharedTrackingAdmin_(),
       preview: false,
       mode: preview.mode,
@@ -2244,7 +2277,7 @@ function dispatchDueTrackingEmails_(options) {
   if (preview.mode === 'TEST_REDIRECT' && !preview.testRecipients.length) {
     return {
       ok: false,
-      actor: String(options && options.actor || getSharedTrackingActor_() || 'admin_manual').trim(),
+      actor: String(safeOptions.actor || getSharedTrackingActor_() || 'admin_manual').trim(),
       admin: isSharedTrackingAdmin_(),
       preview: false,
       mode: preview.mode,
@@ -2276,7 +2309,9 @@ function dispatchDueTrackingEmails_(options) {
       htmlBody: group.htmlBody,
       name: 'Visor de Seguimiento PEC'
     };
-    if (preview.cc.length) mailOptions.cc = preview.cc.join(',');
+    if (preview.cc.length && shouldApplyTrackingNotificationCc_(preview.ccScope, group)) {
+      mailOptions.cc = preview.cc.join(',');
+    }
     MailApp.sendEmail(group.to, group.subject, group.plainBody, mailOptions);
     (Array.isArray(group.effectiveRecipients) ? group.effectiveRecipients : String(group.to || '').split(/[;,]/))
       .map(function(item) { return String(item || '').trim(); })
@@ -2289,9 +2324,9 @@ function dispatchDueTrackingEmails_(options) {
   var effectiveRecipients = Array.from(new Set(recipients));
   var auditEntry = {
     at: sentAt,
-    actor: String(options && options.actor || getSharedTrackingActor_() || 'trigger_diario').trim(),
+    actor: String(safeOptions.actor || getSharedTrackingActor_() || 'trigger_diario').trim(),
     action: 'enviar_alertas_correo',
-    origin: String(options && options.origin || 'sendDueTrackingEmails').trim(),
+    origin: String(safeOptions.origin || 'sendDueTrackingEmails').trim(),
     detail: 'Correos enviados: ' + mailCount + ' | Actividades notificadas: ' + totalActivities + ' | Modo: ' + preview.mode,
     summary: {
       total: totalActivities,
@@ -2334,20 +2369,176 @@ function dispatchDueTrackingEmails_(options) {
     notifiedActivities: totalActivities,
     missingEmails: preview.missingEmails,
     cc: preview.cc,
-    webappUrl: preview.webappUrl
+    webappUrl: preview.webappUrl,
+    redirectModeActive: preview.mode === 'TEST_REDIRECT',
+    message: preview.mode === 'TEST_REDIRECT'
+      ? ('Correos de prueba enviados solo a ' + preview.testRecipients.join(', ') + '. Los responsables DGPPCS finales no recibieron este envio.')
+      : 'Correos enviados a responsables y consolidado DGPPCS segun la configuracion activa.'
   };
 }
 
 // Script Properties requeridas para notificaciones:
 // - PEC_VISOR_NOTIFY_EMAILS_JSON: {"Darwin Pardave":"correo@dominio", ...}
 // - PEC_VISOR_NOTIFY_DGPPCS_EMAILS: correos del grupo DGPPCS separados por coma o punto y coma (opcional)
-// - PEC_VISOR_NOTIFY_CC: correos separados por coma o punto y coma
+// - PEC_VISOR_NOTIFY_CC: correos en copia separados por coma o punto y coma
+// - PEC_VISOR_NOTIFY_CC_SCOPE: SUMMARY_ONLY | ALL | NONE (por defecto SUMMARY_ONLY)
 // - PEC_VISOR_NOTIFY_MODE: PREVIEW_ONLY | TEST_REDIRECT | REAL
 // - PEC_VISOR_NOTIFY_TEST_RECIPIENTS: correos de prueba separados por coma o punto y coma
 // - PEC_VISOR_CONFIRM_REAL_SEND: SI para habilitar envios reales
 // - PEC_VISOR_WEBAPP_URL: URL publica del visor compartido
 function buildDueTrackingNotifications_(options) {
   var settings = options || {};
+function getDueTrackingNotificationStatus() {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para revisar la configuración de alertas por correo.'
+    };
+  }
+  var config = getTrackingNotificationConfig_();
+  var emailDirectory = getTrackingNotificationEmailDirectory_();
+  var emailMap = getTrackingNotificationEmailMap_();
+  var dgppcsRecipients = getTrackingNotificationDgppcsRecipients_(emailMap);
+  var triggers = getDueTrackingNotificationTriggers_();
+  return {
+    ok: true,
+    actor: getSharedTrackingActor_(),
+    admin: true,
+    mode: config.mode,
+    testRecipients: config.testRecipients.slice(),
+    realSendConfirmed: config.realSendConfirmed,
+    liveModeReady: isLiveDueTrackingNotificationMode_(config),
+    mappedRecipientCount: emailDirectory.length,
+    mappedRecipients: emailDirectory.map(function(entry) { return entry.email; }),
+    dgppcsRecipients: dgppcsRecipients.slice(),
+    cc: getTrackingNotificationCcList_(),
+    ccScope: getTrackingNotificationCcScope_(),
+    triggerCount: triggers.length,
+    message: isLiveDueTrackingNotificationMode_(config)
+      ? 'El envío operativo está listo para despacho real a los responsables DGPPCS.'
+      : 'El envío operativo no está listo para despacho real. Revisa el modo y la confirmación REAL.'
+  };
+}
+
+function setDueTrackingNotificationCcScope_(scope) {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para actualizar el alcance del CC operativo.'
+    };
+  }
+  var normalizedScope = String(scope || '').trim().toUpperCase();
+  var allowed = { SUMMARY_ONLY: true, ALL: true, NONE: true };
+  if (!allowed[normalizedScope]) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: true,
+      message: 'Alcance de CC no permitido. Usa SUMMARY_ONLY, ALL o NONE.'
+    };
+  }
+  var properties = PropertiesService.getScriptProperties();
+  setOrDeleteScriptProperty_(properties, 'PEC_VISOR_NOTIFY_CC_SCOPE', normalizedScope);
+  appendSharedTrackingAudit_({
+    at: new Date().toISOString(),
+    actor: String(getSharedTrackingActor_() || 'admin_config').trim(),
+    action: 'configurar_cc_alertas_correo',
+    origin: 'setDueTrackingNotificationCcScope',
+    detail: 'Alcance del CC operativo actualizado | Scope: ' + normalizedScope,
+    summary: {
+      ccScope: normalizedScope
+    },
+    mode: getTrackingNotificationConfig_().mode
+  });
+  var status = getDueTrackingNotificationStatus();
+  status.saved = true;
+  status.message = 'El alcance del CC operativo quedó en ' + normalizedScope + '.';
+  return status;
+}
+
+function updateDueTrackingNotificationConfig_(input) {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para actualizar la configuración de alertas por correo.'
+    };
+  }
+  var current = getTrackingNotificationConfig_();
+  var safeInput = input && typeof input === 'object' ? input : {};
+  var allowed = { PREVIEW_ONLY: true, TEST_REDIRECT: true, REAL: true };
+  var rawMode = String(Object.prototype.hasOwnProperty.call(safeInput, 'mode') ? safeInput.mode : current.mode).trim().toUpperCase();
+  var mode = allowed[rawMode] ? rawMode : current.mode;
+  var testRecipients = Object.prototype.hasOwnProperty.call(safeInput, 'testRecipients')
+    ? splitEmailList_(safeInput.testRecipients)
+    : current.testRecipients.slice();
+  var realSendConfirmed = Object.prototype.hasOwnProperty.call(safeInput, 'realSendConfirmed')
+    ? (safeInput.realSendConfirmed === true || String(safeInput.realSendConfirmed).trim().toUpperCase() === 'SI' || String(safeInput.realSendConfirmed).trim().toUpperCase() === 'TRUE')
+    : current.realSendConfirmed;
+  var properties = PropertiesService.getScriptProperties();
+  setOrDeleteScriptProperty_(properties, 'PEC_VISOR_NOTIFY_MODE', mode);
+  setOrDeleteScriptProperty_(properties, 'PEC_VISOR_NOTIFY_TEST_RECIPIENTS', testRecipients.join(';'));
+  setOrDeleteScriptProperty_(properties, 'PEC_VISOR_CONFIRM_REAL_SEND', realSendConfirmed ? 'SI' : '');
+  appendSharedTrackingAudit_({
+    at: new Date().toISOString(),
+    actor: String(getSharedTrackingActor_() || 'admin_config').trim(),
+    action: 'configurar_alertas_correo',
+    origin: 'updateDueTrackingNotificationConfig',
+    detail: 'Configuración de alertas por correo actualizada | Modo: ' + mode + ' | Confirmación REAL: ' + (realSendConfirmed ? 'SI' : 'NO'),
+    summary: {
+      mode: mode,
+      testRecipients: testRecipients.slice(),
+      realSendConfirmed: realSendConfirmed
+    },
+    mode: mode,
+    isTest: mode === 'TEST_REDIRECT'
+  });
+  var status = getDueTrackingNotificationStatus();
+  status.saved = true;
+  status.message = 'Configuración de alertas operativas guardada.';
+  return status;
+}
+
+function activateLiveDueTrackingNotificationsAndSendNow_() {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para activar el envío real de correos operativos.'
+    };
+  }
+  var before = getDueTrackingNotificationStatus();
+  var saved = updateDueTrackingNotificationConfig_({
+    mode: 'REAL',
+    realSendConfirmed: true
+  });
+  if (!saved.ok) return saved;
+  var trigger = createDailyNotificationTrigger();
+  var dispatch = dispatchDueTrackingEmails_({
+    actor: getSharedTrackingActor_() || 'admin_manual',
+    origin: 'activar_envio_real_alertas'
+  });
+  return {
+    ok: Boolean(dispatch && dispatch.ok),
+    actor: String(getSharedTrackingActor_() || 'admin_manual').trim(),
+    admin: true,
+    previousMode: before.mode,
+    currentMode: saved.mode,
+    realSendConfirmed: saved.realSendConfirmed,
+    trigger: trigger,
+    dispatch: dispatch,
+    message: dispatch && dispatch.ok
+      ? 'El modo REAL quedó activado y se ejecutó un envío manual de correos operativos.'
+      : 'El modo REAL quedó activado, pero el envío manual no pudo completarse.'
+  };
+}
+
   var config = getTrackingNotificationConfig_();
   var state = loadSharedTrackingState_();
   var records = getEffectiveTrackingRecordsForNotifications_(state);
@@ -2436,6 +2627,39 @@ function buildDueTrackingNotifications_(options) {
   return {
     ok: true,
     actor: getSharedTrackingActor_(),
+  var config = getTrackingNotificationConfig_();
+  // El trigger diario nunca debe comportarse como buzón de pruebas: si el modo
+  // no está listo para envío real confirmado, se omite el despacho.
+  if (!isLiveDueTrackingNotificationMode_(config)) {
+    var skippedAt = new Date().toISOString();
+    appendSharedTrackingAudit_({
+      at: skippedAt,
+      actor: String(getSharedTrackingActor_() || 'trigger_diario').trim(),
+      action: 'omitir_alertas_correo',
+      origin: 'trigger_diario_alertas',
+      detail: 'Envio automatico omitido | Modo: ' + config.mode + ' | Confirmacion REAL: ' + (config.realSendConfirmed ? 'SI' : 'NO'),
+      summary: {
+        mode: config.mode,
+        realSendConfirmed: config.realSendConfirmed,
+        testRecipients: config.testRecipients.slice()
+      },
+      recipients: [],
+      effectiveRecipients: [],
+      mode: config.mode,
+      skipped: true,
+      reason: 'automatic_mode_guard'
+    });
+    return {
+      ok: false,
+      actor: String(getSharedTrackingActor_() || 'trigger_diario').trim(),
+      admin: true,
+      skipped: true,
+      mode: config.mode,
+      testRecipients: config.testRecipients.slice(),
+      realSendConfirmed: config.realSendConfirmed,
+      message: 'El trigger diario no envio correos porque el modo operativo no esta en REAL confirmado.'
+    };
+  }
     admin: isSharedTrackingAdmin_(),
     preview: Boolean(settings.preview),
     mode: config.mode,
@@ -2449,8 +2673,36 @@ function buildDueTrackingNotifications_(options) {
     unassignedActivities: unassigned.sort(compareDueTrackingItems_),
     dgppcsRecipients: dgppcsRecipients,
     cc: cc,
+  var safeOptions = options || {};
     webappUrl: webappUrl
   };
+  if (isAutomaticDueTrackingOrigin_(safeOptions) && !isLiveDueTrackingNotificationMode_(preview)) {
+    return {
+      ok: false,
+      actor: String(safeOptions.actor || getSharedTrackingActor_() || 'trigger_diario').trim(),
+      admin: isSharedTrackingAdmin_(),
+      preview: false,
+      skipped: true,
+      mode: preview.mode,
+      testRecipients: preview.testRecipients,
+      realSendConfirmed: preview.realSendConfirmed,
+      sentCount: 0,
+      notifiedActivities: 0,
+      groups: preview.groups.map(function(group) {
+        return {
+          person: group.person,
+          to: group.to,
+          realTo: group.realTo,
+          itemCount: group.items.length,
+          subject: group.subject
+        };
+      }),
+      missingEmails: preview.missingEmails,
+      cc: preview.cc,
+      webappUrl: preview.webappUrl,
+      message: 'Envio automatico bloqueado: PEC_VISOR_NOTIFY_MODE debe estar en REAL y PEC_VISOR_CONFIRM_REAL_SEND=SI.'
+    };
+  }
 }
 
 function getEffectiveTrackingRecordsForNotifications_(state) {
@@ -2583,6 +2835,7 @@ function buildDueTrackingEmailHtml_(person, items, generatedAt, webappUrl, confi
   var actionText = mailOptions.isTeamSummary
     ? 'Agradeceremos revisar el consolidado y coordinar la actualización del seguimiento correspondiente en el visor compartido.'
     : 'Agradeceremos revisar el estado y actualizar el seguimiento correspondiente en el visor compartido.';
+    redirectModeActive: preview.mode === 'TEST_REDIRECT',
   return [
     '<div style="font-family:Arial,sans-serif;color:#16324f;line-height:1.5;max-width:980px;">',
     '<h2 style="margin:0 0 10px;font-size:20px;">Visor de Seguimiento PEC</h2>',
@@ -2608,6 +2861,7 @@ function buildDueTrackingEmailHtml_(person, items, generatedAt, webappUrl, confi
     '<p style="margin:16px 0 0;color:#4d6379;font-size:12px;">Este mensaje fue generado automáticamente por el Visor de Seguimiento PEC.</p>',
     '</div>'
   ].join('');
+// - TEST_REDIRECT sirve para pruebas manuales; el trigger automático queda bloqueado fuera de REAL confirmado.
 }
 
 function buildDueTrackingEmailPlainText_(person, items, generatedAt, webappUrl, config, options) {
@@ -2711,6 +2965,7 @@ function resolveTrackingNotificationRecipients_(config, realEmail) {
 function getTrackingNotificationConfig_() {
   var properties = PropertiesService.getScriptProperties();
   var rawMode = String(properties.getProperty('PEC_VISOR_NOTIFY_MODE') || '').trim().toUpperCase();
+    ccScope: getTrackingNotificationCcScope_(),
   var allowed = { PREVIEW_ONLY: true, TEST_REDIRECT: true, REAL: true };
   var mode = allowed[rawMode] ? rawMode : 'PREVIEW_ONLY';
   var testRecipients = String(properties.getProperty('PEC_VISOR_NOTIFY_TEST_RECIPIENTS') || '')
@@ -2954,6 +3209,31 @@ function normalizeSharedPayload_(payload) {
     summary: payload.summary && typeof payload.summary === 'object' ? payload.summary : {},
     records: Array.isArray(payload.records) ? payload.records : []
   };
+function getTrackingNotificationCcScope_() {
+  var raw = String(PropertiesService.getScriptProperties().getProperty('PEC_VISOR_NOTIFY_CC_SCOPE') || '')
+    .trim()
+    .toUpperCase();
+  var allowed = { SUMMARY_ONLY: true, ALL: true, NONE: true };
+  return allowed[raw] ? raw : 'SUMMARY_ONLY';
+}
+
+function shouldApplyTrackingNotificationCc_(scope, group) {
+  var normalizedScope = String(scope || 'SUMMARY_ONLY').trim().toUpperCase();
+  if (normalizedScope === 'NONE') return false;
+  if (normalizedScope === 'ALL') return true;
+  return Boolean(group && group.summaryKind === 'dgppcs_team');
+}
+
+function isAutomaticDueTrackingOrigin_(options) {
+  var origin = String(options && options.origin || '').trim().toLowerCase();
+  return origin === 'trigger_diario_alertas';
+}
+
+function isLiveDueTrackingNotificationMode_(config) {
+  var safeConfig = config || getTrackingNotificationConfig_();
+  return safeConfig.mode === 'REAL' && Boolean(safeConfig.realSendConfirmed);
+}
+
 }
 
 function normalizeStringArray_(values) {

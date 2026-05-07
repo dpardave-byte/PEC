@@ -2618,6 +2618,7 @@ const appState = {
   quickFilter: '',
   adminEnabled: isAdminMode(),
   remoteRevision: 0,
+  hasUnsyncedSharedChanges: false,
   serverInfo: null
 };
 function readServerBootstrapEnvelope(){
@@ -3947,6 +3948,7 @@ function persistLocalArtifacts(){
 function applySharedStateBundle(bundle, options){
   const state = normalizeSharedStateBundle(bundle);
   appState.remoteRevision = state.revision || 0;
+  appState.hasUnsyncedSharedChanges = false;
   const currentInfo = ensureServerInfo();
   appState.serverInfo = {
     ...currentInfo,
@@ -3982,6 +3984,7 @@ function applySharedStateBundle(bundle, options){
 function scheduleSharedSync(reason){
   if(!isSharedBackendMode()) return;
   pendingSharedSyncReason = text(reason) || pendingSharedSyncReason || 'actualizacion';
+  appState.hasUnsyncedSharedChanges = true;
   if(sharedSyncTimer) clearTimeout(sharedSyncTimer);
   sharedSyncTimer = setTimeout(flushSharedSync, 350);
 }
@@ -3994,6 +3997,7 @@ function flushSharedSync(){
   const identity = getCurrentActorIdentity();
   if(!identity.actor){
     sharedSyncInFlight = false;
+    appState.hasUnsyncedSharedChanges = true;
     setSharedError('No se pudo identificar al usuario actual. Inicia sesión con una cuenta Google autorizada o abre el visor con ?actor=correo@dominio como respaldo declarado.', 'error');
     setImportFeedback('Identificación requerida', 'El visor compartido bloqueó el guardado porque no existe un actor verificable ni declarado para esta sesión.', 'warn');
     renderOperationsStatus();
@@ -4008,9 +4012,23 @@ function flushSharedSync(){
       sharedSyncInFlight = false;
       updateServerInfoFromEnvelope(result || {});
       if(result && result.conflict){
+        appState.hasUnsyncedSharedChanges = true;
         const detail = text(result.message) || 'Se detectó una versión más reciente del estado compartido.';
         setSharedError(detail, 'conflict');
-        setImportFeedback('Conflicto de sincronización', detail + ' Revisa la versión más reciente antes de volver a guardar.', 'warn');
+        setImportFeedback('Conflicto de sincronización', detail + ' La copia visible quedó solo en este navegador hasta resolver el conflicto.', 'warn');
+        renderOperationsStatus();
+        if(pendingSharedSyncReason) flushSharedSync();
+        return;
+      }
+      if(result && result.ok === false){
+        appState.hasUnsyncedSharedChanges = true;
+        const detail = text(result.message) || 'Apps Script rechazó el guardado del estado compartido.';
+        setSharedError(detail, 'error');
+        setImportFeedback(
+          result.missingActor ? 'Guardado bloqueado por identidad' : 'No se guardó en Apps Script',
+          detail + ' La copia visible quedó solo en este navegador hasta resolverlo.',
+          'warn'
+        );
         renderOperationsStatus();
         if(pendingSharedSyncReason) flushSharedSync();
         return;
@@ -4023,13 +4041,16 @@ function flushSharedSync(){
         buildExecutiveReport();
         if(drawerOpen && selectedId) openDrawer(selectedId);
         setSharedSyncState('synced', 'Estado compartido guardado en Apps Script.');
+        setImportFeedback('Estado compartido guardado', 'Apps Script confirmó el guardado compartido de la ficha y recalculó la vista ejecutiva.', 'success');
       }
       if(pendingSharedSyncReason) flushSharedSync();
     })
     .withFailureHandler(error => {
       sharedSyncInFlight = false;
+      appState.hasUnsyncedSharedChanges = true;
       console.error('No se pudo sincronizar el estado compartido.', error);
       setSharedError('No se pudo sincronizar con Apps Script. Se mantiene la copia local.', 'error');
+      setImportFeedback('No se guardó en Apps Script', 'Apps Script no pudo sincronizar el estado compartido. La copia visible quedó solo en este navegador.', 'warn');
       if(pendingSharedSyncReason) flushSharedSync();
     })
     .saveSharedTrackingState(buildSharedStateBundle(reason), identity.actor, reason);
@@ -4037,6 +4058,7 @@ function flushSharedSync(){
 
 function refreshSharedState(force){
   if(!isSharedBackendMode()) return;
+  if(!force && appState.hasUnsyncedSharedChanges) return;
   if(force) setSharedSyncState('refreshing', 'Refrescando estado compartido...');
   const drawerOpen = document.getElementById('drawer')?.classList.contains('open');
   const selectedId = appState.selectedId;
@@ -7446,7 +7468,13 @@ function saveCurrentCase(){
   ensureDailyBackup();
   hydrateData(appState.payload);
   closeDrawer();
-  setImportFeedback('Ficha actualizada', 'Se guardaron los cambios del EDT, el visor recalculó jerarquía, Gantt, KPIs, analítica, reporte y exportaciones.', 'success');
+  setImportFeedback(
+    'Ficha actualizada',
+    isSharedBackendMode()
+      ? 'La ficha se actualizó en el visor. Espera la confirmación de sincronización con Apps Script para asegurar el guardado compartido.'
+      : 'Se guardaron los cambios del EDT en este navegador y el visor recalculó jerarquía, Gantt, KPIs, analítica, reporte y exportaciones.',
+    isSharedBackendMode() ? 'info' : 'success'
+  );
   refreshDerivedViews({rebuildFilters:true, reapplyFilters:true});
   revealRecordInGantt(appState.selectedId);
   scheduleSharedSync('guardar_ficha');

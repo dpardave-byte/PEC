@@ -850,6 +850,33 @@ tbody tr:hover td{background:#f8fbfe}
     <div class="admin-audit-sections">
       <section class="admin-audit-section">
         <div>
+          <h4>Centro de control operativo</h4>
+          <p id="adminOperationalMeta">Se mostrará el estado de triggers, última ejecución, última entrega y productos base del visor.</p>
+        </div>
+        <div class="audit-report-card">
+          <div class="audit-report-head">
+            <div>
+              <h4>Estado operativo del visor</h4>
+              <p id="adminOperationalSummary">Se mostrará el estado consolidado del cierre diario, los correos operativos y el último backup.</p>
+            </div>
+            <span class="source-badge" id="adminOperationalBadge">Sin backend</span>
+          </div>
+          <div class="audit-report-metrics" id="adminOperationalMetrics"></div>
+          <div class="audit-report-tags" id="adminOperationalTags"></div>
+          <div class="audit-report-entry-list" id="adminOperationalEntries"></div>
+        </div>
+        <div class="audit-report-card">
+          <div class="audit-report-head">
+            <div>
+              <h4>Productos institucionales base</h4>
+              <p id="adminOperationalProductsMeta">La fase 1 consolida los productos operativos mínimos que el visor debe sostener sin ambigüedad.</p>
+            </div>
+          </div>
+          <div class="audit-report-entry-list" id="adminOperationalProducts"></div>
+        </div>
+      </section>
+      <section class="admin-audit-section">
+        <div>
           <h4>Cierre diario por usuario</h4>
           <p id="adminDailyAuditMeta">Se mostrará un resumen diario por usuario con todos los cambios auditados de la fecha seleccionada.</p>
         </div>
@@ -2601,6 +2628,7 @@ const appState = {
   audit: loadAuditLog(),
   adminDailyReport: null,
   dailyReportDelivery: null,
+  operationalControl: null,
   selectedId: '',
   reportText: '',
   reportHtml: '',
@@ -3652,6 +3680,150 @@ function formatDeliveryHourLabel(hour){
   return String(safeHour).padStart(2,'0') + ':00';
 }
 
+function formatOperationalOriginLabel(origin){
+  const safe = text(origin);
+  if(!safe) return 'Sin origen';
+  if(safe === 'trigger_diario_reporte') return 'Trigger diario';
+  if(safe === 'envio_manual_reporte_diario') return 'Envío manual';
+  if(safe === 'operacion_diaria_recuperacion') return 'Recuperación operativa';
+  if(safe === 'trigger_diario_alertas') return 'Trigger diario';
+  if(safe === 'envio_manual_alertas') return 'Envío manual';
+  return safe.replace(/_/g,' ');
+}
+
+function renderOperationalControlState(state){
+  const metaHost = document.getElementById('adminOperationalMeta');
+  const summaryHost = document.getElementById('adminOperationalSummary');
+  const badgeHost = document.getElementById('adminOperationalBadge');
+  const metricsHost = document.getElementById('adminOperationalMetrics');
+  const tagsHost = document.getElementById('adminOperationalTags');
+  const entriesHost = document.getElementById('adminOperationalEntries');
+  const productsHost = document.getElementById('adminOperationalProducts');
+  const productsMetaHost = document.getElementById('adminOperationalProductsMeta');
+  if(!metaHost || !summaryHost || !badgeHost || !metricsHost || !tagsHost || !entriesHost || !productsHost) return;
+  if(!appState.adminEnabled){
+    metaHost.textContent = 'Modo administrador no habilitado.';
+    summaryHost.textContent = 'El centro de control operativo requiere acceso administrador.';
+    badgeHost.textContent = 'Sin acceso';
+    metricsHost.innerHTML = '';
+    tagsHost.innerHTML = '<span>Modo administrador no habilitado</span>';
+    entriesHost.innerHTML = '<div class="empty">Activa el modo administrador para revisar triggers, entregas y productos base.</div>';
+    productsHost.innerHTML = '<div class="empty">Los productos institucionales base se administran desde el visor compartido.</div>';
+    if(productsMetaHost) productsMetaHost.textContent = 'Disponible solo para administradores del visor compartido.';
+    return;
+  }
+  if(!state){
+    metaHost.textContent = 'Consultando centro de control operativo...';
+    summaryHost.textContent = 'Consultando triggers, envíos automáticos y productos base.';
+    badgeHost.textContent = 'Cargando';
+    metricsHost.innerHTML = '';
+    tagsHost.innerHTML = '<span>Preparando control operativo</span>';
+    entriesHost.innerHTML = '<div class="empty">Preparando indicadores operativos...</div>';
+    productsHost.innerHTML = '<div class="empty">Preparando matriz de productos base...</div>';
+    return;
+  }
+  if(state.ok === false){
+    const message = text(state.message) || 'No se pudo revisar el centro de control operativo.';
+    metaHost.textContent = message;
+    summaryHost.textContent = message;
+    badgeHost.textContent = 'Sin backend';
+    metricsHost.innerHTML = '';
+    tagsHost.innerHTML = '<span>' + escapeHtml(message) + '</span>';
+    entriesHost.innerHTML = '<div class="empty">' + escapeHtml(message) + '</div>';
+    productsHost.innerHTML = '<div class="empty">No se pudo cargar la matriz de productos.</div>';
+    return;
+  }
+  const backend = state.backend || {};
+  const daily = state.dailyReport || {};
+  const due = state.dueTracking || {};
+  const products = Array.isArray(state.products) ? state.products : [];
+  const info = ensureServerInfo();
+  metaHost.textContent = [
+    'Sincronización: ' + syncStateLabel(),
+    'Último backup: ' + (formatIsoDisplay(backend.lastBackupAt || info.lastBackupAt) || 'Sin registro')
+  ].join(' | ');
+  summaryHost.textContent = text(state.message) || 'Centro de control operativo cargado.';
+  badgeHost.textContent = state.controlReady ? 'Operativo' : 'Revisar';
+  metricsHost.innerHTML = [
+    {label:'Cierre diario', value: daily.triggerEnabled ? 'Activo' : 'Inactivo'},
+    {label:'Alertas DGPPCS', value: due.triggerEnabled ? 'Activo' : 'Inactivo'},
+    {label:'Último backup', value: formatIsoDisplay(backend.lastBackupAt || info.lastBackupAt) || 'Sin registro'},
+    {label:'Productos base', value: String(products.length || 0)}
+  ].map(item => (
+    '<div class="audit-report-metric">' +
+      '<span>' + escapeHtml(item.label) + '</span>' +
+      '<b>' + escapeHtml(item.value) + '</b>' +
+    '</div>'
+  )).join('');
+  const tags = [
+    'Actor admin: ' + (text(getCurrentActorIdentity().actor) || 'Sin identificar'),
+    'Cierre diario: ' + (text(daily.scheduleLabel) || 'Sin horario'),
+    'Alertas: ' + (text(due.scheduleLabel) || 'Sin horario'),
+    'Modo cierre: ' + (text(daily.mode) || 'PREVIEW_ONLY'),
+    'Modo alertas: ' + (text(due.mode) || 'PREVIEW_ONLY')
+  ];
+  if(text(backend.lastBackupFile || info.lastBackupFile)) tags.push('Backup: ' + text(backend.lastBackupFile || info.lastBackupFile));
+  tagsHost.innerHTML = tags.map(item => '<span>' + escapeHtml(item) + '</span>').join('');
+  entriesHost.innerHTML = [
+    {
+      title: 'Cierre diario por usuario',
+      line1: 'Trigger: ' + (daily.triggerEnabled ? 'Activo' : 'Inactivo') + ' | Última ejecución: ' + (formatIsoDisplay(daily.lastExecutionAt) || 'Sin registro') + ' | Última entrega: ' + (formatIsoDisplay(daily.lastDeliveryAt) || 'Sin entrega'),
+      line2: 'Origen: ' + formatOperationalOriginLabel(daily.lastExecutionOrigin || daily.lastDeliveryOrigin) + ' | Destinatarios últimos: ' + (daily.lastDeliveryRecipientsCount || 0) + ' | Hora: ' + formatDeliveryHourLabel(daily.sendHour)
+    },
+    {
+      title: 'Correos operativos DGPPCS',
+      line1: 'Trigger: ' + (due.triggerEnabled ? 'Activo' : 'Inactivo') + ' | Última ejecución: ' + (formatIsoDisplay(due.lastExecutionAt) || 'Sin registro') + ' | Última entrega: ' + (formatIsoDisplay(due.lastDeliveryAt) || 'Sin entrega'),
+      line2: 'Origen: ' + formatOperationalOriginLabel(due.lastExecutionOrigin || due.lastDeliveryOrigin) + ' | Mapeados: ' + Number(due.mappedRecipientCount || 0) + ' | Hora: ' + formatDeliveryHourLabel(due.sendHour)
+    },
+    {
+      title: 'Respaldo y operación',
+      line1: 'Último backup: ' + (formatIsoDisplay(backend.lastBackupAt || info.lastBackupAt) || 'Sin registro') + (text(backend.lastBackupFile || info.lastBackupFile) ? ' | ' + text(backend.lastBackupFile || info.lastBackupFile) : ''),
+      line2: 'Polling: ' + Number(backend.pollIntervalSeconds || info.pollIntervalSeconds || 30) + ' s | Estado: ' + syncStateLabel()
+    }
+  ].map(item => (
+    '<div class="audit-report-entry">' +
+      '<strong>' + escapeHtml(item.title) + '</strong>' +
+      '<span>' + escapeHtml(item.line1) + '</span>' +
+      '<span>' + escapeHtml(item.line2) + '</span>' +
+    '</div>'
+  )).join('');
+  if(productsMetaHost) productsMetaHost.textContent = 'Productos mínimos que la fase 1 debe sostener con trazabilidad, periodicidad y uso institucional.';
+  productsHost.innerHTML = products.map(item => (
+    '<div class="audit-report-entry">' +
+      '<strong>' + escapeHtml(text(item.title) + ' | ' + text(item.status)) + '</strong>' +
+      '<span>' + escapeHtml('Periodicidad: ' + text(item.cadence) + ' | Fuente: ' + text(item.source)) + '</span>' +
+      '<span>' + escapeHtml('Salida esperada: ' + text(item.output)) + '</span>' +
+    '</div>'
+  )).join('');
+}
+
+function loadOperationalControlState(){
+  renderOperationalControlState(null);
+  const info = ensureServerInfo();
+  if(isSharedBackendMode() && info.admin){
+    google.script.run
+      .withSuccessHandler(result => {
+        updateServerInfoFromEnvelope(result || {});
+        appState.operationalControl = result || {ok:false, message:'No se pudo leer el centro de control operativo.'};
+        renderOperationalControlState(appState.operationalControl);
+      })
+      .withFailureHandler(error => {
+        console.error('No se pudo revisar el centro de control operativo.', error);
+        appState.operationalControl = {ok:false, message:'No se pudo revisar el centro de control operativo desde Apps Script.'};
+        renderOperationalControlState(appState.operationalControl);
+      })
+      .getSharedTrackingOperationalControlStatus();
+    return;
+  }
+  appState.operationalControl = {
+    ok: false,
+    message: isSharedBackendMode()
+      ? 'El centro de control operativo requiere acceso administrador en Apps Script.'
+      : 'El centro de control operativo completo está disponible solo en la versión Apps Script compartida.'
+  };
+  renderOperationalControlState(appState.operationalControl);
+}
+
 function syncDailyAuditDeliveryForm(state){
   const modeField = document.getElementById('dailyDeliveryModeSelect');
   const hourField = document.getElementById('dailyDeliveryHourInput');
@@ -3813,12 +3985,14 @@ function sendDailyAuditReportNow(){
       const message = text(result && result.message) || (ok ? 'Reporte diario procesado.' : 'No se pudo procesar el reporte diario.');
       setImportFeedback(ok ? 'Reporte diario procesado' : 'No se envió el reporte diario', message, ok ? 'success' : 'warn');
       loadDailyAuditDeliveryState();
+      loadOperationalControlState();
       loadAdminDailyAuditReport(selectedDate);
     })
     .withFailureHandler(error => {
       console.error('No se pudo enviar el reporte diario.', error);
       setImportFeedback('No se envió el reporte diario', 'Apps Script no pudo procesar el envío del reporte diario.', 'warn');
       loadDailyAuditDeliveryState();
+      loadOperationalControlState();
     })
     .sendSharedTrackingDailyAuditReportEmail(selectedDate);
 }
@@ -3834,11 +4008,13 @@ function saveDailyAuditDeliveryConfig(){
       renderDailyAuditDeliveryState(appState.dailyReportDelivery);
       const ok = result && result.ok;
       setImportFeedback(ok ? 'Entrega diaria guardada' : 'No se guardó la entrega diaria', text(result && result.message) || 'No se pudo guardar la configuración del reporte diario.', ok ? 'success' : 'warn');
+      loadOperationalControlState();
     })
     .withFailureHandler(error => {
       console.error('No se pudo guardar la entrega diaria.', error);
       setImportFeedback('No se guardó la entrega diaria', 'Apps Script no pudo guardar la configuración del reporte diario.', 'warn');
       loadDailyAuditDeliveryState();
+      loadOperationalControlState();
     })
     .updateSharedTrackingDailyReportConfig(payload);
 }
@@ -3852,11 +4028,13 @@ function createDailyAuditDeliveryTrigger(){
       const ok = result && result.ok;
       setImportFeedback(ok ? 'Trigger diario actualizado' : 'No se creó el trigger diario', text(result && result.message) || 'No se pudo crear el trigger diario.', ok ? 'success' : 'warn');
       loadDailyAuditDeliveryState();
+      loadOperationalControlState();
     })
     .withFailureHandler(error => {
       console.error('No se pudo crear el trigger diario del reporte.', error);
       setImportFeedback('No se creó el trigger diario', 'Apps Script no pudo crear el trigger diario del reporte.', 'warn');
       loadDailyAuditDeliveryState();
+      loadOperationalControlState();
     })
     .createDailyAuditReportTrigger();
 }
@@ -3870,11 +4048,13 @@ function deleteDailyAuditDeliveryTrigger(){
       const ok = result && result.ok;
       setImportFeedback(ok ? 'Trigger diario eliminado' : 'No se eliminaron triggers', text(result && result.message) || 'No se pudo eliminar el trigger diario.', ok ? 'success' : 'warn');
       loadDailyAuditDeliveryState();
+      loadOperationalControlState();
     })
     .withFailureHandler(error => {
       console.error('No se pudo eliminar el trigger diario del reporte.', error);
       setImportFeedback('No se eliminaron triggers', 'Apps Script no pudo eliminar el trigger diario del reporte.', 'warn');
       loadDailyAuditDeliveryState();
+      loadOperationalControlState();
     })
     .deleteDailyAuditReportTriggers();
 }
@@ -5813,7 +5993,9 @@ function openAdminModal(){
   renderAdminAudit();
   renderAdminDailyAuditReport(appState.adminDailyReport);
   renderDailyAuditDeliveryState(appState.dailyReportDelivery);
+  renderOperationalControlState(appState.operationalControl);
   document.getElementById('adminModal').classList.add('open');
+  loadOperationalControlState();
   loadAdminDailyAuditReport();
   loadDailyAuditDeliveryState();
   refreshSharedAudit(180);

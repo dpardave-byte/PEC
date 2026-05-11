@@ -187,6 +187,17 @@ function doGet(e) {
       failureTitle: 'No se pudo reconfigurar el trigger operativo'
     });
   }
+  if (params.action === 'visor_reset_daily_report_weekday_trigger') {
+    var dailyReportTriggerStatus = resetDailyAuditReportWeekdayTrigger_();
+    if (params.callback || String(params.format || '').trim().toLowerCase() === 'json') {
+      return outputPayload_(dailyReportTriggerStatus, params);
+    }
+    return buildSharedTrackingActionHtml_(dailyReportTriggerStatus, getTrackingWebAppUrl_(), {
+      actionLabel: 'Reconfiguración del cierre diario PEC',
+      successTitle: 'Cierre diario reconfigurado',
+      failureTitle: 'No se pudo reconfigurar el cierre diario'
+    });
+  }
   if (/^visor_/i.test(String(params.action || ''))) {
     var unsupportedVisorAction = {
       ok: false,
@@ -1796,6 +1807,7 @@ function getSharedTrackingDailyReportDeliveryStatus() {
   const config = getDailyAuditReportConfig_();
   const triggers = getDailyAuditReportTriggers_();
   const recipients = config.mode === 'TEST_REDIRECT' ? config.testRecipients : config.to;
+  const markerState = readOperationalMarkerState_('DAILY_REPORT');
   return {
     ok: true,
     actor: getSharedTrackingActor_(),
@@ -1812,8 +1824,15 @@ function getSharedTrackingDailyReportDeliveryStatus() {
     testRecipients: config.testRecipients,
     realSendConfirmed: config.realSendConfirmed,
     sendHour: config.sendHour,
+    scheduleLabel: 'Lunes a viernes | ' + String(config.sendHour).padStart(2, '0') + ':00',
     triggerCount: triggers.length,
     triggerEnabled: triggers.length > 0,
+    lastExecutionAt: markerState.lastExecutionAt,
+    lastExecutionOrigin: markerState.lastExecutionOrigin,
+    lastDeliveryAt: markerState.lastDeliveryAt,
+    lastDeliveryOrigin: markerState.lastDeliveryOrigin,
+    lastDeliveryRecipients: markerState.lastDeliveryRecipients,
+    lastDeliveryRecipientsCount: markerState.lastDeliveryRecipients.length,
     hasConfiguredRecipients: config.to.length > 0,
     webappUrl: getTrackingWebAppUrl_(),
     message: recipients.length
@@ -1901,8 +1920,9 @@ function updateSharedTrackingDailyReportConfig(config) {
   const realSendConfirmed = Object.prototype.hasOwnProperty.call(input, 'realSendConfirmed')
     ? String(input.realSendConfirmed).trim().toUpperCase() === 'TRUE' || input.realSendConfirmed === true || String(input.realSendConfirmed).trim().toUpperCase() === 'SI'
     : current.realSendConfirmed;
-  const parsedHour = Number(Object.prototype.hasOwnProperty.call(input, 'sendHour') ? input.sendHour : current.sendHour);
-  const sendHour = isFinite(parsedHour) ? Math.max(0, Math.min(23, Math.round(parsedHour))) : 18;
+  const sendHour = normalizeDailyAuditReportSendHour_(
+    Object.prototype.hasOwnProperty.call(input, 'sendHour') ? input.sendHour : current.sendHour
+  );
   const properties = PropertiesService.getScriptProperties();
   setOrDeleteScriptProperty_(properties, 'PEC_VISOR_DAILY_REPORT_MODE', mode);
   setOrDeleteScriptProperty_(properties, 'PEC_VISOR_DAILY_REPORT_TO', to.join(';'));
@@ -2001,25 +2021,7 @@ function createDailyAuditReportTrigger() {
       message: 'No se creó el trigger diario porque faltan destinatarios en PEC_VISOR_DAILY_REPORT_TO.'
     };
   }
-  const existing = getDailyAuditReportTriggers_();
-  if (existing.length) {
-    return {
-      ok: true,
-      actor: getSharedTrackingActor_(),
-      admin: true,
-      created: false,
-      mode: config.mode,
-      realSendConfirmed: config.realSendConfirmed,
-      sendHour: config.sendHour,
-      triggerCount: existing.length,
-      message: 'Ya existe al menos un trigger automático de lunes a viernes para runDailyAuditReportEmail_.'
-    };
-  }
-  ScriptApp.newTrigger('runDailyAuditReportEmail_')
-    .timeBased()
-    .everyDays(1)
-    .atHour(config.sendHour)
-    .create();
+  const replaced = recreateDailyAuditReportTrigger_();
   return {
     ok: true,
     actor: getSharedTrackingActor_(),
@@ -2028,8 +2030,11 @@ function createDailyAuditReportTrigger() {
     mode: config.mode,
     realSendConfirmed: config.realSendConfirmed,
     sendHour: config.sendHour,
+    replacedTriggerCount: replaced,
     triggerCount: getDailyAuditReportTriggers_().length,
-    message: 'Trigger automático creado para las ' + String(config.sendHour).padStart(2, '0') + ':00 de lunes a viernes.'
+    message: replaced
+      ? 'Trigger automático reconfigurado para las ' + String(config.sendHour).padStart(2, '0') + ':00 de lunes a viernes.'
+      : 'Trigger automático creado para las ' + String(config.sendHour).padStart(2, '0') + ':00 de lunes a viernes.'
   };
 }
 
@@ -2060,6 +2065,7 @@ function deleteDailyAuditReportTriggers() {
 
 function runDailyAuditReportEmail_() {
   if (!isOperationalWeekday_(new Date())) {
+    markOperationalExecution_('DAILY_REPORT', 'trigger_diario_reporte');
     return {
       ok: true,
       actor: getSharedTrackingActor_() || 'trigger_reporte_diario',
@@ -2081,12 +2087,40 @@ function getDailyAuditReportTriggers_() {
   });
 }
 
+function resetDailyAuditReportWeekdayTrigger_() {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para reconfigurar el cierre diario.'
+    };
+  }
+  var saved = updateSharedTrackingDailyReportConfig({
+    sendHour: OPERATIONAL_DEFAULTS.dailyReportSendHour
+  });
+  if (!saved || !saved.ok) return saved;
+  var trigger = createDailyAuditReportTrigger();
+  return {
+    ok: Boolean(trigger && trigger.ok),
+    actor: getSharedTrackingActor_(),
+    admin: true,
+    saved: saved,
+    trigger: trigger,
+    sendHour: OPERATIONAL_DEFAULTS.dailyReportSendHour,
+    message: trigger && trigger.ok
+      ? 'El cierre diario quedó reconfigurado para las ' + String(OPERATIONAL_DEFAULTS.dailyReportSendHour).padStart(2, '0') + ':00 de lunes a viernes.'
+      : 'Se actualizó la hora del cierre diario, pero no se pudo recrear el trigger automático.'
+  };
+}
+
 function dispatchSharedTrackingDailyAuditReportEmail_(options) {
   const preview = buildSharedTrackingDailyAuditEmailPreview_(
     options && options.reportDate,
     { includeHtml: true }
   );
   if (!preview.ok) return preview;
+  markOperationalExecution_('DAILY_REPORT', String(options && options.origin || 'sendSharedTrackingDailyAuditReportEmail').trim());
   if (preview.mode === 'PREVIEW_ONLY') {
     return {
       ok: true,
@@ -2205,6 +2239,12 @@ function dispatchSharedTrackingDailyAuditReportEmail_(options) {
     isTest: preview.mode === 'TEST_REDIRECT',
     reportDate: preview.report.date
   });
+  markOperationalDelivery_(
+    'DAILY_REPORT',
+    String(options && options.origin || 'sendSharedTrackingDailyAuditReportEmail').trim(),
+    preview.effectiveRecipients,
+    sentAt
+  );
   return {
     ok: true,
     actor: actorMeta.actor || String(options && options.actor || 'trigger_reporte_diario').trim(),
@@ -2498,6 +2538,7 @@ function getDueTrackingNotificationStatus() {
   var emailMap = getTrackingNotificationEmailMap_();
   var dgppcsRecipients = getTrackingNotificationDgppcsRecipients_(emailMap);
   var triggers = getDueTrackingNotificationTriggers_();
+  var markerState = readOperationalMarkerState_('DUE_TRACKING');
   return {
     ok: true,
     actor: getSharedTrackingActor_(),
@@ -2511,11 +2552,123 @@ function getDueTrackingNotificationStatus() {
     dgppcsRecipients: dgppcsRecipients.slice(),
     cc: getTrackingNotificationCcList_(),
     ccScope: getTrackingNotificationCcScope_(),
+    sendHour: OPERATIONAL_DEFAULTS.weekdayAutoSendHour,
+    scheduleLabel: 'Lunes a viernes | ' + String(OPERATIONAL_DEFAULTS.weekdayAutoSendHour).padStart(2, '0') + ':00',
     triggerCount: triggers.length,
+    triggerEnabled: triggers.length > 0,
+    lastExecutionAt: markerState.lastExecutionAt,
+    lastExecutionOrigin: markerState.lastExecutionOrigin,
+    lastDeliveryAt: markerState.lastDeliveryAt,
+    lastDeliveryOrigin: markerState.lastDeliveryOrigin,
+    lastDeliveryRecipients: markerState.lastDeliveryRecipients,
+    lastDeliveryRecipientsCount: markerState.lastDeliveryRecipients.length,
     message: isLiveDueTrackingNotificationMode_(config)
       ? 'El envío operativo está listo para despacho real a los responsables DGPPCS.'
       : 'El envío operativo no está listo para despacho real. Revisa el modo y la confirmación REAL.'
   };
+}
+
+function getSharedTrackingOperationalControlStatus() {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para revisar el centro de control operativo.'
+    };
+  }
+  var dailyReport = getSharedTrackingDailyReportDeliveryStatus();
+  var dueTracking = getDueTrackingNotificationStatus();
+  var backend = getSharedTrackingBackendMeta_();
+  var products = buildSharedTrackingOperationalProducts_(dailyReport, dueTracking);
+  var controlReady = Boolean(
+    dailyReport && dailyReport.ok !== false &&
+    dueTracking && dueTracking.ok !== false &&
+    dailyReport.triggerEnabled &&
+    dueTracking.triggerEnabled
+  );
+  return {
+    ok: true,
+    actor: getSharedTrackingActor_(),
+    admin: true,
+    backend: backend,
+    dailyReport: dailyReport,
+    dueTracking: dueTracking,
+    products: products,
+    controlReady: controlReady,
+    message: controlReady
+      ? 'Centro de control operativo listo para seguimiento, cierre diario y correos automáticos.'
+      : 'Centro de control operativo con puntos por revisar antes del siguiente corte automático.'
+  };
+}
+
+function buildSharedTrackingOperationalProducts_(dailyReport, dueTracking) {
+  var dailyReady = Boolean(dailyReport && dailyReport.ok !== false && dailyReport.triggerEnabled);
+  var dueReady = Boolean(dueTracking && dueTracking.ok !== false && dueTracking.triggerEnabled);
+  return [
+    {
+      key: 'daily_audit_report',
+      title: 'Cierre diario por usuario',
+      cadence: 'Diario',
+      source: 'Auditoría central del visor compartido',
+      output: 'Resumen por usuario, impactos, registros tocados y trazabilidad del día.',
+      status: dailyReady ? 'Operativo' : 'Revisar'
+    },
+    {
+      key: 'weekly_executive_report',
+      title: 'Reporte ejecutivo semanal',
+      cadence: 'Semanal',
+      source: 'Vista ejecutiva, analítica y reporte del visor',
+      output: 'Resumen de bloques, alertas, hitos críticos y decisiones para dirección.',
+      status: 'Operativo bajo demanda'
+    },
+    {
+      key: 'pending_matrix',
+      title: 'Matriz de pendientes por responsable / DGPPCS',
+      cadence: 'Diario',
+      source: 'Filtros, fichas y seguimiento del visor',
+      output: 'Pendientes, responsables, alertas y presión operativa por seguimiento.',
+      status: dueReady ? 'Lista para operación' : 'Lista con revisión pendiente'
+    }
+  ];
+}
+
+function buildOperationalMarkerKeys_(namespace) {
+  var base = 'PEC_VISOR_' + String(namespace || '').trim().toUpperCase();
+  return {
+    lastExecutionAt: base + '_LAST_EXECUTION_AT',
+    lastExecutionOrigin: base + '_LAST_EXECUTION_ORIGIN',
+    lastDeliveryAt: base + '_LAST_DELIVERY_AT',
+    lastDeliveryOrigin: base + '_LAST_DELIVERY_ORIGIN',
+    lastDeliveryRecipients: base + '_LAST_DELIVERY_RECIPIENTS'
+  };
+}
+
+function readOperationalMarkerState_(namespace) {
+  var props = PropertiesService.getScriptProperties();
+  var keys = buildOperationalMarkerKeys_(namespace);
+  return {
+    lastExecutionAt: String(props.getProperty(keys.lastExecutionAt) || '').trim(),
+    lastExecutionOrigin: String(props.getProperty(keys.lastExecutionOrigin) || '').trim(),
+    lastDeliveryAt: String(props.getProperty(keys.lastDeliveryAt) || '').trim(),
+    lastDeliveryOrigin: String(props.getProperty(keys.lastDeliveryOrigin) || '').trim(),
+    lastDeliveryRecipients: splitEmailList_(props.getProperty(keys.lastDeliveryRecipients) || '')
+  };
+}
+
+function markOperationalExecution_(namespace, origin) {
+  var props = PropertiesService.getScriptProperties();
+  var keys = buildOperationalMarkerKeys_(namespace);
+  props.setProperty(keys.lastExecutionAt, new Date().toISOString());
+  props.setProperty(keys.lastExecutionOrigin, String(origin || '').trim());
+}
+
+function markOperationalDelivery_(namespace, origin, recipients, sentAt) {
+  var props = PropertiesService.getScriptProperties();
+  var keys = buildOperationalMarkerKeys_(namespace);
+  props.setProperty(keys.lastDeliveryAt, String(sentAt || new Date().toISOString()).trim());
+  props.setProperty(keys.lastDeliveryOrigin, String(origin || '').trim());
+  props.setProperty(keys.lastDeliveryRecipients, splitEmailList_(recipients || []).join(';'));
 }
 
 function setDueTrackingNotificationCcScope_(scope) {
@@ -2721,6 +2874,7 @@ function deleteNotificationTriggers() {
 function runDailyDueTrackingNotifications_() {
   var config = getTrackingNotificationConfig_();
   if (!isOperationalWeekday_(new Date())) {
+    markOperationalExecution_('DUE_TRACKING', 'trigger_diario_alertas');
     var skippedWeekendAt = new Date().toISOString();
     appendSharedTrackingAudit_({
       at: skippedWeekendAt,
@@ -2754,6 +2908,7 @@ function runDailyDueTrackingNotifications_() {
   // El trigger diario nunca debe comportarse como buzón de pruebas: si el modo
   // no está listo para envío real confirmado, se omite el despacho.
   if (!isLiveDueTrackingNotificationMode_(config)) {
+    markOperationalExecution_('DUE_TRACKING', 'trigger_diario_alertas');
     var skippedAt = new Date().toISOString();
     appendSharedTrackingAudit_({
       at: skippedAt,
@@ -2799,6 +2954,7 @@ function dispatchDueTrackingEmails_(options) {
   var safeOptions = options || {};
   var preview = buildDueTrackingNotifications_({ preview: false, includeHtml: true });
   if (!preview.ok) return preview;
+  markOperationalExecution_('DUE_TRACKING', String(safeOptions.origin || 'sendDueTrackingEmails').trim());
   if (isAutomaticDueTrackingOrigin_(safeOptions) && !isLiveDueTrackingNotificationMode_(preview)) {
     return {
       ok: false,
@@ -2951,6 +3107,12 @@ function dispatchDueTrackingEmails_(options) {
     notifiedActivities: totalActivities
   };
   appendSharedTrackingAudit_(auditEntry);
+  markOperationalDelivery_(
+    'DUE_TRACKING',
+    String(safeOptions.origin || 'sendDueTrackingEmails').trim(),
+    effectiveRecipients,
+    sentAt
+  );
   return {
     ok: true,
     actor: auditEntry.actor,
@@ -3507,8 +3669,7 @@ function getDailyAuditReportConfig_() {
   var to = usingAdminFallback ? adminRecipients.slice() : configuredTo.slice();
   var rawConfirm = String(properties.getProperty('PEC_VISOR_DAILY_REPORT_CONFIRM_REAL_SEND') || '').trim().toUpperCase();
   var realSendConfirmed = rawConfirm ? rawConfirm === 'SI' : Boolean(OPERATIONAL_DEFAULTS.dailyReportConfirmRealSend);
-  var rawHour = Number(properties.getProperty('PEC_VISOR_DAILY_REPORT_HOUR'));
-  var sendHour = isFinite(rawHour) ? Math.max(0, Math.min(23, Math.round(rawHour))) : OPERATIONAL_DEFAULTS.dailyReportSendHour;
+  var sendHour = normalizeDailyAuditReportSendHour_(properties.getProperty('PEC_VISOR_DAILY_REPORT_HOUR'));
   return {
     mode: mode,
     to: to,
@@ -3527,11 +3688,7 @@ function ensureOperationalDailyReportDelivery_() {
   const recipients = config.mode === 'TEST_REDIRECT' ? config.testRecipients : config.to;
   if (config.mode !== 'REAL' || !config.realSendConfirmed || !recipients.length) return;
   if (!getDailyAuditReportTriggers_().length) {
-    ScriptApp.newTrigger('runDailyAuditReportEmail_')
-      .timeBased()
-      .everyDays(1)
-      .atHour(config.sendHour)
-      .create();
+    recreateDailyAuditReportTrigger_();
   }
   if (!isOperationalWeekday_(new Date())) return;
   const timezone = Session.getScriptTimeZone();
@@ -3550,6 +3707,26 @@ function ensureOperationalDailyReportDelivery_() {
     origin: 'operacion_diaria_recuperacion',
     reportDate: today
   });
+}
+
+function recreateDailyAuditReportTrigger_() {
+  var removed = 0;
+  getDailyAuditReportTriggers_().forEach(function(trigger) {
+    ScriptApp.deleteTrigger(trigger);
+    removed += 1;
+  });
+  ScriptApp.newTrigger('runDailyAuditReportEmail_')
+    .timeBased()
+    .everyDays(1)
+    .atHour(getDailyAuditReportConfig_().sendHour)
+    .create();
+  return removed;
+}
+
+function normalizeDailyAuditReportSendHour_(value) {
+  var parsed = Number(value);
+  if (!isFinite(parsed)) return OPERATIONAL_DEFAULTS.dailyReportSendHour;
+  return Math.max(OPERATIONAL_DEFAULTS.dailyReportSendHour, Math.min(23, Math.round(parsed)));
 }
 
 function isOperationalWeekday_(date, timezone) {

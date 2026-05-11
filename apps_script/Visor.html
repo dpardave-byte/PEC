@@ -314,6 +314,12 @@ tbody tr:hover td{background:#f8fbfe}
 .filters .filter-picker .assign-item span{font-size:14px;line-height:1.25;color:var(--ink);font-weight:550}
 .filters .filter-picker .assign-item input{margin-top:0}
 .report-analytics-panel{padding:20px 22px;background:linear-gradient(180deg,#ffffff 0,#f8fbfe 100%)}
+.admin-access-strip{
+  display:flex;justify-content:space-between;align-items:flex-start;gap:16px;
+  margin-top:14px;padding:18px 20px;background:linear-gradient(180deg,#f9fbfe 0,#eef5fc 100%)
+}
+.admin-access-strip p{margin:6px 0 0;color:var(--muted);font-size:13px;line-height:1.45}
+.admin-access-strip .toolbar-actions{justify-content:flex-end}
 .operations-panel{margin-top:0;padding:20px 22px;background:linear-gradient(180deg,#ffffff 0,#f8fbfe 100%)}
 .operations-panel.collapsed{padding:16px 18px}
 .operations-panel.collapsed .operations-grid{display:none}
@@ -401,6 +407,8 @@ tbody tr:hover td{background:#f8fbfe}
   .cards{grid-template-columns:repeat(3,minmax(0,1fr))}
   .layout,.topbar,.split,.detail-grid,.filters,.toolbar,.operations-grid{grid-template-columns:1fr}
   .hero{grid-template-columns:1fr}
+  .admin-access-strip{flex-direction:column}
+  .admin-access-strip .toolbar-actions{justify-content:flex-start}
   .operations-panel-head{flex-direction:column}
   .operations-panel-tools{justify-items:start;width:100%}
 }
@@ -475,6 +483,16 @@ tbody tr:hover td{background:#f8fbfe}
       <button id="openPendingModalBtn" class="ghost" type="button">Ver pendientes</button>
       <button id="openMonitoringBtn" class="ghost" type="button">Ver monitoreo</button>
       <button id="resetFiltersBtn" class="secondary">Limpiar filtros</button>
+    </div>
+  </section>
+
+  <section class="panel admin-access-strip" id="adminAccessStrip" style="display:none">
+    <div>
+      <h2>Acceso administrador</h2>
+      <p id="adminAccessMeta">Abre el panel de control operativo, reportes diarios y configuración avanzada del visor.</p>
+    </div>
+    <div class="toolbar-actions">
+      <button id="openAdminQuickBtn" class="secondary" type="button">Panel admin</button>
     </div>
   </section>
 
@@ -3223,8 +3241,19 @@ function ensureServerInfo(){
 }
 
 function renderAdminAccess(){
+  const enabled = Boolean(appState.adminEnabled);
   const adminBtn = document.getElementById('openAdminBtn');
-  if(adminBtn) adminBtn.style.display = appState.adminEnabled ? '' : 'none';
+  const quickBtn = document.getElementById('openAdminQuickBtn');
+  const adminStrip = document.getElementById('adminAccessStrip');
+  const adminMeta = document.getElementById('adminAccessMeta');
+  if(adminBtn) adminBtn.style.display = enabled ? '' : 'none';
+  if(quickBtn) quickBtn.style.display = enabled ? '' : 'none';
+  if(adminStrip) adminStrip.style.display = enabled ? 'flex' : 'none';
+  if(adminMeta){
+    adminMeta.textContent = isSharedBackendMode()
+      ? 'Abre el panel de control operativo, la entrega diaria y las alertas del backend compartido.'
+      : 'Abre el panel administrador de esta sesión y usa ?admin=darwin para habilitarlo en la vista pública.';
+  }
 }
 
 function updateServerInfoFromEnvelope(result){
@@ -8095,8 +8124,10 @@ function bindEvents(){
   document.getElementById('closeDrawerBtn').addEventListener('click', closeDrawer);
   document.getElementById('editHeroBtn').addEventListener('click', openHeroModal);
   const adminBtn = document.getElementById('openAdminBtn');
+  const adminQuickBtn = document.getElementById('openAdminQuickBtn');
   renderAdminAccess();
   if(adminBtn) adminBtn.addEventListener('click', openAdminModal);
+  if(adminQuickBtn) adminQuickBtn.addEventListener('click', openAdminModal);
   setSelectedAuditReportDate(todayCalendarIso());
   document.getElementById('closeHeroBtn').addEventListener('click', closeHeroModal);
   document.getElementById('saveHeroBtn').addEventListener('click', saveHeroModal);

@@ -255,3 +255,78 @@ En Apps Script:
 - En Apps Script, si la URL redirige a Google Sign-In, la cuenta autenticada pertenece al grupo autorizado para DGPPCS.
 - En Apps Script, el panel admin muestra auditoría, cierre diario por usuario y último backup si el usuario es admin.
 - El reporte diario por usuario se puede exportar antes del envío a DGPPCS.
+
+## 11. Regla operativa del cierre diario
+
+- El cierre diario automático debe enviarse de lunes a viernes.
+- La hora operativa base es `18:00`.
+- El modo para operación real debe quedar en `REAL`.
+- Si el trigger diario quedó desfasado o venía de una configuración antigua, reconfigurarlo con:
+  - `.../exec?action=visor_reset_daily_report_weekday_trigger`
+- Después de reconfigurarlo, validar:
+  - que el panel admin siga mostrando la hora `18:00`;
+  - que el trigger esté habilitado;
+  - que el próximo envío no salga fuera de horario.
+
+## 12. Fase 1 - consolidación del visor como sistema confiable
+
+Objetivo:
+
+- tratar el visor como sistema operativo institucional, no solo como tablero visual.
+
+Núcleo de confiabilidad que debe mantenerse:
+
+- guardado compartido;
+- auditoría central;
+- backup diario;
+- cierre diario por usuario;
+- correos operativos;
+- acceso administrador;
+- exportación de reporte diario;
+- lectura ejecutiva por bloques, fases, hitos y casos.
+
+### Control de apertura diaria del admin
+
+- Abrir `?view=visor`.
+- Confirmar actor autenticado.
+- Revisar estado de sincronización.
+- Revisar último guardado central.
+- Revisar último backup.
+- Revisar estado de `Entrega del reporte diario`.
+- Confirmar que la hora visible sea `18:00`.
+
+### Regresión mínima semanal
+
+- Confirmar búsqueda por bloque.
+- Confirmar búsqueda por fase.
+- Confirmar búsqueda por caso o hito.
+- Confirmar que la búsqueda no depende solo de responsables o unidades.
+- Confirmar que los bloques raíz siguen alineados a la izquierda.
+- Confirmar que `Inicio de Efectividad del Prestamo` sigue como raíz 4.
+- Confirmar que `DGPPCS` aparece en `Responsable` cuando corresponde.
+- Confirmar que una edición de ficha se guarda en el estado compartido.
+- Confirmar que el movimiento aparece en auditoría y cierre diario.
+- Confirmar que `Ver analítica`, `Ver reporte` y exportaciones siguen disponibles.
+- Confirmar que el reporte diario y los correos operativos mantienen su ventana de operación.
+
+## 13. Checklist de consolidación 0-30 días
+
+- Validar mapa de superficies:
+  - panel público;
+  - visor público/local;
+  - visor compartido Apps Script;
+  - panel admin.
+- Validar cierre diario.
+- Validar trigger diario.
+- Validar correos.
+- Validar backup.
+- Validar auditoría.
+- Validar módulo de sustento:
+  - carga múltiple;
+  - carpeta por registro;
+  - retiro;
+  - trazabilidad por actor.
+- Validar productos base oficiales:
+  - cierre diario por usuario;
+  - reporte ejecutivo semanal;
+  - matriz de pendientes por responsable / DGPPCS.

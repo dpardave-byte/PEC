@@ -161,6 +161,14 @@ En el mismo panel administrador, el bloque `Entrega del reporte diario` permite:
 - activar o eliminar el trigger diario desde el mismo panel;
 - usar `PEC_VISOR_ADMIN_EMAILS` como respaldo si no se define un destinatario explícito.
 
+Regla operativa vigente del cierre diario:
+
+- el envío automático debe quedar en `REAL`;
+- corre de lunes a viernes;
+- la hora base operativa es `18:00`;
+- si el trigger diario queda desfasado, se debe reconfigurar antes del siguiente día hábil con la ruta:
+  - `.../exec?action=visor_reset_daily_report_weekday_trigger`
+
 Si el estado compartido se daña:
 
 1. exporta una copia del estado actual;
@@ -195,6 +203,42 @@ Si el estado compartido se daña:
    - exportación del reporte diario;
    - backup;
    - acceso admin y no admin.
+
+## Fase 1 de consolidacion del visor
+
+La fase 1 se enfoca en tratar el visor como sistema confiable de seguimiento, no solo como interfaz.
+
+Nucleo que no debe romperse:
+
+- guardado compartido de fichas;
+- auditoría central;
+- backup diario;
+- cierre diario por usuario;
+- correos operativos;
+- acceso admin y no admin;
+- exportación del reporte diario;
+- lectura ejecutiva por bloques, fases, hitos y casos.
+
+Entregables operativos de esta fase:
+
+- checklist admin de apertura, validación y cierre;
+- programación estable de correos y cierre diario;
+- regresión mínima semanal del visor;
+- productos institucionales base:
+  - cierre diario por usuario;
+  - reporte ejecutivo semanal;
+  - matriz de pendientes por responsable y Seguimiento DGPPCS.
+
+## Gobierno del producto y roadmap
+
+La base institucional del Visor PEC quedó documentada en:
+
+- [Roadmap Ejecutivo del Visor PEC](docs/ROADMAP_EJECUTIVO_VISOR_PEC.md)
+- [Matriz RACI del Visor PEC](docs/RACI_VISOR_PEC.md)
+- [Plan de Mejora Integral del Visor PEC](docs/PLAN_MEJORA_INTEGRAL_VISOR_PEC.md)
+- [LEGEND Product Governance del Visor PEC](docs/LEGEND_PRODUCT_GOVERNANCE.md)
+
+Estos documentos distinguen entre funcionalidad actual, brechas, recomendaciones e inferencias estratégicas. También fijan que `Wastewater Research 360` es una línea complementaria, no el núcleo actual del visor.
 
 ### Validación de acceso para DGPPCS
 

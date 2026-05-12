@@ -351,6 +351,20 @@ tbody tr:hover td{background:#f8fbfe}
 .ops-feedback.success{background:#eefaf5;border-color:#d8ece2}
 .ops-feedback.warn{background:#fff7eb;border-color:#f0dfbb}
 .local-note-box{display:grid;gap:10px;margin-top:16px}
+.case-attachments-box{display:grid;gap:12px;padding:14px;border:1px solid var(--line);border-radius:14px;background:#fbfdff}
+.case-attachments-head{display:grid;gap:4px}
+.case-attachments-head strong{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.case-attachments-head p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
+.case-attachment-folder-card{display:grid;gap:8px;padding:12px;border:1px solid #e6edf4;border-radius:12px;background:#fff}
+.case-attachment-folder-card strong{display:block;color:var(--ink)}
+.case-attachment-folder-card span{display:block;color:var(--muted);font-size:12px;line-height:1.45}
+.case-attachment-list{display:grid;gap:10px}
+.case-attachment-item{display:grid;gap:6px;padding:12px;border:1px solid #e6edf4;border-radius:12px;background:#fff}
+.case-attachment-item strong{display:block;color:var(--ink)}
+.case-attachment-meta{color:var(--muted);font-size:12px;line-height:1.45}
+.case-attachment-actions{display:flex;gap:8px;flex-wrap:wrap}
+.case-attachment-empty{color:var(--muted);font-size:13px;line-height:1.45}
+.file-input-hint{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
 .summary-bullets{margin:10px 0 0;padding-left:22px;display:grid;gap:9px}
 .summary-bullets li{color:#274057;font-size:17px;line-height:1.48}
 .modal{padding:20px;overflow:auto}
@@ -647,6 +661,32 @@ tbody tr:hover td{background:#f8fbfe}
       <div class="field">
         <label for="localAction">Proximo paso</label>
         <textarea id="localAction" placeholder="Define accion concreta, responsable y fecha objetivo."></textarea>
+      </div>
+      <div class="case-attachments-box">
+        <div class="case-attachments-head">
+          <strong>Sustentos y repositorio por actividad</strong>
+          <p id="caseAttachmentHint">Sube uno o varios archivos de sustento para este bloque o subactividad. La carga operativa está disponible en la versión compartida del visor.</p>
+        </div>
+        <div class="split">
+          <div class="field">
+            <label for="caseAttachmentInput">Seleccionar archivos</label>
+            <input id="caseAttachmentInput" type="file" multiple>
+            <p class="file-input-hint">Hasta 6 archivos por operación. Tamaño máximo: 5 MB por archivo y 12 MB por carga.</p>
+          </div>
+          <div class="field">
+            <label>Operaciones de sustento</label>
+            <div class="toolbar-actions">
+              <button id="uploadCaseAttachmentsBtn" class="soft" type="button">Subir sustento(s)</button>
+              <button id="refreshCaseAttachmentsBtn" class="secondary" type="button">Actualizar lista</button>
+            </div>
+          </div>
+        </div>
+        <div class="ops-feedback info" id="caseAttachmentFeedback">
+          <strong>Repositorio listo</strong>
+          <span>Cuando abras una actividad en la versión compartida, aquí se mostrarán los archivos de sustento asociados.</span>
+        </div>
+        <div class="case-attachment-folder-card" id="caseAttachmentFolderCard"></div>
+        <div class="case-attachment-list" id="caseAttachmentList"></div>
       </div>
       <div class="split">
         <div class="field">
@@ -957,6 +997,10 @@ tbody tr:hover td{background:#f8fbfe}
             <button id="createDailyAuditTriggerBtn" class="ghost">Activar envio diario</button>
             <button id="deleteDailyAuditTriggerBtn" class="ghost">Eliminar trigger diario</button>
           </div>
+          <div class="ops-feedback info" id="adminDailyDeliveryFeedback">
+            <strong>Entrega diaria lista</strong>
+            <p>Las acciones de envío, guardado y trigger mostrarán aquí su resultado dentro del panel administrador.</p>
+          </div>
         </div>
       </section>
       <section class="admin-audit-section">
@@ -971,7 +1015,6 @@ tbody tr:hover td{background:#f8fbfe}
 </div>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="./pec_tracking_data.js"></script>
 <script>
 if(!window.PEC_TRACKING_DATA){
 window.PEC_TRACKING_DATA = {
@@ -2518,7 +2561,7 @@ window.PEC_TRACKING_DATA = {
 
 }
 </script>
-<script id="pecServerBootstrap" type="application/json"></script>
+<script id="pecServerBootstrap" type="application/json"><?!= visorBootstrapJson ?></script>
 <script>
 const STORAGE_KEY = 'pec_tracking_notes_v1';
 const EDIT_STORAGE_KEY = 'pec_tracking_edits_v1';
@@ -2658,6 +2701,11 @@ const appState = {
     title: 'Fuente lista',
     detail: 'El visor está preparado para leer cronogramas, estructuras exportadas y respaldos del flujo actual.'
   },
+  adminDeliveryFeedback: {
+    tone: 'info',
+    title: 'Entrega diaria lista',
+    detail: 'Las acciones de envío, guardado y trigger mostrarán aquí su resultado dentro del panel administrador.'
+  },
   expanded: {},
   highlightedId: '',
   revealTimer: null,
@@ -2707,18 +2755,104 @@ const SERVER_BOOTSTRAP = SERVER_BOOTSTRAP_RESULT.ok && SERVER_BOOTSTRAP_RESULT.v
   : null;
 let sharedSyncTimer = null;
 let sharedSyncInFlight = false;
+let sharedAttachmentActionInFlight = false;
 let pendingSharedSyncReason = '';
 let sharedPollHandle = null;
 
+const CASE_ATTACHMENT_MAX_FILES = 6;
+const CASE_ATTACHMENT_MAX_FILE_BYTES = 5 * 1024 * 1024;
+const CASE_ATTACHMENT_MAX_TOTAL_BYTES = 12 * 1024 * 1024;
+
+function normalizeCaseAttachmentMeta(value){
+  const raw = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const id = text(raw.id || raw.fileId || raw.url || raw.name);
+  const name = text(raw.name);
+  if(!id || !name) return null;
+  const size = Number(raw.size || 0);
+  return {
+    id,
+    name,
+    mimeType: text(raw.mimeType) || 'application/octet-stream',
+    size: Number.isFinite(size) && size > 0 ? Math.round(size) : 0,
+    fileId: text(raw.fileId),
+    url: text(raw.url),
+    uploadedAt: text(raw.uploadedAt),
+    uploadedBy: text(raw.uploadedBy)
+  };
+}
+
+function normalizeCaseAttachmentFolderMeta(value){
+  const raw = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const folderId = text(raw.folderId || raw.id);
+  const url = text(raw.url);
+  const name = text(raw.name);
+  if(!folderId && !url && !name) return null;
+  return {
+    folderId,
+    url,
+    name,
+    recordId: text(raw.recordId),
+    recordLabel: text(raw.recordLabel),
+    createdAt: text(raw.createdAt),
+    updatedAt: text(raw.updatedAt)
+  };
+}
+
+function hasCaseAttachmentFolderMeta(value){
+  return Boolean(value && (text(value.folderId) || text(value.url) || text(value.name)));
+}
+
+function normalizeCaseAttachmentList(values){
+  const out = [];
+  const seen = new Set();
+  (Array.isArray(values) ? values : []).forEach(item => {
+    const normalized = normalizeCaseAttachmentMeta(item);
+    if(!normalized || seen.has(normalized.id)) return;
+    seen.add(normalized.id);
+    out.push(normalized);
+  });
+  return out;
+}
+
+function normalizeCaseNoteEntry(value){
+  const raw = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  return {
+    ...raw,
+    note: text(raw.note),
+    action: text(raw.action),
+    attachmentFolder: normalizeCaseAttachmentFolderMeta(raw.attachmentFolder),
+    attachments: normalizeCaseAttachmentList(raw.attachments)
+  };
+}
+
+function normalizeCaseNotesMap(value){
+  const raw = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const out = {};
+  Object.keys(raw).forEach(id => {
+    const safeId = text(id);
+    if(!safeId) return;
+    const entry = normalizeCaseNoteEntry(raw[id]);
+    if(entry.note || entry.action || entry.attachments.length || hasCaseAttachmentFolderMeta(entry.attachmentFolder)){
+      out[safeId] = entry;
+    }
+  });
+  return out;
+}
+
+function getCaseNoteEntry(recordId){
+  return normalizeCaseNoteEntry((appState.notes && recordId && appState.notes[recordId]) || {});
+}
+
 function loadNotes(){
   try{
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    return normalizeCaseNotesMap(JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'));
   }catch(error){
     return {};
   }
 }
 
 function saveNotes(){
+  appState.notes = normalizeCaseNotesMap(appState.notes);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(appState.notes));
 }
 
@@ -3443,8 +3577,20 @@ function getAuditItemDetailText(item){
 }
 
 function humanizeAuditAction(action){
-  const label = text(action).replace(/_/g,' ');
-  return label ? (label.charAt(0).toUpperCase() + label.slice(1)) : 'Cambio';
+  switch(text(action)){
+    case 'cargar_sustento': return 'Cargar sustento';
+    case 'retirar_sustento': return 'Retirar sustento';
+    case 'preparar_carpeta_sustento': return 'Preparar carpeta de sustento';
+    case 'configurar_reporte_diario': return 'Configurar reporte diario';
+    case 'enviar_reporte_diario_correo': return 'Enviar reporte diario por correo';
+    case 'enviar_alertas_correo': return 'Enviar alertas por correo';
+    case 'omitir_alertas_correo': return 'Omitir alertas por correo';
+    case 'guardar_estado_compartido': return 'Guardar estado compartido';
+    default: {
+      const label = text(action).replace(/_/g,' ');
+      return label ? (label.charAt(0).toUpperCase() + label.slice(1)) : 'Cambio';
+    }
+  }
 }
 
 function mapAuditSummaryPairs(sourceMap){
@@ -3903,6 +4049,7 @@ function renderDailyAuditDeliveryState(state){
   const createBtn = document.getElementById('createDailyAuditTriggerBtn');
   const deleteBtn = document.getElementById('deleteDailyAuditTriggerBtn');
   if(refreshBtn) refreshBtn.disabled = !appState.adminEnabled;
+  renderAdminDailyDeliveryFeedback();
   if(!metaHost || !summaryHost || !badgeHost || !tagsHost) return;
   if(!appState.adminEnabled){
     metaHost.textContent = 'Modo administrador no habilitado.';
@@ -4008,12 +4155,14 @@ function sendDailyAuditReportNow(){
   const info = ensureServerInfo();
   const selectedDate = text(document.getElementById('adminAuditDate') && document.getElementById('adminAuditDate').value) || todayCalendarIso();
   if(!(isSharedBackendMode() && info.admin)) return;
+  setAdminDailyDeliveryFeedback('Procesando envío', 'Apps Script está procesando el reporte diario seleccionado.', 'info');
   google.script.run
     .withSuccessHandler(result => {
       updateServerInfoFromEnvelope(result || {});
       const ok = result && result.ok;
       const message = text(result && result.message) || (ok ? 'Reporte diario procesado.' : 'No se pudo procesar el reporte diario.');
       setImportFeedback(ok ? 'Reporte diario procesado' : 'No se envió el reporte diario', message, ok ? 'success' : 'warn');
+      setAdminDailyDeliveryFeedback(ok ? 'Reporte diario procesado' : 'No se envió el reporte diario', message, ok ? 'success' : 'warn');
       loadDailyAuditDeliveryState();
       loadOperationalControlState();
       loadAdminDailyAuditReport(selectedDate);
@@ -4021,6 +4170,7 @@ function sendDailyAuditReportNow(){
     .withFailureHandler(error => {
       console.error('No se pudo enviar el reporte diario.', error);
       setImportFeedback('No se envió el reporte diario', 'Apps Script no pudo procesar el envío del reporte diario.', 'warn');
+      setAdminDailyDeliveryFeedback('No se envió el reporte diario', 'Apps Script no pudo procesar el envío del reporte diario.', 'warn');
       loadDailyAuditDeliveryState();
       loadOperationalControlState();
     })
@@ -4031,6 +4181,7 @@ function saveDailyAuditDeliveryConfig(){
   const info = ensureServerInfo();
   if(!(isSharedBackendMode() && info.admin)) return;
   const payload = collectDailyAuditDeliveryForm();
+  setAdminDailyDeliveryFeedback('Guardando entrega', 'Apps Script está guardando la configuración del reporte diario.', 'info');
   google.script.run
     .withSuccessHandler(result => {
       updateServerInfoFromEnvelope(result || {});
@@ -4038,11 +4189,13 @@ function saveDailyAuditDeliveryConfig(){
       renderDailyAuditDeliveryState(appState.dailyReportDelivery);
       const ok = result && result.ok;
       setImportFeedback(ok ? 'Entrega diaria guardada' : 'No se guardó la entrega diaria', text(result && result.message) || 'No se pudo guardar la configuración del reporte diario.', ok ? 'success' : 'warn');
+      setAdminDailyDeliveryFeedback(ok ? 'Entrega diaria guardada' : 'No se guardó la entrega diaria', text(result && result.message) || 'No se pudo guardar la configuración del reporte diario.', ok ? 'success' : 'warn');
       loadOperationalControlState();
     })
     .withFailureHandler(error => {
       console.error('No se pudo guardar la entrega diaria.', error);
       setImportFeedback('No se guardó la entrega diaria', 'Apps Script no pudo guardar la configuración del reporte diario.', 'warn');
+      setAdminDailyDeliveryFeedback('No se guardó la entrega diaria', 'Apps Script no pudo guardar la configuración del reporte diario.', 'warn');
       loadDailyAuditDeliveryState();
       loadOperationalControlState();
     })
@@ -4052,17 +4205,20 @@ function saveDailyAuditDeliveryConfig(){
 function createDailyAuditDeliveryTrigger(){
   const info = ensureServerInfo();
   if(!(isSharedBackendMode() && info.admin)) return;
+  setAdminDailyDeliveryFeedback('Actualizando trigger', 'Apps Script está recreando el trigger diario del reporte.', 'info');
   google.script.run
     .withSuccessHandler(result => {
       updateServerInfoFromEnvelope(result || {});
       const ok = result && result.ok;
       setImportFeedback(ok ? 'Trigger diario actualizado' : 'No se creó el trigger diario', text(result && result.message) || 'No se pudo crear el trigger diario.', ok ? 'success' : 'warn');
+      setAdminDailyDeliveryFeedback(ok ? 'Trigger diario actualizado' : 'No se creó el trigger diario', text(result && result.message) || 'No se pudo crear el trigger diario.', ok ? 'success' : 'warn');
       loadDailyAuditDeliveryState();
       loadOperationalControlState();
     })
     .withFailureHandler(error => {
       console.error('No se pudo crear el trigger diario del reporte.', error);
       setImportFeedback('No se creó el trigger diario', 'Apps Script no pudo crear el trigger diario del reporte.', 'warn');
+      setAdminDailyDeliveryFeedback('No se creó el trigger diario', 'Apps Script no pudo crear el trigger diario del reporte.', 'warn');
       loadDailyAuditDeliveryState();
       loadOperationalControlState();
     })
@@ -4072,17 +4228,20 @@ function createDailyAuditDeliveryTrigger(){
 function deleteDailyAuditDeliveryTrigger(){
   const info = ensureServerInfo();
   if(!(isSharedBackendMode() && info.admin)) return;
+  setAdminDailyDeliveryFeedback('Eliminando trigger', 'Apps Script está eliminando el trigger diario del reporte.', 'info');
   google.script.run
     .withSuccessHandler(result => {
       updateServerInfoFromEnvelope(result || {});
       const ok = result && result.ok;
       setImportFeedback(ok ? 'Trigger diario eliminado' : 'No se eliminaron triggers', text(result && result.message) || 'No se pudo eliminar el trigger diario.', ok ? 'success' : 'warn');
+      setAdminDailyDeliveryFeedback(ok ? 'Trigger diario eliminado' : 'No se eliminaron triggers', text(result && result.message) || 'No se pudo eliminar el trigger diario.', ok ? 'success' : 'warn');
       loadDailyAuditDeliveryState();
       loadOperationalControlState();
     })
     .withFailureHandler(error => {
       console.error('No se pudo eliminar el trigger diario del reporte.', error);
       setImportFeedback('No se eliminaron triggers', 'Apps Script no pudo eliminar el trigger diario del reporte.', 'warn');
+      setAdminDailyDeliveryFeedback('No se eliminaron triggers', 'Apps Script no pudo eliminar el trigger diario del reporte.', 'warn');
       loadDailyAuditDeliveryState();
       loadOperationalControlState();
     })
@@ -4116,7 +4275,7 @@ function normalizeSharedStateBundle(bundle){
     customPeople: uniquePeople([].concat(BASE_PEOPLE).concat(Array.isArray(data.customPeople) ? data.customPeople : [])),
     customEntities: uniqueEntities([].concat(BASE_ENTITIES).concat(Array.isArray(data.customEntities) ? data.customEntities : [])),
     aliases: data.aliases && typeof data.aliases === 'object' && !Array.isArray(data.aliases) ? data.aliases : {},
-    notes: data.notes && typeof data.notes === 'object' && !Array.isArray(data.notes) ? data.notes : {},
+    notes: normalizeCaseNotesMap(data.notes),
     edits: data.edits && typeof data.edits === 'object' && !Array.isArray(data.edits) ? data.edits : {},
     customRecords: Array.isArray(data.customRecords) ? data.customRecords : [],
     payload: data.payload && data.payload.records && Array.isArray(data.payload.records) ? data.payload : null
@@ -4136,7 +4295,7 @@ function buildSharedStateBundle(reason){
     customPeople: uniquePeople([].concat(BASE_PEOPLE).concat(appState.customPeople || [])),
     customEntities: uniqueEntities([].concat(BASE_ENTITIES).concat(appState.customEntities || [])),
     aliases: appState.aliases || {},
-    notes: appState.notes || {},
+    notes: normalizeCaseNotesMap(appState.notes),
     edits: appState.edits || {},
     customRecords: appState.customRecords || [],
     payload: appState.payload || {meta:{}, summary:{}, records:[]}
@@ -4429,7 +4588,7 @@ function resequenceHierarchySourceOrder(records){
 }
 
 function getMergedRecord(record){
-  const note = appState.notes[record.id] || {};
+  const note = getCaseNoteEntry(record.id);
   const edit = appState.edits[record.id] || {};
   if(edit && edit.__deleted){
     return {
@@ -4442,7 +4601,9 @@ function getMergedRecord(record){
     ...record,
     ...edit,
     local_note:text(note.note),
-    local_action:text(note.action)
+    local_action:text(note.action),
+    attachments: normalizeCaseAttachmentList(note.attachments),
+    attachment_count: normalizeCaseAttachmentList(note.attachments).length
   };
   if(!text(merged.edt) && /inicio de efectividad del pr[eé]stamo/i.test(text(merged.actividad))){
     merged.edt = '4';
@@ -5991,7 +6152,7 @@ function renderAdminAudit(){
   }
   const list = (appState.audit || []).slice(0,40);
   host.innerHTML = list.length
-    ? list.map(item => '<div class="summary-item"><div><strong>' + escapeHtml(text(item.action) || 'cambio') + '</strong><span>' + escapeHtml(describeAuditItem(item)) + '</span></div></div>').join('')
+    ? list.map(item => '<div class="summary-item"><div><strong>' + escapeHtml(text(item.actionLabel) || humanizeAuditAction(item.action) || 'Cambio') + '</strong><span>' + escapeHtml(describeAuditItem(item)) + '</span></div></div>').join('')
     : '<div class="empty">Sin cambios auditados todavía.</div>';
 }
 
@@ -6953,6 +7114,23 @@ function setImportFeedback(title, detail, tone){
   };
 }
 
+function setAdminDailyDeliveryFeedback(title, detail, tone){
+  appState.adminDeliveryFeedback = {
+    title: text(title) || 'Entrega diaria lista',
+    detail: text(detail) || 'Sin novedades.',
+    tone: tone || 'info'
+  };
+  renderAdminDailyDeliveryFeedback();
+}
+
+function renderAdminDailyDeliveryFeedback(){
+  const host = document.getElementById('adminDailyDeliveryFeedback');
+  if(!host) return;
+  const feedback = appState.adminDeliveryFeedback || {};
+  host.className = 'ops-feedback ' + escapeHtml(feedback.tone || 'info');
+  host.innerHTML = '<strong>' + escapeHtml(feedback.title || 'Entrega diaria lista') + '</strong><p>' + escapeHtml(feedback.detail || '') + '</p>';
+}
+
 function sourceModeLabel(){
   if(appState.sourceMode === 'xlsx') return 'Excel o CSV operativo';
   if(appState.sourceMode === 'structure') return 'Estructura editable';
@@ -7131,6 +7309,7 @@ function renderTable(){
         '<td><div class="activity-wrap"><strong>' + escapeHtml(displayTitle(r)) + '</strong>' + 
           '<div class="activity-meta">' +
             (r.local_note ? '<span class="small">Con informacion local</span>' : '') +
+            (Number(r.attachment_count || 0) ? '<span class="small">Con ' + escapeHtml(String(r.attachment_count)) + ' sustento(s)</span>' : '') +
             (hasChildren ? '<span class="child-count">' + kids.length + ' subactividad(es)</span>' : '') +
           '</div></div></td>' +
         '<td>' + escapeHtml(r.responsable || '-') + '</td>' +
@@ -7193,6 +7372,7 @@ function openDrawer(recordId){
   document.getElementById('newChildEnd').value = record.final || '';
   document.getElementById('addChildBtn').dataset.parentId = record.id;
   document.getElementById('addChildBtn').dataset.nextEdt = nextChildEdt(record, childrenMap);
+  renderCaseAttachments(record);
   const deleteBtn = document.getElementById('deleteNodeBtn');
   if(deleteBtn){
     const protectedRoot = isRootBlockEdt(record.edt) || normalizedLevelValue(record.edt, record.nivel) === 1;
@@ -7254,6 +7434,337 @@ function getSelectedValues(prefix, mode){
 
 function closeDrawer(){
   document.getElementById('drawer').classList.remove('open');
+}
+
+function supportsSharedCaseAttachments(){
+  return Boolean(isSharedBackendMode() && window.google && google.script && google.script.run);
+}
+
+function canMutateCaseAttachments(){
+  return Boolean(supportsSharedCaseAttachments() && !appState.hasUnsyncedSharedChanges && !sharedSyncInFlight && !sharedAttachmentActionInFlight);
+}
+
+function formatFileSize(bytes){
+  const size = Number(bytes || 0);
+  if(!(size > 0)) return 'Sin tamaño';
+  if(size < 1024) return size + ' B';
+  if(size < 1024 * 1024) return (size / 1024).toFixed(1).replace(/\.0$/,'') + ' KB';
+  return (size / (1024 * 1024)).toFixed(1).replace(/\.0$/,'') + ' MB';
+}
+
+function setCaseAttachmentFeedback(title, detail, tone){
+  const host = document.getElementById('caseAttachmentFeedback');
+  if(!host) return;
+  host.className = 'ops-feedback ' + (tone || 'info');
+  host.innerHTML = '<strong>' + escapeHtml(title || 'Repositorio listo') + '</strong>' +
+    '<span>' + escapeHtml(detail || 'Aquí se mostrará el estado de carga y repositorio de sustento por actividad.') + '</span>';
+}
+
+function renderCaseAttachments(record){
+  const hintHost = document.getElementById('caseAttachmentHint');
+  const folderHost = document.getElementById('caseAttachmentFolderCard');
+  const listHost = document.getElementById('caseAttachmentList');
+  const input = document.getElementById('caseAttachmentInput');
+  const uploadBtn = document.getElementById('uploadCaseAttachmentsBtn');
+  const refreshBtn = document.getElementById('refreshCaseAttachmentsBtn');
+  if(!hintHost || !folderHost || !listHost || !input || !uploadBtn || !refreshBtn) return;
+  const noteEntry = getCaseNoteEntry(record && record.id);
+  const folderMeta = normalizeCaseAttachmentFolderMeta(noteEntry.attachmentFolder);
+  const attachments = normalizeCaseAttachmentList(noteEntry.attachments);
+  const sharedReady = supportsSharedCaseAttachments();
+  const canMutate = canMutateCaseAttachments();
+  hintHost.textContent = sharedReady
+    ? 'Sube uno o varios archivos de sustento para este bloque o subactividad. Se guardarán en el backend compartido del visor.'
+    : 'La carga operativa de sustento está disponible en la versión compartida de Apps Script. Aquí solo puedes consultar la lista sincronizada.';
+  input.disabled = !sharedReady || sharedAttachmentActionInFlight;
+  uploadBtn.disabled = !sharedReady || !canMutate;
+  refreshBtn.disabled = !sharedReady || !canMutate;
+  input.value = '';
+  if(sharedReady){
+    if(folderMeta && folderMeta.url){
+      folderHost.innerHTML =
+        '<strong>Carpeta visible por registro</strong>' +
+        '<span>' + escapeHtml(folderMeta.name || 'Carpeta de sustento del registro') + '</span>' +
+        '<span>' + escapeHtml(folderMeta.recordLabel || 'Repositorio de sustento preparado para esta actividad.') + '</span>' +
+        '<div class="case-attachment-actions">' +
+          '<button type="button" class="secondary" data-attachment-folder-open="' + escapeHtml(folderMeta.url) + '">Abrir carpeta</button>' +
+        '</div>';
+    }else{
+      folderHost.innerHTML =
+        '<strong>Carpeta visible por registro</strong>' +
+        '<span>Este registro aún no tiene una carpeta de sustento preparada en Drive.</span>' +
+        '<div class="case-attachment-actions">' +
+          '<button type="button" class="soft" id="prepareCaseAttachmentFolderBtn"' + (canMutate ? '' : ' disabled') + '>Preparar carpeta del registro</button>' +
+        '</div>';
+    }
+  }else{
+    folderHost.innerHTML =
+      '<strong>Carpeta visible por registro</strong>' +
+      '<span>Abre la versión compartida de Apps Script para preparar u abrir la carpeta de sustento de este bloque o subactividad.</span>';
+  }
+  if(!attachments.length){
+    listHost.innerHTML = '<div class="case-attachment-empty">No hay archivos de sustento registrados para esta actividad todavía.</div>';
+  }else{
+    listHost.innerHTML = attachments.map(item => (
+      '<div class="case-attachment-item">' +
+        '<strong>' + escapeHtml(item.name) + '</strong>' +
+        '<span class="case-attachment-meta">' + escapeHtml([
+          formatFileSize(item.size),
+          item.mimeType || 'Tipo no identificado',
+          formatIsoDisplay(item.uploadedAt) || 'Sin fecha',
+          item.uploadedBy ? ('Subido por ' + item.uploadedBy) : 'Sin actor'
+        ].filter(Boolean).join(' | ')) + '</span>' +
+        '<div class="case-attachment-actions">' +
+          (item.url ? '<button type="button" class="secondary" data-attachment-open="' + escapeHtml(item.url) + '">Abrir sustento</button>' : '') +
+          '<button type="button" class="ghost" data-attachment-delete="' + escapeHtml(item.id) + '"' + (canMutate ? '' : ' disabled') + '>Retirar sustento</button>' +
+        '</div>' +
+      '</div>'
+    )).join('');
+  }
+  if(sharedReady){
+    setCaseAttachmentFeedback(
+      'Repositorio operativo',
+      attachments.length
+        ? ('Esta actividad tiene ' + attachments.length + ' archivo(s) de sustento disponibles en el backend compartido.')
+        : 'Esta actividad aún no tiene archivos de sustento registrados en el backend compartido.',
+      attachments.length ? 'success' : 'info'
+    );
+  }else{
+    setCaseAttachmentFeedback(
+      'Repositorio disponible solo en Apps Script',
+      attachments.length
+        ? 'La lista visible proviene de la última sincronización, pero nuevas cargas o retiros requieren abrir la versión compartida del visor.'
+        : 'Abre la versión compartida de Apps Script para cargar o administrar sustento por bloque o subactividad.',
+      'info'
+    );
+  }
+  if(appState.hasUnsyncedSharedChanges && sharedReady){
+    setCaseAttachmentFeedback('Espera la sincronización compartida', 'Guarda primero la ficha y espera la confirmación de Apps Script antes de cargar o retirar sustento.', 'warn');
+  }
+  const prepareBtn = document.getElementById('prepareCaseAttachmentFolderBtn');
+  if(prepareBtn) prepareBtn.addEventListener('click', ensureCaseAttachmentFolder);
+}
+
+function readFileAsUploadPayload(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = text(reader.result);
+      const base64 = result.includes(',') ? result.split(',').slice(1).join(',') : result;
+      if(!base64){
+        reject(new Error('No se pudo leer el archivo ' + (file && file.name ? file.name : 'seleccionado') + '.'));
+        return;
+      }
+      resolve({
+        name: text(file && file.name),
+        mimeType: text(file && file.type) || 'application/octet-stream',
+        size: Number(file && file.size || 0),
+        contentBase64: base64
+      });
+    };
+    reader.onerror = () => reject(new Error('No se pudo leer el archivo ' + (file && file.name ? file.name : 'seleccionado') + '.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadCaseAttachments(){
+  if(!appState.selectedId) return;
+  if(!supportsSharedCaseAttachments()){
+    setCaseAttachmentFeedback('Carga no disponible', 'La carga de sustento solo está disponible en la versión compartida de Apps Script.', 'warn');
+    return;
+  }
+  if(appState.hasUnsyncedSharedChanges || sharedSyncInFlight){
+    setCaseAttachmentFeedback('Espera la sincronización compartida', 'Guarda primero la ficha y espera la confirmación de Apps Script antes de subir sustento.', 'warn');
+    return;
+  }
+  const input = document.getElementById('caseAttachmentInput');
+  const files = Array.from((input && input.files) || []);
+  if(!files.length){
+    setCaseAttachmentFeedback('Sin archivos seleccionados', 'Selecciona uno o varios archivos antes de usar la carga múltiple de sustento.', 'warn');
+    return;
+  }
+  if(files.length > CASE_ATTACHMENT_MAX_FILES){
+    setCaseAttachmentFeedback('Límite por operación', 'La carga múltiple admite hasta ' + CASE_ATTACHMENT_MAX_FILES + ' archivos por operación.', 'warn');
+    return;
+  }
+  const totalBytes = files.reduce((sum, file) => sum + Number(file && file.size || 0), 0);
+  const oversized = files.find(file => Number(file && file.size || 0) > CASE_ATTACHMENT_MAX_FILE_BYTES);
+  if(oversized){
+    setCaseAttachmentFeedback('Archivo demasiado grande', 'Cada sustento debe pesar como máximo 5 MB. Revisa: ' + text(oversized.name), 'warn');
+    return;
+  }
+  if(totalBytes > CASE_ATTACHMENT_MAX_TOTAL_BYTES){
+    setCaseAttachmentFeedback('Carga demasiado pesada', 'La operación completa no puede superar 12 MB. Divide la carga en varios bloques.', 'warn');
+    return;
+  }
+  sharedAttachmentActionInFlight = true;
+  renderCaseAttachments(appState.raw.find(item => item.id === appState.selectedId) || {id:appState.selectedId});
+  setCaseAttachmentFeedback('Subiendo sustento', 'Apps Script está cargando ' + files.length + ' archivo(s) de sustento para esta actividad.', 'info');
+  try{
+    const payload = await Promise.all(files.map(readFileAsUploadPayload));
+    const selectedId = appState.selectedId;
+    const identity = getCurrentActorIdentity();
+    google.script.run
+      .withSuccessHandler(result => {
+        sharedAttachmentActionInFlight = false;
+        updateServerInfoFromEnvelope(result || {});
+        if(result && result.ok && result.state){
+          applySharedStateBundle(result.state, {skipRenderHero:true});
+          refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:selectedId});
+          setImportFeedback('Sustentos cargados', text(result.message) || 'El visor compartido registró los archivos de sustento para esta actividad.', 'success');
+          setCaseAttachmentFeedback('Sustentos cargados', text(result.message) || 'El visor compartido registró los archivos de sustento para esta actividad.', 'success');
+          return;
+        }
+        refreshDerivedViews({drawerRecordId:selectedId});
+        setImportFeedback('No se cargó el sustento', text(result && result.message) || 'Apps Script no pudo registrar los archivos de sustento.', 'warn');
+        setCaseAttachmentFeedback('No se cargó el sustento', text(result && result.message) || 'Apps Script no pudo registrar los archivos de sustento.', 'warn');
+      })
+      .withFailureHandler(error => {
+        sharedAttachmentActionInFlight = false;
+        console.error('No se pudieron cargar los sustento(s).', error);
+        refreshDerivedViews({drawerRecordId:appState.selectedId});
+        setImportFeedback('No se cargó el sustento', 'Apps Script no pudo registrar los archivos de sustento para esta actividad.', 'warn');
+        setCaseAttachmentFeedback('No se cargó el sustento', 'Apps Script no pudo registrar los archivos de sustento para esta actividad.', 'warn');
+      })
+      .uploadSharedTrackingAttachments(selectedId, payload, identity.actor);
+  }catch(error){
+    sharedAttachmentActionInFlight = false;
+    console.error('No se pudieron preparar los archivos de sustento.', error);
+    renderCaseAttachments(appState.raw.find(item => item.id === appState.selectedId) || {id:appState.selectedId});
+    setCaseAttachmentFeedback('No se preparó el sustento', error && error.message ? error.message : 'No se pudieron leer los archivos seleccionados.', 'warn');
+  }
+}
+
+function refreshCurrentCaseAttachments(){
+  if(!appState.selectedId) return;
+  if(!supportsSharedCaseAttachments()){
+    setCaseAttachmentFeedback('Solo lectura', 'La actualización automática del repositorio requiere abrir la versión compartida de Apps Script.', 'info');
+    return;
+  }
+  if(appState.hasUnsyncedSharedChanges || sharedSyncInFlight || sharedAttachmentActionInFlight){
+    setCaseAttachmentFeedback('Espera la sincronización compartida', 'Primero debe terminar el guardado o la carga en curso antes de refrescar el repositorio de sustento.', 'warn');
+    return;
+  }
+  const selectedId = appState.selectedId;
+  setCaseAttachmentFeedback('Actualizando repositorio', 'Se está refrescando la lista de sustento desde Apps Script.', 'info');
+  google.script.run
+    .withSuccessHandler(result => {
+      if(!result || !result.ok || !result.state){
+        setCaseAttachmentFeedback('No se actualizó el repositorio', 'Apps Script no devolvió un estado válido para esta actividad.', 'warn');
+        return;
+      }
+      applySharedStateBundle(result.state, {skipRenderHero:true});
+      refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:selectedId});
+      setCaseAttachmentFeedback('Repositorio actualizado', 'Se refrescó la lista de sustento desde el estado compartido actual.', 'success');
+    })
+    .withFailureHandler(error => {
+      console.error('No se pudo refrescar el repositorio de sustento.', error);
+      setCaseAttachmentFeedback('No se actualizó el repositorio', 'Apps Script no pudo refrescar la lista de sustento para esta actividad.', 'warn');
+    })
+    .getSharedTrackingState();
+}
+
+function ensureCaseAttachmentFolder(){
+  if(!appState.selectedId) return;
+  if(!supportsSharedCaseAttachments()){
+    setCaseAttachmentFeedback('Carpeta no disponible', 'La carpeta de sustento por registro solo puede prepararse desde la versión compartida de Apps Script.', 'warn');
+    return;
+  }
+  if(appState.hasUnsyncedSharedChanges || sharedSyncInFlight || sharedAttachmentActionInFlight){
+    setCaseAttachmentFeedback('Espera la sincronización compartida', 'Primero debe terminar el guardado actual antes de preparar la carpeta del registro.', 'warn');
+    return;
+  }
+  sharedAttachmentActionInFlight = true;
+  renderCaseAttachments(appState.raw.find(item => item.id === appState.selectedId) || {id:appState.selectedId});
+  setCaseAttachmentFeedback('Preparando carpeta', 'Apps Script está preparando la carpeta visible de sustento para esta actividad.', 'info');
+  const selectedId = appState.selectedId;
+  const identity = getCurrentActorIdentity();
+  google.script.run
+    .withSuccessHandler(result => {
+      sharedAttachmentActionInFlight = false;
+      updateServerInfoFromEnvelope(result || {});
+      if(result && result.ok && result.state){
+        applySharedStateBundle(result.state, {skipRenderHero:true});
+        refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:selectedId});
+        setImportFeedback('Carpeta de sustento lista', text(result.message) || 'La carpeta visible del registro quedó preparada en Drive.', 'success');
+        setCaseAttachmentFeedback('Carpeta de sustento lista', text(result.message) || 'La carpeta visible del registro quedó preparada en Drive.', 'success');
+        return;
+      }
+      refreshDerivedViews({drawerRecordId:selectedId});
+      setImportFeedback('No se preparó la carpeta', text(result && result.message) || 'Apps Script no pudo preparar la carpeta de sustento del registro.', 'warn');
+      setCaseAttachmentFeedback('No se preparó la carpeta', text(result && result.message) || 'Apps Script no pudo preparar la carpeta de sustento del registro.', 'warn');
+    })
+    .withFailureHandler(error => {
+      sharedAttachmentActionInFlight = false;
+      console.error('No se pudo preparar la carpeta del registro.', error);
+      refreshDerivedViews({drawerRecordId:selectedId});
+      setImportFeedback('No se preparó la carpeta', 'Apps Script no pudo preparar la carpeta visible de sustento para esta actividad.', 'warn');
+      setCaseAttachmentFeedback('No se preparó la carpeta', 'Apps Script no pudo preparar la carpeta visible de sustento para esta actividad.', 'warn');
+    })
+    .ensureSharedTrackingAttachmentFolder(selectedId, identity.actor);
+}
+
+function removeCaseAttachment(attachmentId){
+  if(!appState.selectedId || !attachmentId) return;
+  if(!supportsSharedCaseAttachments()){
+    setCaseAttachmentFeedback('Retiro no disponible', 'Retirar sustento solo está disponible en la versión compartida de Apps Script.', 'warn');
+    return;
+  }
+  if(appState.hasUnsyncedSharedChanges || sharedSyncInFlight || sharedAttachmentActionInFlight){
+    setCaseAttachmentFeedback('Espera la sincronización compartida', 'Primero debe terminar el guardado actual antes de retirar sustento de la actividad.', 'warn');
+    return;
+  }
+  const record = appState.raw.find(item => item.id === appState.selectedId);
+  const attachments = normalizeCaseAttachmentList(record && record.attachments);
+  const target = attachments.find(item => item.id === attachmentId);
+  if(!target) return;
+  if(!window.confirm('¿Deseas retirar el sustento "' + target.name + '" de esta actividad?')) return;
+  sharedAttachmentActionInFlight = true;
+  renderCaseAttachments(record || {id:appState.selectedId});
+  setCaseAttachmentFeedback('Retirando sustento', 'Apps Script está retirando el archivo seleccionado del repositorio compartido.', 'info');
+  const selectedId = appState.selectedId;
+  const identity = getCurrentActorIdentity();
+  google.script.run
+    .withSuccessHandler(result => {
+      sharedAttachmentActionInFlight = false;
+      updateServerInfoFromEnvelope(result || {});
+      if(result && result.ok && result.state){
+        applySharedStateBundle(result.state, {skipRenderHero:true});
+        refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:selectedId});
+        setImportFeedback('Sustento retirado', text(result.message) || 'El archivo de sustento fue retirado del repositorio compartido.', 'success');
+        setCaseAttachmentFeedback('Sustento retirado', text(result.message) || 'El archivo de sustento fue retirado del repositorio compartido.', 'success');
+        return;
+      }
+      refreshDerivedViews({drawerRecordId:selectedId});
+      setImportFeedback('No se retiró el sustento', text(result && result.message) || 'Apps Script no pudo retirar el archivo de sustento.', 'warn');
+      setCaseAttachmentFeedback('No se retiró el sustento', text(result && result.message) || 'Apps Script no pudo retirar el archivo de sustento.', 'warn');
+    })
+    .withFailureHandler(error => {
+      sharedAttachmentActionInFlight = false;
+      console.error('No se pudo retirar el sustento.', error);
+      refreshDerivedViews({drawerRecordId:selectedId});
+      setImportFeedback('No se retiró el sustento', 'Apps Script no pudo retirar el archivo de sustento de esta actividad.', 'warn');
+      setCaseAttachmentFeedback('No se retiró el sustento', 'Apps Script no pudo retirar el archivo de sustento de esta actividad.', 'warn');
+    })
+    .deleteSharedTrackingAttachment(selectedId, attachmentId, identity.actor);
+}
+
+function handleCaseAttachmentListClick(event){
+  const trigger = event && event.target && event.target.closest ? event.target.closest('[data-attachment-open],[data-attachment-delete],[data-attachment-folder-open]') : null;
+  if(!trigger) return;
+  if(trigger.hasAttribute('data-attachment-folder-open')){
+    const folderUrl = text(trigger.getAttribute('data-attachment-folder-open'));
+    if(folderUrl) window.open(folderUrl, '_blank', 'noopener');
+    return;
+  }
+  if(trigger.hasAttribute('data-attachment-open')){
+    const url = text(trigger.getAttribute('data-attachment-open'));
+    if(url) window.open(url, '_blank', 'noopener');
+    return;
+  }
+  if(trigger.hasAttribute('data-attachment-delete')){
+    removeCaseAttachment(text(trigger.getAttribute('data-attachment-delete')));
+  }
 }
 
 function openHeroModal(){
@@ -7658,11 +8169,13 @@ function saveCurrentCase(){
   if(!edit.edt && !edit.parent_edt && !edit.nivel && !edit.grupo && !edit.responsable && !edit.seguimiento_dgppcs && !edit.contacto && !edit.estado && !edit.inicio && !edit.final && !edit.duracion_cal && !edit.dias_habiles && !edit.resumen && !edit.source_order){
     delete appState.edits[appState.selectedId];
   }
+  const currentNoteEntry = getCaseNoteEntry(appState.selectedId);
   appState.notes[appState.selectedId] = {
+    ...currentNoteEntry,
     note: text(document.getElementById('localNote').value),
     action: text(document.getElementById('localAction').value)
   };
-  if(!appState.notes[appState.selectedId].note && !appState.notes[appState.selectedId].action){
+  if(!appState.notes[appState.selectedId].note && !appState.notes[appState.selectedId].action && !normalizeCaseAttachmentList(appState.notes[appState.selectedId].attachments).length && !hasCaseAttachmentFolderMeta(appState.notes[appState.selectedId].attachmentFolder)){
     delete appState.notes[appState.selectedId];
   }
   const aliasValue = text(document.getElementById('editAlias')?.value);
@@ -7694,9 +8207,18 @@ function saveCurrentCase(){
 function clearCurrentCase(){
   if(!appState.selectedId) return;
   appendAudit('limpiar_ficha', appState.selectedId);
+  const preservedNoteEntry = getCaseNoteEntry(appState.selectedId);
   delete appState.edits[appState.selectedId];
-  delete appState.notes[appState.selectedId];
   delete appState.aliases[appState.selectedId];
+  if(normalizeCaseAttachmentList(preservedNoteEntry.attachments).length || hasCaseAttachmentFolderMeta(preservedNoteEntry.attachmentFolder)){
+    appState.notes[appState.selectedId] = {
+      ...preservedNoteEntry,
+      note: '',
+      action: ''
+    };
+  }else{
+    delete appState.notes[appState.selectedId];
+  }
   saveEdits();
   saveNotes();
   saveAliases();
@@ -8149,6 +8671,27 @@ function bindEvents(){
   document.getElementById('deleteNodeBtn').addEventListener('click', deleteCurrentSubactivity);
   document.getElementById('saveCaseNoteBtn').addEventListener('click', saveCurrentCase);
   document.getElementById('clearCaseNoteBtn').addEventListener('click', clearCurrentCase);
+  document.getElementById('uploadCaseAttachmentsBtn').addEventListener('click', () => {
+    uploadCaseAttachments().catch(error => {
+      console.error('No se pudo completar la carga de sustento.', error);
+      setCaseAttachmentFeedback('No se cargó el sustento', error && error.message ? error.message : 'No se pudo completar la carga de sustento para esta actividad.', 'warn');
+    });
+  });
+  document.getElementById('refreshCaseAttachmentsBtn').addEventListener('click', refreshCurrentCaseAttachments);
+  document.getElementById('caseAttachmentList').addEventListener('click', handleCaseAttachmentListClick);
+  document.getElementById('caseAttachmentInput').addEventListener('change', event => {
+    const files = Array.from((event.target && event.target.files) || []);
+    if(!files.length){
+      renderCaseAttachments(appState.raw.find(item => item.id === appState.selectedId) || {id:appState.selectedId});
+      return;
+    }
+    const totalBytes = files.reduce((sum, file) => sum + Number(file && file.size || 0), 0);
+    setCaseAttachmentFeedback(
+      'Archivos listos para carga',
+      'Seleccionaste ' + files.length + ' archivo(s) por ' + formatFileSize(totalBytes) + '. Guarda la ficha si aún está sincronizando antes de subir el sustento.',
+      'info'
+    );
+  });
   document.getElementById('buildReportBtn').addEventListener('click', () => {
     buildExecutiveReport();
     document.getElementById('reportModal').classList.add('open');

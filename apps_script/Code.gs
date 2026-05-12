@@ -77,6 +77,7 @@ const LOADER_PROPERTY_KEYS = {
 
 const OPERATIONAL_DEFAULTS = {
   sharedTrackingAdminEmails: ['dpardave@gmail.com'],
+  sharedTrackingOperationalEmails: [],
   dgppcsSummaryRecipients: ['mmelletp@yahoo.com'],
   dailyReportMode: 'REAL',
   dailyReportSendHour: 18,
@@ -1265,18 +1266,19 @@ function getSharedTrackingState() {
 
 function saveSharedTrackingState(bundle, actorName, action) {
   const previous = loadSharedTrackingState_();
-  const actorInfo = resolveSharedTrackingActorInfo_(actorName);
-  if (!actorInfo.actor) {
-    return buildSharedTrackingEnvelope_(previous, {
-      ok: false,
-      missingActor: true,
-      message: 'No se pudo identificar al usuario que intenta guardar. Ingresa con una cuenta Google autorizada o usa ?actor=correo@dominio como respaldo declarado.',
-      actor: '',
-      actorVerified: false,
-      actorSource: 'missing',
-      declaredActor: '',
-      backend: getSharedTrackingBackendMeta_(actorInfo)
-    });
+  const actorInfo = resolveSharedTrackingPermissionContext_(actorName);
+  if (!actorInfo.canEditShared) {
+    return buildSharedTrackingPermissionDeniedEnvelope_(
+      previous,
+      actorInfo,
+      actorInfo.reasonCode === 'declared_actor_only'
+        ? 'El actor fue declarado por URL. Puedes consultar el visor, pero la edición compartida requiere correo verificado y permiso operativo.'
+        : 'No se pudo autorizar el guardado compartido. Inicia sesión con una cuenta Google autorizada para editar el visor.',
+      {
+        action: 'intento_guardar_estado_bloqueado',
+        origin: String(action || 'guardar_estado_compartido')
+      }
+    );
   }
   const requestedRevision = Number(bundle && bundle.revision || 0);
   if (requestedRevision < Number(previous.revision || 0)) {
@@ -1327,18 +1329,19 @@ function saveSharedTrackingState(bundle, actorName, action) {
 
 function uploadSharedTrackingAttachments(recordId, uploads, actorName) {
   const previous = loadSharedTrackingState_();
-  const actorInfo = resolveSharedTrackingActorInfo_(actorName);
-  if (!actorInfo.actor) {
-    return buildSharedTrackingEnvelope_(previous, {
-      ok: false,
-      missingActor: true,
-      message: 'No se pudo identificar al usuario que intenta cargar sustento. Ingresa con una cuenta Google autorizada o usa ?actor=correo@dominio como respaldo declarado.',
-      actor: '',
-      actorVerified: false,
-      actorSource: 'missing',
-      declaredActor: '',
-      backend: getSharedTrackingBackendMeta_(actorInfo)
-    });
+  const actorInfo = resolveSharedTrackingPermissionContext_(actorName);
+  if (!actorInfo.canManageAttachments) {
+    return buildSharedTrackingPermissionDeniedEnvelope_(
+      previous,
+      actorInfo,
+      actorInfo.reasonCode === 'declared_actor_only'
+        ? 'El actor fue declarado por URL. Puedes consultar el visor, pero la carga de sustento requiere correo verificado y permiso operativo.'
+        : 'No se pudo autorizar la carga de sustento. Inicia sesión con una cuenta Google autorizada para esta operación.',
+      {
+        action: 'intento_cargar_sustento_bloqueado',
+        origin: 'cargar_sustento'
+      }
+    );
   }
   const safeRecordId = String(recordId || '').trim();
   if (!safeRecordId) {
@@ -1457,18 +1460,19 @@ function uploadSharedTrackingAttachments(recordId, uploads, actorName) {
 
 function ensureSharedTrackingAttachmentFolder(recordId, actorName) {
   const previous = loadSharedTrackingState_();
-  const actorInfo = resolveSharedTrackingActorInfo_(actorName);
-  if (!actorInfo.actor) {
-    return buildSharedTrackingEnvelope_(previous, {
-      ok: false,
-      missingActor: true,
-      message: 'No se pudo identificar al usuario que intenta preparar la carpeta de sustento.',
-      actor: '',
-      actorVerified: false,
-      actorSource: 'missing',
-      declaredActor: '',
-      backend: getSharedTrackingBackendMeta_(actorInfo)
-    });
+  const actorInfo = resolveSharedTrackingPermissionContext_(actorName);
+  if (!actorInfo.canManageAttachments) {
+    return buildSharedTrackingPermissionDeniedEnvelope_(
+      previous,
+      actorInfo,
+      actorInfo.reasonCode === 'declared_actor_only'
+        ? 'El actor fue declarado por URL. Puedes consultar el visor, pero preparar la carpeta de sustento requiere correo verificado y permiso operativo.'
+        : 'No se pudo autorizar la preparación de la carpeta de sustento para este registro.',
+      {
+        action: 'intento_preparar_carpeta_sustento_bloqueado',
+        origin: 'preparar_carpeta_sustento'
+      }
+    );
   }
   const safeRecordId = String(recordId || '').trim();
   if (!safeRecordId) {
@@ -1520,18 +1524,19 @@ function ensureSharedTrackingAttachmentFolder(recordId, actorName) {
 
 function deleteSharedTrackingAttachment(recordId, attachmentId, actorName) {
   const previous = loadSharedTrackingState_();
-  const actorInfo = resolveSharedTrackingActorInfo_(actorName);
-  if (!actorInfo.actor) {
-    return buildSharedTrackingEnvelope_(previous, {
-      ok: false,
-      missingActor: true,
-      message: 'No se pudo identificar al usuario que intenta retirar un sustento del visor.',
-      actor: '',
-      actorVerified: false,
-      actorSource: 'missing',
-      declaredActor: '',
-      backend: getSharedTrackingBackendMeta_(actorInfo)
-    });
+  const actorInfo = resolveSharedTrackingPermissionContext_(actorName);
+  if (!actorInfo.canManageAttachments) {
+    return buildSharedTrackingPermissionDeniedEnvelope_(
+      previous,
+      actorInfo,
+      actorInfo.reasonCode === 'declared_actor_only'
+        ? 'El actor fue declarado por URL. Puedes consultar el visor, pero retirar sustento requiere correo verificado y permiso operativo.'
+        : 'No se pudo autorizar el retiro de sustento de este registro.',
+      {
+        action: 'intento_retirar_sustento_bloqueado',
+        origin: 'retirar_sustento'
+      }
+    );
   }
   const safeRecordId = String(recordId || '').trim();
   const safeAttachmentId = String(attachmentId || '').trim();
@@ -1596,11 +1601,44 @@ function deleteSharedTrackingAttachment(recordId, attachmentId, actorName) {
 }
 
 function getSharedTrackingAudit(limit) {
+  const permission = resolveSharedTrackingPermissionContext_('');
+  if (!permission.canViewSensitiveAudit) {
+    if (permission.actor || permission.email || permission.declaredActor) {
+      appendSharedTrackingAudit_({
+        at: new Date().toISOString(),
+        actor: String(permission.actor || '').trim(),
+        actorEmail: String(permission.email || '').trim(),
+        actorSource: String(permission.source || 'missing').trim() || 'missing',
+        actorVerified: Boolean(permission.verified),
+        declaredActor: String(permission.declaredActor || '').trim(),
+        action: 'intento_ver_auditoria_bloqueado',
+        origin: 'visor_audit',
+        permissionRole: String(permission.permissionRole || 'viewer'),
+        reasonCode: String(permission.reasonCode || ''),
+        message: 'La auditoría detallada solo está disponible para administradores verificados del visor compartido.'
+      });
+    }
+    return {
+      ok: false,
+      permissionDenied: true,
+      actor: String(permission.actor || '').trim(),
+      actorVerified: Boolean(permission.verified),
+      actorSource: String(permission.source || 'missing').trim() || 'missing',
+      declaredActor: String(permission.declaredActor || '').trim(),
+      admin: false,
+      message: 'La auditoría detallada solo está disponible para administradores verificados del visor compartido.',
+      backend: getSharedTrackingBackendMeta_(permission)
+    };
+  }
   return {
     ok: true,
-    actor: getSharedTrackingActor_(),
-    admin: isSharedTrackingAdmin_(),
-    items: loadSharedTrackingAudit_().slice(0, Math.max(1, Number(limit || 100)))
+    actor: String(permission.actor || '').trim(),
+    actorVerified: Boolean(permission.verified),
+    actorSource: String(permission.source || 'missing').trim() || 'missing',
+    declaredActor: String(permission.declaredActor || '').trim(),
+    admin: true,
+    items: loadSharedTrackingAudit_().slice(0, Math.max(1, Number(limit || 100))),
+    backend: getSharedTrackingBackendMeta_(permission)
   };
 }
 
@@ -3979,6 +4017,11 @@ function getSharedTrackingAdminEmailList_() {
   return Array.from(new Set(configured.concat(splitEmailList_(OPERATIONAL_DEFAULTS.sharedTrackingAdminEmails.join(';')))));
 }
 
+function getSharedTrackingOperationalEmailList_() {
+  const configured = splitEmailList_(PropertiesService.getScriptProperties().getProperty('PEC_VISOR_OPERATIONAL_EMAILS') || '');
+  return Array.from(new Set(getSharedTrackingAdminEmailList_().concat(configured.concat(splitEmailList_(OPERATIONAL_DEFAULTS.sharedTrackingOperationalEmails.join(';'))))));
+}
+
 function setOrDeleteScriptProperty_(properties, key, value) {
   if (value == null || value === '') {
     properties.deleteProperty(key);
@@ -4576,6 +4619,87 @@ function resolveSharedTrackingActorInfo_(clientActorName) {
   };
 }
 
+function resolveSharedTrackingPermissionContext_(clientActorName) {
+  const actorInfo = resolveSharedTrackingActorInfo_(clientActorName);
+  const email = String(actorInfo.email || '').trim().toLowerCase();
+  const verified = Boolean(actorInfo.verified && email);
+  const adminEmails = getSharedTrackingAdminEmailList_()
+    .map(function(item) { return String(item || '').trim().toLowerCase(); })
+    .filter(Boolean);
+  const operationalEmails = getSharedTrackingOperationalEmailList_()
+    .map(function(item) { return String(item || '').trim().toLowerCase(); })
+    .filter(Boolean);
+  const isAdmin = Boolean(verified && adminEmails.indexOf(email) >= 0);
+  const isOperational = Boolean(verified && operationalEmails.indexOf(email) >= 0);
+  let permissionRole = 'viewer';
+  let reasonCode = 'missing_verified_identity';
+  let reasonMessage = 'No se pudo verificar tu identidad. Inicia sesión con una cuenta Google autorizada para editar o cargar sustento.';
+  if (isAdmin) {
+    permissionRole = 'admin';
+    reasonCode = 'admin_verified';
+    reasonMessage = 'Correo verificado con acceso administrador al visor compartido.';
+  } else if (isOperational) {
+    permissionRole = 'operational';
+    reasonCode = 'operational_verified';
+    reasonMessage = 'Correo verificado con acceso operativo para editar ficha y administrar sustentos.';
+  } else if (verified) {
+    permissionRole = 'verified_viewer';
+    reasonCode = 'verified_not_authorized';
+    reasonMessage = 'Tu correo fue verificado, pero aún no está autorizado para editar ni cargar sustento en el visor compartido.';
+  } else if (actorInfo.source === 'client_query' && actorInfo.actor) {
+    permissionRole = 'declared_viewer';
+    reasonCode = 'declared_actor_only';
+    reasonMessage = 'El actor fue declarado por URL. Puedes consultar el visor, pero la edición compartida y la carga de sustento requieren correo verificado.';
+  }
+  return Object.assign({}, actorInfo, {
+    email: email,
+    verified: verified,
+    isAdmin: isAdmin,
+    isOperational: isOperational,
+    canEditShared: Boolean(isAdmin || isOperational),
+    canManageAttachments: Boolean(isAdmin || isOperational),
+    canViewSensitiveAudit: Boolean(isAdmin),
+    permissionRole: permissionRole,
+    reasonCode: reasonCode,
+    reasonMessage: reasonMessage
+  });
+}
+
+function buildSharedTrackingPermissionDeniedEnvelope_(state, permission, message, auditMeta) {
+  const safePermission = permission && typeof permission === 'object'
+    ? permission
+    : resolveSharedTrackingPermissionContext_('');
+  const finalMessage = String(message || safePermission.reasonMessage || 'Acción bloqueada por permisos.').trim() || 'Acción bloqueada por permisos.';
+  if (safePermission.actor || safePermission.email || safePermission.declaredActor) {
+    const meta = auditMeta && typeof auditMeta === 'object' ? auditMeta : {};
+    appendSharedTrackingAudit_({
+      at: new Date().toISOString(),
+      actor: String(safePermission.actor || '').trim(),
+      actorEmail: String(safePermission.email || '').trim(),
+      actorSource: String(safePermission.source || 'missing').trim() || 'missing',
+      actorVerified: Boolean(safePermission.verified),
+      declaredActor: String(safePermission.declaredActor || '').trim(),
+      action: String(meta.action || 'intento_bloqueado').trim() || 'intento_bloqueado',
+      origin: String(meta.origin || 'control_permisos').trim() || 'control_permisos',
+      permissionRole: String(safePermission.permissionRole || 'viewer').trim() || 'viewer',
+      reasonCode: String(safePermission.reasonCode || '').trim(),
+      message: finalMessage
+    });
+  }
+  return buildSharedTrackingEnvelope_(state, {
+    ok: false,
+    missingActor: !safePermission.actor,
+    permissionDenied: true,
+    permissionReasonCode: String(safePermission.reasonCode || '').trim(),
+    actor: String(safePermission.actor || '').trim(),
+    actorVerified: Boolean(safePermission.verified),
+    actorSource: String(safePermission.source || 'missing').trim() || 'missing',
+    declaredActor: String(safePermission.declaredActor || '').trim(),
+    message: finalMessage,
+    backend: getSharedTrackingBackendMeta_(safePermission)
+  });
+}
+
 function buildAuditActorMeta_(actorInfo) {
   const info = actorInfo && typeof actorInfo === 'object'
     ? actorInfo
@@ -4606,18 +4730,25 @@ function isSharedTrackingAdmin_() {
 
 function getSharedTrackingBackendMeta_(actorInfo) {
   const latestBackup = getLatestSharedTrackingBackupMeta_() || {};
-  const identity = actorInfo && typeof actorInfo === 'object'
-    ? actorInfo
-    : resolveSharedTrackingActorInfo_('');
+  const identity = actorInfo && typeof actorInfo === 'object' ? actorInfo : null;
+  const permission = identity && typeof identity.canEditShared !== 'undefined'
+    ? identity
+    : resolveSharedTrackingPermissionContext_(identity && identity.declaredActor ? identity.declaredActor : '');
   return {
     mode: 'apps_script',
     storage: 'drive_json',
-    actor: String(identity.actor || '').trim(),
-    actorEmail: String(identity.email || '').trim(),
-    actorVerified: Boolean(identity.verified),
-    actorSource: String(identity.source || 'missing').trim() || 'missing',
-    declaredActor: String(identity.declaredActor || '').trim(),
-    admin: isSharedTrackingAdmin_(),
+    actor: String(permission.actor || '').trim(),
+    actorEmail: String(permission.email || '').trim(),
+    actorVerified: Boolean(permission.verified),
+    actorSource: String(permission.source || 'missing').trim() || 'missing',
+    declaredActor: String(permission.declaredActor || '').trim(),
+    admin: Boolean(permission.isAdmin),
+    canEditShared: Boolean(permission.canEditShared),
+    canManageAttachments: Boolean(permission.canManageAttachments),
+    canViewSensitiveAudit: Boolean(permission.canViewSensitiveAudit),
+    permissionRole: String(permission.permissionRole || 'viewer').trim() || 'viewer',
+    permissionReasonCode: String(permission.reasonCode || '').trim(),
+    permissionReasonMessage: String(permission.reasonMessage || '').trim(),
     pollIntervalSeconds: 30,
     backendFolder: '_VisorSeguimientoPEC',
     backupFolder: 'backups',

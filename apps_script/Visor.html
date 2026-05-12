@@ -3037,6 +3037,77 @@ function describeCurrentActorIdentity(identity){
   return 'Sin identificar';
 }
 
+function getCurrentPermissionState(){
+  const info = ensureServerInfo();
+  const identity = getCurrentActorIdentity();
+  if(!isSharedBackendMode()){
+    return {
+      role: 'local_mode',
+      label: 'Modo local',
+      detail: 'Los cambios se guardan en este navegador. La carga real de sustento requiere abrir la versión compartida de Apps Script.',
+      canEditShared: true,
+      canManageAttachments: false,
+      isAdmin: Boolean(info.admin)
+    };
+  }
+  if(info.admin){
+    return {
+      role: 'admin',
+      label: 'Admin por correo o modo local',
+      detail: text(info.permissionReasonMessage) || 'Correo verificado con acceso administrador al visor compartido.',
+      canEditShared: true,
+      canManageAttachments: true,
+      isAdmin: true
+    };
+  }
+  if(info.canEditShared || info.canManageAttachments || text(info.permissionRole) === 'operational'){
+    return {
+      role: 'operational',
+      label: 'Operador verificado',
+      detail: text(info.permissionReasonMessage) || 'Tu correo verificado puede editar la ficha compartida y administrar sustentos.',
+      canEditShared: true,
+      canManageAttachments: true,
+      isAdmin: false
+    };
+  }
+  if(identity.source === 'client_query' && !identity.verified){
+    return {
+      role: 'declared_viewer',
+      label: 'Actor declarado por URL',
+      detail: 'La identidad es referencial. Puedes consultar el visor, pero la edición compartida y la carga de sustento requieren correo verificado.',
+      canEditShared: false,
+      canManageAttachments: false,
+      isAdmin: false
+    };
+  }
+  if(identity.verified){
+    return {
+      role: 'verified_viewer',
+      label: 'Usuario verificado sin permiso operativo',
+      detail: text(info.permissionReasonMessage) || 'Tu correo fue verificado, pero no está autorizado para editar ni cargar sustento en el visor compartido.',
+      canEditShared: false,
+      canManageAttachments: false,
+      isAdmin: false
+    };
+  }
+  return {
+    role: 'viewer',
+    label: 'Usuario estándar',
+    detail: text(info.permissionReasonMessage) || 'Puedes consultar el visor. Para editar o cargar sustento necesitas una cuenta Google autorizada.',
+    canEditShared: false,
+    canManageAttachments: false,
+    isAdmin: false
+  };
+}
+
+function canCurrentUserEditShared(){
+  return Boolean(getCurrentPermissionState().canEditShared);
+}
+
+function canCurrentUserManageAttachments(){
+  return Boolean(getCurrentPermissionState().canManageAttachments);
+}
+
 function loadAuditLog(){
   try{
     const rows = JSON.parse(localStorage.getItem(AUDIT_STORAGE_KEY) || '[]');
@@ -3355,6 +3426,14 @@ function getDefaultServerInfo(){
     actorVerified: false,
     actorSource: '',
     admin: false,
+    canEditShared: false,
+    canManageAttachments: false,
+    canViewSensitiveAudit: false,
+    permissionRole: isSharedBackendMode() ? 'viewer' : 'local_mode',
+    permissionReasonCode: isSharedBackendMode() ? 'backend_pending' : 'local_mode',
+    permissionReasonMessage: isSharedBackendMode()
+      ? 'El backend compartido aún no confirmó tus permisos operativos.'
+      : 'Modo local: los cambios se guardan en este navegador.',
     pollIntervalSeconds: 30,
     savedAt: '',
     savedBy: '',
@@ -3394,6 +3473,9 @@ function renderAdminAccess(){
 function updateServerInfoFromEnvelope(result){
   const info = ensureServerInfo();
   const backend = result && result.backend && typeof result.backend === 'object' ? result.backend : {};
+  const permissionMessage = result && (result.permissionDenied || result.ok === false)
+    ? text(result.message)
+    : '';
   const explicitAdmin = result && typeof result.admin !== 'undefined'
     ? Boolean(result.admin)
     : (typeof backend.admin !== 'undefined' ? Boolean(backend.admin) : null);
@@ -3403,6 +3485,12 @@ function updateServerInfoFromEnvelope(result){
   else if(typeof backend.actorVerified !== 'undefined') info.actorVerified = Boolean(backend.actorVerified);
   info.actorSource = text((result && result.actorSource) || backend.actorSource || info.actorSource);
   if(explicitAdmin !== null) info.admin = explicitAdmin;
+  if(typeof backend.canEditShared !== 'undefined') info.canEditShared = Boolean(backend.canEditShared);
+  if(typeof backend.canManageAttachments !== 'undefined') info.canManageAttachments = Boolean(backend.canManageAttachments);
+  if(typeof backend.canViewSensitiveAudit !== 'undefined') info.canViewSensitiveAudit = Boolean(backend.canViewSensitiveAudit);
+  info.permissionRole = text(backend.permissionRole || info.permissionRole);
+  info.permissionReasonCode = text((result && result.permissionReasonCode) || backend.permissionReasonCode || info.permissionReasonCode);
+  info.permissionReasonMessage = permissionMessage || text(backend.permissionReasonMessage || info.permissionReasonMessage);
   info.pollIntervalSeconds = Number(backend.pollIntervalSeconds || info.pollIntervalSeconds || 30);
   info.savedAt = text((result && result.savedAt) || (result && result.state && result.state.savedAt) || info.savedAt);
   info.savedBy = text((result && result.savedBy) || (result && result.state && result.state.savedBy) || info.savedBy);
@@ -3466,6 +3554,7 @@ function syncStateLabel(){
 function renderAdminStatus(){
   const info = ensureServerInfo();
   const identity = getCurrentActorIdentity();
+  const permission = getCurrentPermissionState();
   const actorHost = document.getElementById('adminActorValue');
   const modeHost = document.getElementById('adminModeValue');
   const syncHost = document.getElementById('adminSyncValue');
@@ -3474,7 +3563,7 @@ function renderAdminStatus(){
     ? identity.actor + ' | ' + describeCurrentActorIdentity(identity)
     : (info.savedBy ? info.savedBy + ' | Último guardado' : 'Sin identificar');
   if(modeHost){
-    modeHost.textContent = backendModeLabel() + (info.admin ? ' | Admin por correo o modo local' : ' | Usuario estándar');
+    modeHost.textContent = backendModeLabel() + ' | ' + (info.admin ? 'Admin por correo o modo local' : permission.label);
   }
   if(syncHost){
     const tail = info.syncMessage ? ' | ' + info.syncMessage : '';
@@ -4324,6 +4413,12 @@ function applySharedStateBundle(bundle, options){
     actor: text(currentInfo.actor),
     actorVerified: typeof currentInfo.actorVerified === 'boolean' ? currentInfo.actorVerified : false,
     actorSource: text(currentInfo.actorSource),
+    canEditShared: Boolean(currentInfo.canEditShared),
+    canManageAttachments: Boolean(currentInfo.canManageAttachments),
+    canViewSensitiveAudit: Boolean(currentInfo.canViewSensitiveAudit),
+    permissionRole: text(currentInfo.permissionRole),
+    permissionReasonCode: text(currentInfo.permissionReasonCode),
+    permissionReasonMessage: text(currentInfo.permissionReasonMessage),
     savedAt: text(state.savedAt) || text(currentInfo.savedAt),
     savedBy: text(state.savedBy) || text(currentInfo.savedBy),
     revision: Number(state.revision || currentInfo.revision || 0),
@@ -4363,11 +4458,21 @@ function flushSharedSync(){
   pendingSharedSyncReason = '';
   sharedSyncInFlight = true;
   const identity = getCurrentActorIdentity();
+  const permission = getCurrentPermissionState();
   if(!identity.actor){
     sharedSyncInFlight = false;
     appState.hasUnsyncedSharedChanges = true;
     setSharedError('No se pudo identificar al usuario actual. Inicia sesión con una cuenta Google autorizada o abre el visor con ?actor=correo@dominio como respaldo declarado.', 'error');
     setImportFeedback('Identificación requerida', 'El visor compartido bloqueó el guardado porque no existe un actor verificable ni declarado para esta sesión.', 'warn');
+    renderOperationsStatus();
+    return;
+  }
+  if(!permission.canEditShared){
+    sharedSyncInFlight = false;
+    appState.hasUnsyncedSharedChanges = true;
+    const detail = text(permission.detail) || 'La edición compartida no está autorizada para el usuario actual.';
+    setSharedError(detail, 'error');
+    setImportFeedback(permission.label || 'Guardado bloqueado por permisos', detail + ' La copia visible quedó solo en este navegador hasta resolverlo.', 'warn');
     renderOperationsStatus();
     return;
   }
@@ -4393,7 +4498,7 @@ function flushSharedSync(){
         const detail = text(result.message) || 'Apps Script rechazó el guardado del estado compartido.';
         setSharedError(detail, 'error');
         setImportFeedback(
-          result.missingActor ? 'Guardado bloqueado por identidad' : 'No se guardó en Apps Script',
+          result.permissionDenied ? 'Guardado bloqueado por permisos' : (result.missingActor ? 'Guardado bloqueado por identidad' : 'No se guardó en Apps Script'),
           detail + ' La copia visible quedó solo en este navegador hasta resolverlo.',
           'warn'
         );
@@ -7441,7 +7546,7 @@ function supportsSharedCaseAttachments(){
 }
 
 function canMutateCaseAttachments(){
-  return Boolean(supportsSharedCaseAttachments() && !appState.hasUnsyncedSharedChanges && !sharedSyncInFlight && !sharedAttachmentActionInFlight);
+  return Boolean(supportsSharedCaseAttachments() && canCurrentUserManageAttachments() && !appState.hasUnsyncedSharedChanges && !sharedSyncInFlight && !sharedAttachmentActionInFlight);
 }
 
 function formatFileSize(bytes){
@@ -7471,14 +7576,18 @@ function renderCaseAttachments(record){
   const noteEntry = getCaseNoteEntry(record && record.id);
   const folderMeta = normalizeCaseAttachmentFolderMeta(noteEntry.attachmentFolder);
   const attachments = normalizeCaseAttachmentList(noteEntry.attachments);
+  const permission = getCurrentPermissionState();
   const sharedReady = supportsSharedCaseAttachments();
+  const canRefresh = Boolean(sharedReady && !appState.hasUnsyncedSharedChanges && !sharedSyncInFlight && !sharedAttachmentActionInFlight);
   const canMutate = canMutateCaseAttachments();
   hintHost.textContent = sharedReady
-    ? 'Sube uno o varios archivos de sustento para este bloque o subactividad. Se guardarán en el backend compartido del visor.'
+    ? (permission.canManageAttachments
+        ? 'Sube uno o varios archivos de sustento para este bloque o subactividad. Se guardarán en el backend compartido del visor.'
+        : permission.detail)
     : 'La carga operativa de sustento está disponible en la versión compartida de Apps Script. Aquí solo puedes consultar la lista sincronizada.';
-  input.disabled = !sharedReady || sharedAttachmentActionInFlight;
+  input.disabled = !sharedReady || !permission.canManageAttachments || sharedAttachmentActionInFlight;
   uploadBtn.disabled = !sharedReady || !canMutate;
-  refreshBtn.disabled = !sharedReady || !canMutate;
+  refreshBtn.disabled = !canRefresh;
   input.value = '';
   if(sharedReady){
     if(folderMeta && folderMeta.url){
@@ -7522,13 +7631,21 @@ function renderCaseAttachments(record){
     )).join('');
   }
   if(sharedReady){
-    setCaseAttachmentFeedback(
-      'Repositorio operativo',
-      attachments.length
-        ? ('Esta actividad tiene ' + attachments.length + ' archivo(s) de sustento disponibles en el backend compartido.')
-        : 'Esta actividad aún no tiene archivos de sustento registrados en el backend compartido.',
-      attachments.length ? 'success' : 'info'
-    );
+    if(permission.canManageAttachments){
+      setCaseAttachmentFeedback(
+        'Repositorio operativo',
+        attachments.length
+          ? ('Esta actividad tiene ' + attachments.length + ' archivo(s) de sustento disponibles en el backend compartido.')
+          : 'Esta actividad aún no tiene archivos de sustento registrados en el backend compartido.',
+        attachments.length ? 'success' : 'info'
+      );
+    }else{
+      setCaseAttachmentFeedback(
+        permission.label,
+        permission.detail + (attachments.length ? ' La lista sincronizada sigue visible en modo consulta.' : ''),
+        'warn'
+      );
+    }
   }else{
     setCaseAttachmentFeedback(
       'Repositorio disponible solo en Apps Script',
@@ -7538,7 +7655,7 @@ function renderCaseAttachments(record){
       'info'
     );
   }
-  if(appState.hasUnsyncedSharedChanges && sharedReady){
+  if(appState.hasUnsyncedSharedChanges && sharedReady && permission.canManageAttachments){
     setCaseAttachmentFeedback('Espera la sincronización compartida', 'Guarda primero la ficha y espera la confirmación de Apps Script antes de cargar o retirar sustento.', 'warn');
   }
   const prepareBtn = document.getElementById('prepareCaseAttachmentFolderBtn');
@@ -7571,6 +7688,11 @@ async function uploadCaseAttachments(){
   if(!appState.selectedId) return;
   if(!supportsSharedCaseAttachments()){
     setCaseAttachmentFeedback('Carga no disponible', 'La carga de sustento solo está disponible en la versión compartida de Apps Script.', 'warn');
+    return;
+  }
+  const permission = getCurrentPermissionState();
+  if(!permission.canManageAttachments){
+    setCaseAttachmentFeedback(permission.label, permission.detail, 'warn');
     return;
   }
   if(appState.hasUnsyncedSharedChanges || sharedSyncInFlight){
@@ -7670,6 +7792,11 @@ function ensureCaseAttachmentFolder(){
     setCaseAttachmentFeedback('Carpeta no disponible', 'La carpeta de sustento por registro solo puede prepararse desde la versión compartida de Apps Script.', 'warn');
     return;
   }
+  const permission = getCurrentPermissionState();
+  if(!permission.canManageAttachments){
+    setCaseAttachmentFeedback(permission.label, permission.detail, 'warn');
+    return;
+  }
   if(appState.hasUnsyncedSharedChanges || sharedSyncInFlight || sharedAttachmentActionInFlight){
     setCaseAttachmentFeedback('Espera la sincronización compartida', 'Primero debe terminar el guardado actual antes de preparar la carpeta del registro.', 'warn');
     return;
@@ -7708,6 +7835,11 @@ function removeCaseAttachment(attachmentId){
   if(!appState.selectedId || !attachmentId) return;
   if(!supportsSharedCaseAttachments()){
     setCaseAttachmentFeedback('Retiro no disponible', 'Retirar sustento solo está disponible en la versión compartida de Apps Script.', 'warn');
+    return;
+  }
+  const permission = getCurrentPermissionState();
+  if(!permission.canManageAttachments){
+    setCaseAttachmentFeedback(permission.label, permission.detail, 'warn');
     return;
   }
   if(appState.hasUnsyncedSharedChanges || sharedSyncInFlight || sharedAttachmentActionInFlight){

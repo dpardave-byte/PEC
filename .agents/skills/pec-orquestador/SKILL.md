@@ -1,4 +1,19 @@
-﻿---
+# pec-orquestador
+
+## Estado
+
+Esta skill queda como orquestador legacy.
+
+Para tareas nuevas del Visor PEC debe usarse como orquestador principal:
+
+`.agents/skills/legend-pec-orchestrator-v2.2/SKILL.md`
+
+Si una tarea requiere coordinación multiagente, implementación, auditoría, permisos, sustentos, concurrencia, reportes, dashboard o publicación Apps Script, delegar a `legend-pec-orchestrator-v2.2`.
+
+---
+
+## Contenido legacy conservado
+---
 name: pec-orquestador
 description: Activa este skill cuando el usuario solicite cambios integrales en el visor PEC, tablero ejecutivo, Gantt, alertas, fichas por caso, responsables, bloques, fases, busqueda, persistencia local, exportacion o mejoras de interfaz. Este skill debe coordinar analisis funcional, frontend UX, persistencia de datos, QA de regresion y entrega git.
 ---
@@ -41,3 +56,4 @@ Reglas obligatorias para el visor PEC:
 - Si una corrección no se valida visualmente o no pasa el flujo completo usuario → estado → hidratación → filtros → render → persistencia, no está lista para commit.
 - Si el usuario contradice una validación de Codex con evidencia visual, prevalece la evidencia visual del usuario y debe reabrirse el diagnóstico.
 - No se debe recomendar commit si existen registros invisibles, duplicados persistidos, botones sin conexión real, errores de Apps Script o archivos temporales no rastreados.
+

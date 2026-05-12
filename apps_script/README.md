@@ -227,6 +227,14 @@ En el panel administrador del visor compartido:
 - guardar la configuración y activar el trigger solo cuando el envío REAL ya esté validado;
 - usar `Exportar reporte diario` antes del envío operativo a DGPPCS.
 
+Regla operativa vigente:
+
+- el cierre diario automático debe quedar configurado de lunes a viernes a las `18:00`;
+- el backend normaliza esa hora como piso operativo del reporte diario;
+- si existía un trigger viejo o el horario quedó desfasado, usar la acción administrativa:
+  - `.../exec?action=visor_reset_daily_report_weekday_trigger`
+- esa acción vuelve a fijar la hora base en `18:00` y reemplaza el trigger anterior.
+
 Si el reporte se enviará por correo, verificar además que el Web App sea accesible para los destinatarios previstos con sus cuentas Google autorizadas.
 
 Si el campo de destinatarios queda vacío, el backend usa como respaldo los correos de `PEC_VISOR_ADMIN_EMAILS`.
@@ -238,6 +246,33 @@ Para las alertas operativas a usuarios:
 - El backend envía un correo individual a cada persona mapeada. Si una persona no tiene alertas directas en el corte, recibe un correo con `0 alerta(s)`.
 - El consolidado DGPPCS se envía al conjunto de correos mapeados en `PEC_VISOR_NOTIFY_EMAILS_JSON`, más cualquier correo extra definido en `PEC_VISOR_NOTIFY_DGPPCS_EMAILS`.
 - El destinatario operativo por defecto del consolidado sigue existiendo como respaldo adicional.
+
+## Fase 1 de consolidacion operativa
+
+La fase 1 del visor compartido se centra en confiabilidad operativa.
+
+Prioridades:
+
+- mantener estable el backend compartido;
+- evitar guardados ambiguos o silenciosos;
+- sostener auditoría y backup verificables;
+- asegurar que correos operativos y cierre diario salgan en la ventana correcta;
+- convertir el panel admin en centro de control básico del visor.
+
+Prueba mínima semanal recomendada:
+
+1. abrir `?view=visor` con cuenta admin;
+2. revisar actor, último guardado y último backup;
+3. generar un cambio controlado en una ficha;
+4. verificar que el guardado compartido responda correctamente;
+5. abrir `Cierre diario por usuario` y confirmar que el movimiento aparece;
+6. revisar `Entrega del reporte diario` y confirmar:
+   - modo;
+   - destinatarios;
+   - trigger habilitado;
+   - hora `18:00`;
+7. ejecutar un reporte diario manual de prueba;
+8. revisar alertas operativas y consolidado DGPPCS.
 
 En la publicación validada en este repositorio, la URL pública responde con redirección a `accounts.google.com`, por lo que la comprobación final debe hacerse iniciando sesión con una cuenta DGPPCS autorizada.
 

@@ -330,3 +330,28 @@ Núcleo de confiabilidad que debe mantenerse:
   - cierre diario por usuario;
   - reporte ejecutivo semanal;
   - matriz de pendientes por responsable / DGPPCS.
+
+## 14. Checklist de permisos y carga de sustento
+
+- Confirmar que la cuenta Google activa corresponde al usuario esperado.
+- Confirmar si el actor aparece como `Correo verificado` o como `Actor declarado por URL`.
+- Confirmar si el usuario entra como admin por correo o como usuario estándar.
+- Validar la lista `PEC_VISOR_ADMIN_EMAILS` sin exponer propiedades sensibles completas.
+- Validar la lista `PEC_VISOR_OPERATIONAL_EMAILS` para usuarios operativos no admin.
+- Validar si el usuario operativo puede cargar sustento en modo compartido.
+- Validar si el usuario operativo puede retirar sustento en modo compartido.
+- Validar que un usuario verificado sin permiso operativo quede solo en modo consulta.
+- Validar que el usuario estándar no pueda ejecutar funciones admin.
+- Validar que `?actor=` no conceda admin.
+- Validar que `?actor=` tampoco permita editar, cargar sustento, preparar carpeta ni retirar archivo.
+- Validar permisos Drive de carpeta raíz de adjuntos y carpeta por registro.
+- Validar si la visibilidad de nombres, actores, fechas y URLs de sustento para usuarios lectores es aceptable según la política documental del proyecto.
+- Validar que la carga registre actor, fecha, registro, archivo y acción.
+- Validar que el retiro de sustento deje auditoría y no rompa el registro.
+- Validar riesgo de concurrencia documental:
+  - dos cargas casi simultáneas;
+  - un retiro mientras otro usuario carga;
+  - consistencia final de la lista de sustentos.
+- Validar que el backup y la auditoría sigan operativos después de carga o retiro.
+- Validar exportación de reportes sin alterar datos base.
+- Validar y documentar si existe o no inventario exportable de sustentos por caso.

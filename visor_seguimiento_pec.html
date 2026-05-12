@@ -893,7 +893,7 @@ tbody tr:hover td{background:#f8fbfe}
       </div>
       <button id="closeAdminBtn" class="secondary">Cerrar</button>
     </div>
-    <div class="operations-note"><strong>Cierre diario para DGPPCS.</strong> El reporte diario agrupa la auditoría por usuario, conserva el detalle de cada cambio y permite exportar el resumen del día seleccionado.</div>
+    <div class="operations-note"><strong>Operación diaria del visor PEC.</strong> El panel administra el recordatorio operativo matutino, el resumen ejecutivo nocturno admin y el reporte detallado de auditoría por usuario.</div>
     <div class="admin-audit-toolbar">
       <label class="admin-date-field" for="adminAuditDate">
         <span>Fecha del reporte</span>
@@ -915,7 +915,7 @@ tbody tr:hover td{background:#f8fbfe}
           <div class="audit-report-head">
             <div>
               <h4>Estado operativo del visor</h4>
-              <p id="adminOperationalSummary">Se mostrará el estado consolidado del cierre diario, los correos operativos y el último backup.</p>
+              <p id="adminOperationalSummary">Se mostrará el estado consolidado del recordatorio matutino, los correos operativos, el resumen admin y el último backup.</p>
             </div>
             <span class="source-badge" id="adminOperationalBadge">Sin backend</span>
           </div>
@@ -942,14 +942,14 @@ tbody tr:hover td{background:#f8fbfe}
       </section>
       <section class="admin-audit-section">
         <div>
-          <h4>Entrega del reporte diario</h4>
+          <h4>Recordatorio operativo matutino</h4>
           <p id="adminDailyDeliveryMeta">Disponible solo en el visor compartido de Apps Script con correo configurado.</p>
         </div>
         <div class="audit-report-card">
           <div class="audit-report-head">
             <div>
-              <h4>Correo operativo</h4>
-              <p id="adminDailyDeliverySummary">Se mostrará el estado de destinatarios, verificación de identidad y envío automático.</p>
+              <h4>Correo de arranque del día</h4>
+              <p id="adminDailyDeliverySummary">Se mostrará el estado de destinatarios, verificación de identidad y envío automático a las 09:00.</p>
             </div>
             <span class="source-badge" id="adminDailyDeliveryBadge">Sin backend</span>
           </div>
@@ -964,9 +964,9 @@ tbody tr:hover td{background:#f8fbfe}
               </select>
             </label>
             <label class="field" for="dailyDeliveryHourInput">
-              <span>Hora diaria</span>
+              <span>Hora matutina</span>
               <input id="dailyDeliveryHourInput" type="number" min="0" max="23" step="1" inputmode="numeric">
-              <small class="field-help">Hora local del proyecto Apps Script.</small>
+              <small class="field-help">Hora local del proyecto Apps Script. El recordatorio se envía aunque aún no existan actualizaciones.</small>
             </label>
             <label class="field" for="dailyDeliveryToInput">
               <span>Destinatarios</span>
@@ -993,13 +993,47 @@ tbody tr:hover td{background:#f8fbfe}
           <div class="toolbar-actions">
             <button id="saveDailyDeliveryConfigBtn" class="secondary">Guardar entrega</button>
             <button id="refreshDailyDeliveryBtn" class="secondary">Actualizar entrega</button>
-            <button id="sendDailyAuditMailBtn">Enviar reporte ahora</button>
-            <button id="createDailyAuditTriggerBtn" class="ghost">Activar envio diario</button>
+            <button id="sendDailyAuditMailBtn">Enviar recordatorio ahora</button>
+            <button id="createDailyAuditTriggerBtn" class="ghost">Activar recordatorio diario</button>
             <button id="deleteDailyAuditTriggerBtn" class="ghost">Eliminar trigger diario</button>
           </div>
           <div class="ops-feedback info" id="adminDailyDeliveryFeedback">
-            <strong>Entrega diaria lista</strong>
+            <strong>Recordatorio matutino listo</strong>
             <p>Las acciones de envío, guardado y trigger mostrarán aquí su resultado dentro del panel administrador.</p>
+          </div>
+        </div>
+      </section>
+      <section class="admin-audit-section">
+        <div>
+          <h4>Resumen ejecutivo nocturno admin</h4>
+          <p id="adminNightlySummaryMeta">Disponible solo para administradores del visor compartido con corte operativo a las 21:00.</p>
+        </div>
+        <div class="audit-report-card">
+          <div class="audit-report-head">
+            <div>
+              <h4>Correo ejecutivo de cierre</h4>
+              <p id="adminNightlySummarySummary">Se mostrará el estado del resumen ejecutivo nocturno, destinatarios admin y trigger de las 21:00.</p>
+            </div>
+            <span class="source-badge" id="adminNightlySummaryBadge">Sin backend</span>
+          </div>
+          <div class="audit-report-tags" id="adminNightlySummaryTags"></div>
+          <div class="delivery-config-grid">
+            <label class="field" for="adminNightlySummaryHourInput">
+              <span>Hora nocturna</span>
+              <input id="adminNightlySummaryHourInput" type="number" min="0" max="23" step="1" inputmode="numeric">
+              <small class="field-help">El resumen incluye auditoría del día, usuarios sin cambios y backup compartido para revisión/reversión manual.</small>
+            </label>
+          </div>
+          <div class="toolbar-actions">
+            <button id="saveAdminNightlySummaryConfigBtn" class="secondary">Guardar horario</button>
+            <button id="refreshAdminNightlySummaryBtn" class="secondary">Actualizar resumen admin</button>
+            <button id="sendAdminNightlySummaryBtn">Enviar resumen ahora</button>
+            <button id="createAdminNightlySummaryTriggerBtn" class="ghost">Activar resumen nocturno</button>
+            <button id="deleteAdminNightlySummaryTriggerBtn" class="ghost">Eliminar trigger nocturno</button>
+          </div>
+          <div class="ops-feedback info" id="adminNightlySummaryFeedback">
+            <strong>Resumen nocturno listo</strong>
+            <p>Las acciones de envío, guardado y trigger del resumen admin mostrarán aquí su resultado.</p>
           </div>
         </div>
       </section>
@@ -2690,6 +2724,7 @@ const appState = {
   audit: loadAuditLog(),
   adminDailyReport: null,
   dailyReportDelivery: null,
+  adminNightlySummary: null,
   operationalControl: null,
   selectedId: '',
   reportText: '',
@@ -2703,8 +2738,13 @@ const appState = {
   },
   adminDeliveryFeedback: {
     tone: 'info',
-    title: 'Entrega diaria lista',
+    title: 'Recordatorio matutino listo',
     detail: 'Las acciones de envío, guardado y trigger mostrarán aquí su resultado dentro del panel administrador.'
+  },
+  adminNightlySummaryFeedback: {
+    tone: 'info',
+    title: 'Resumen nocturno listo',
+    detail: 'Las acciones del resumen ejecutivo admin mostrarán aquí su resultado dentro del panel administrador.'
   },
   expanded: {},
   highlightedId: '',
@@ -3670,8 +3710,11 @@ function humanizeAuditAction(action){
     case 'cargar_sustento': return 'Cargar sustento';
     case 'retirar_sustento': return 'Retirar sustento';
     case 'preparar_carpeta_sustento': return 'Preparar carpeta de sustento';
-    case 'configurar_reporte_diario': return 'Configurar reporte diario';
-    case 'enviar_reporte_diario_correo': return 'Enviar reporte diario por correo';
+    case 'configurar_reporte_diario': return 'Configurar recordatorio operativo matutino';
+    case 'enviar_reporte_diario_correo': return 'Enviar recordatorio operativo por correo';
+    case 'configurar_resumen_admin_nocturno': return 'Configurar resumen ejecutivo admin';
+    case 'enviar_resumen_ejecutivo_admin': return 'Enviar resumen ejecutivo admin';
+    case 'omitir_resumen_ejecutivo_admin': return 'Omitir resumen ejecutivo admin';
     case 'enviar_alertas_correo': return 'Enviar alertas por correo';
     case 'omitir_alertas_correo': return 'Omitir alertas por correo';
     case 'guardar_estado_compartido': return 'Guardar estado compartido';
@@ -3951,6 +3994,9 @@ function formatOperationalOriginLabel(origin){
   if(safe === 'trigger_diario_reporte') return 'Trigger diario';
   if(safe === 'envio_manual_reporte_diario') return 'Envío manual';
   if(safe === 'operacion_diaria_recuperacion') return 'Recuperación operativa';
+  if(safe === 'trigger_nocturno_admin') return 'Trigger nocturno admin';
+  if(safe === 'envio_manual_resumen_admin') return 'Envío manual admin';
+  if(safe === 'operacion_nocturna_recuperacion') return 'Recuperación nocturna admin';
   if(safe === 'trigger_diario_alertas') return 'Trigger diario';
   if(safe === 'envio_manual_alertas') return 'Envío manual';
   return safe.replace(/_/g,' ');
@@ -4001,6 +4047,7 @@ function renderOperationalControlState(state){
   const backend = state.backend || {};
   const daily = state.dailyReport || {};
   const due = state.dueTracking || {};
+  const adminSummary = state.adminSummary || {};
   const products = Array.isArray(state.products) ? state.products : [];
   const info = ensureServerInfo();
   metaHost.textContent = [
@@ -4010,10 +4057,10 @@ function renderOperationalControlState(state){
   summaryHost.textContent = text(state.message) || 'Centro de control operativo cargado.';
   badgeHost.textContent = state.controlReady ? 'Operativo' : 'Revisar';
   metricsHost.innerHTML = [
-    {label:'Cierre diario', value: daily.triggerEnabled ? 'Activo' : 'Inactivo'},
+    {label:'Recordatorio 09:00', value: daily.triggerEnabled ? 'Activo' : 'Inactivo'},
     {label:'Alertas DGPPCS', value: due.triggerEnabled ? 'Activo' : 'Inactivo'},
-    {label:'Último backup', value: formatIsoDisplay(backend.lastBackupAt || info.lastBackupAt) || 'Sin registro'},
-    {label:'Productos base', value: String(products.length || 0)}
+    {label:'Resumen admin 21:00', value: adminSummary.triggerEnabled ? 'Activo' : 'Inactivo'},
+    {label:'Último backup', value: formatIsoDisplay(backend.lastBackupAt || info.lastBackupAt) || 'Sin registro'}
   ].map(item => (
     '<div class="audit-report-metric">' +
       '<span>' + escapeHtml(item.label) + '</span>' +
@@ -4022,8 +4069,9 @@ function renderOperationalControlState(state){
   )).join('');
   const tags = [
     'Actor admin: ' + (text(getCurrentActorIdentity().actor) || 'Sin identificar'),
-    'Cierre diario: ' + (text(daily.scheduleLabel) || 'Sin horario'),
+    'Recordatorio: ' + (text(daily.scheduleLabel) || 'Sin horario'),
     'Alertas: ' + (text(due.scheduleLabel) || 'Sin horario'),
+    'Resumen admin: ' + (text(adminSummary.scheduleLabel) || 'Sin horario'),
     'Modo cierre: ' + (text(daily.mode) || 'PREVIEW_ONLY'),
     'Modo alertas: ' + (text(due.mode) || 'PREVIEW_ONLY')
   ];
@@ -4031,7 +4079,7 @@ function renderOperationalControlState(state){
   tagsHost.innerHTML = tags.map(item => '<span>' + escapeHtml(item) + '</span>').join('');
   entriesHost.innerHTML = [
     {
-      title: 'Cierre diario por usuario',
+      title: 'Recordatorio operativo matutino',
       line1: 'Trigger: ' + (daily.triggerEnabled ? 'Activo' : 'Inactivo') + ' | Última ejecución: ' + (formatIsoDisplay(daily.lastExecutionAt) || 'Sin registro') + ' | Última entrega: ' + (formatIsoDisplay(daily.lastDeliveryAt) || 'Sin entrega'),
       line2: 'Origen: ' + formatOperationalOriginLabel(daily.lastExecutionOrigin || daily.lastDeliveryOrigin) + ' | Destinatarios últimos: ' + (daily.lastDeliveryRecipientsCount || 0) + ' | Hora: ' + formatDeliveryHourLabel(daily.sendHour)
     },
@@ -4039,6 +4087,11 @@ function renderOperationalControlState(state){
       title: 'Correos operativos DGPPCS',
       line1: 'Trigger: ' + (due.triggerEnabled ? 'Activo' : 'Inactivo') + ' | Última ejecución: ' + (formatIsoDisplay(due.lastExecutionAt) || 'Sin registro') + ' | Última entrega: ' + (formatIsoDisplay(due.lastDeliveryAt) || 'Sin entrega'),
       line2: 'Origen: ' + formatOperationalOriginLabel(due.lastExecutionOrigin || due.lastDeliveryOrigin) + ' | Mapeados: ' + Number(due.mappedRecipientCount || 0) + ' | Hora: ' + formatDeliveryHourLabel(due.sendHour)
+    },
+    {
+      title: 'Resumen ejecutivo nocturno admin',
+      line1: 'Trigger: ' + (adminSummary.triggerEnabled ? 'Activo' : 'Inactivo') + ' | Última ejecución: ' + (formatIsoDisplay(adminSummary.lastExecutionAt) || 'Sin registro') + ' | Última entrega: ' + (formatIsoDisplay(adminSummary.lastDeliveryAt) || 'Sin entrega'),
+      line2: 'Origen: ' + formatOperationalOriginLabel(adminSummary.lastExecutionOrigin || adminSummary.lastDeliveryOrigin) + ' | Admins destino: ' + Number(adminSummary.lastDeliveryRecipientsCount || 0) + ' | Hora: ' + formatDeliveryHourLabel(adminSummary.sendHour)
     },
     {
       title: 'Respaldo y operación',
@@ -4099,7 +4152,7 @@ function syncDailyAuditDeliveryForm(state){
   const saveBtn = document.getElementById('saveDailyDeliveryConfigBtn');
   const hasState = Boolean(state && state.ok !== false);
   if(modeField && hasState) modeField.value = text(state.mode) || 'PREVIEW_ONLY';
-  if(hourField && hasState) hourField.value = Number.isFinite(Number(state.sendHour)) ? String(Math.max(0, Math.min(23, Math.round(Number(state.sendHour))))) : '18';
+  if(hourField && hasState) hourField.value = Number.isFinite(Number(state.sendHour)) ? String(Math.max(0, Math.min(23, Math.round(Number(state.sendHour))))) : '9';
   if(toField && hasState) toField.value = Array.isArray(state.configuredRecipients) ? state.configuredRecipients.join('; ') : '';
   if(ccField && hasState) ccField.value = Array.isArray(state.cc) ? state.cc.join('; ') : '';
   if(testField && hasState) testField.value = Array.isArray(state.testRecipients) ? state.testRecipients.join('; ') : '';
@@ -4142,7 +4195,7 @@ function renderDailyAuditDeliveryState(state){
   if(!metaHost || !summaryHost || !badgeHost || !tagsHost) return;
   if(!appState.adminEnabled){
     metaHost.textContent = 'Modo administrador no habilitado.';
-    summaryHost.textContent = 'El envío del reporte diario requiere acceso administrador.';
+    summaryHost.textContent = 'El recordatorio matutino requiere acceso administrador.';
     badgeHost.textContent = 'Sin acceso';
     tagsHost.innerHTML = '<span>Modo administrador no habilitado</span>';
     if(saveBtn) saveBtn.disabled = true;
@@ -4154,7 +4207,7 @@ function renderDailyAuditDeliveryState(state){
   }
   if(!state){
     metaHost.textContent = 'Consultando configuración de entrega...';
-    summaryHost.textContent = 'Consultando destinatarios, modo de envío y trigger diario.';
+    summaryHost.textContent = 'Consultando destinatarios, modo de envío y trigger matutino.';
     badgeHost.textContent = 'Cargando';
     tagsHost.innerHTML = '<span>Preparando entrega</span>';
     if(saveBtn) saveBtn.disabled = true;
@@ -4165,7 +4218,7 @@ function renderDailyAuditDeliveryState(state){
     return;
   }
   if(state.ok === false){
-    const message = text(state.message) || 'No se pudo revisar la entrega del reporte diario.';
+    const message = text(state.message) || 'No se pudo revisar el recordatorio operativo matutino.';
     metaHost.textContent = message;
     summaryHost.textContent = message;
     badgeHost.textContent = 'Sin backend';
@@ -4185,13 +4238,13 @@ function renderDailyAuditDeliveryState(state){
   const testRecipients = Array.isArray(state.testRecipients) ? state.testRecipients : [];
   metaHost.textContent = [
     'Modo: ' + (text(state.mode) || 'PREVIEW_ONLY'),
-    'Hora diaria: ' + formatDeliveryHourLabel(state.sendHour),
+    'Hora matutina: ' + formatDeliveryHourLabel(state.sendHour),
     'Trigger: ' + (state.triggerEnabled ? 'Activo' : 'Inactivo')
   ].join(' | ');
   summaryHost.textContent = text(state.message) || (
     effectiveRecipients.length
       ? ('Destino efectivo: ' + effectiveRecipients.join(', '))
-      : 'Sin destinatarios configurados para el reporte diario.'
+      : 'Sin destinatarios configurados para el recordatorio operativo matutino.'
   );
   badgeHost.textContent = text(state.mode) || 'PREVIEW_ONLY';
   const tags = [];
@@ -4224,8 +4277,8 @@ function loadDailyAuditDeliveryState(){
         renderDailyAuditDeliveryState(appState.dailyReportDelivery);
       })
       .withFailureHandler(error => {
-        console.error('No se pudo revisar la entrega del reporte diario.', error);
-        appState.dailyReportDelivery = {ok:false, message:'No se pudo revisar la entrega del reporte diario desde Apps Script.'};
+        console.error('No se pudo revisar el recordatorio operativo matutino.', error);
+        appState.dailyReportDelivery = {ok:false, message:'No se pudo revisar el recordatorio operativo matutino desde Apps Script.'};
         renderDailyAuditDeliveryState(appState.dailyReportDelivery);
       })
       .getSharedTrackingDailyReportDeliveryStatus();
@@ -4240,26 +4293,148 @@ function loadDailyAuditDeliveryState(){
   renderDailyAuditDeliveryState(appState.dailyReportDelivery);
 }
 
+function syncAdminNightlySummaryForm(state){
+  const hourField = document.getElementById('adminNightlySummaryHourInput');
+  const saveBtn = document.getElementById('saveAdminNightlySummaryConfigBtn');
+  const hasState = Boolean(state && state.ok !== false);
+  if(hourField && hasState) hourField.value = Number.isFinite(Number(state.sendHour)) ? String(Math.max(0, Math.min(23, Math.round(Number(state.sendHour))))) : '21';
+  const enabled = Boolean(appState.adminEnabled && isSharedBackendMode() && hasState);
+  if(hourField) hourField.disabled = !enabled;
+  if(saveBtn) saveBtn.disabled = !enabled;
+}
+
+function collectAdminNightlySummaryForm(){
+  const hourField = document.getElementById('adminNightlySummaryHourInput');
+  return {
+    sendHour: Number(hourField && hourField.value)
+  };
+}
+
+function renderAdminNightlySummaryState(state){
+  const metaHost = document.getElementById('adminNightlySummaryMeta');
+  const summaryHost = document.getElementById('adminNightlySummarySummary');
+  const badgeHost = document.getElementById('adminNightlySummaryBadge');
+  const tagsHost = document.getElementById('adminNightlySummaryTags');
+  const saveBtn = document.getElementById('saveAdminNightlySummaryConfigBtn');
+  const refreshBtn = document.getElementById('refreshAdminNightlySummaryBtn');
+  const sendBtn = document.getElementById('sendAdminNightlySummaryBtn');
+  const createBtn = document.getElementById('createAdminNightlySummaryTriggerBtn');
+  const deleteBtn = document.getElementById('deleteAdminNightlySummaryTriggerBtn');
+  if(refreshBtn) refreshBtn.disabled = !appState.adminEnabled;
+  renderAdminNightlySummaryFeedback();
+  if(!metaHost || !summaryHost || !badgeHost || !tagsHost) return;
+  if(!appState.adminEnabled){
+    metaHost.textContent = 'Modo administrador no habilitado.';
+    summaryHost.textContent = 'El resumen ejecutivo nocturno requiere acceso administrador.';
+    badgeHost.textContent = 'Sin acceso';
+    tagsHost.innerHTML = '<span>Modo administrador no habilitado</span>';
+    if(saveBtn) saveBtn.disabled = true;
+    if(sendBtn) sendBtn.disabled = true;
+    if(createBtn) createBtn.disabled = true;
+    if(deleteBtn) deleteBtn.disabled = true;
+    syncAdminNightlySummaryForm({ok:false});
+    return;
+  }
+  if(!state){
+    metaHost.textContent = 'Consultando configuración del resumen admin...';
+    summaryHost.textContent = 'Consultando destinatarios admin, hora nocturna y trigger de las 21:00.';
+    badgeHost.textContent = 'Cargando';
+    tagsHost.innerHTML = '<span>Preparando resumen admin</span>';
+    if(saveBtn) saveBtn.disabled = true;
+    if(sendBtn) sendBtn.disabled = true;
+    if(createBtn) createBtn.disabled = true;
+    if(deleteBtn) deleteBtn.disabled = true;
+    syncAdminNightlySummaryForm({ok:false});
+    return;
+  }
+  if(state.ok === false){
+    const message = text(state.message) || 'No se pudo revisar el resumen ejecutivo nocturno admin.';
+    metaHost.textContent = message;
+    summaryHost.textContent = message;
+    badgeHost.textContent = 'Sin backend';
+    tagsHost.innerHTML = '<span>' + escapeHtml(message) + '</span>';
+    if(saveBtn) saveBtn.disabled = true;
+    if(sendBtn) sendBtn.disabled = true;
+    if(createBtn) createBtn.disabled = true;
+    if(deleteBtn) deleteBtn.disabled = true;
+    syncAdminNightlySummaryForm(state);
+    return;
+  }
+  const recipients = Array.isArray(state.recipients) ? state.recipients : [];
+  const expectedAudience = Array.isArray(state.expectedAudience) ? state.expectedAudience : [];
+  metaHost.textContent = [
+    'Hora nocturna: ' + formatDeliveryHourLabel(state.sendHour),
+    'Trigger: ' + (state.triggerEnabled ? 'Activo' : 'Inactivo'),
+    'Admins destino: ' + recipients.length
+  ].join(' | ');
+  summaryHost.textContent = text(state.message) || (
+    recipients.length
+      ? ('Resumen admin preparado para ' + recipients.join(', '))
+      : 'Sin administradores configurados para el resumen ejecutivo nocturno.'
+  );
+  badgeHost.textContent = state.triggerEnabled ? 'Operativo' : 'Revisar';
+  const tags = [];
+  tags.push('Actor actual: ' + (text(getCurrentActorIdentity().actor) || 'Sin identificar'));
+  tags.push('Identidad: ' + describeCurrentActorIdentity(getCurrentActorIdentity()));
+  tags.push('Admins destino: ' + (recipients.length ? recipients.join(', ') : 'Sin configurar'));
+  tags.push('Usuarios esperados: ' + Number(expectedAudience.length || 0));
+  tags.push('Trigger nocturno: ' + (state.triggerCount || 0));
+  tagsHost.innerHTML = tags.map(item => '<span>' + escapeHtml(item) + '</span>').join('');
+  const canSend = Boolean(isSharedBackendMode());
+  if(sendBtn) sendBtn.disabled = !canSend || !recipients.length;
+  if(createBtn) createBtn.disabled = !canSend || !recipients.length;
+  if(deleteBtn) deleteBtn.disabled = !canSend || !state.triggerEnabled;
+  if(saveBtn) saveBtn.disabled = !canSend;
+  syncAdminNightlySummaryForm(state);
+}
+
+function loadAdminNightlySummaryState(){
+  renderAdminNightlySummaryState(null);
+  const info = ensureServerInfo();
+  if(isSharedBackendMode() && info.admin){
+    google.script.run
+      .withSuccessHandler(result => {
+        updateServerInfoFromEnvelope(result || {});
+        appState.adminNightlySummary = result || {ok:false, message:'No se pudo leer la configuración del resumen admin.'};
+        renderAdminNightlySummaryState(appState.adminNightlySummary);
+      })
+      .withFailureHandler(error => {
+        console.error('No se pudo revisar el resumen ejecutivo admin.', error);
+        appState.adminNightlySummary = {ok:false, message:'No se pudo revisar el resumen ejecutivo admin desde Apps Script.'};
+        renderAdminNightlySummaryState(appState.adminNightlySummary);
+      })
+      .getSharedTrackingAdminExecutiveSummaryStatus();
+    return;
+  }
+  appState.adminNightlySummary = {
+    ok: false,
+    message: isSharedBackendMode()
+      ? 'El resumen ejecutivo admin requiere acceso administrador en Apps Script.'
+      : 'El resumen ejecutivo admin está disponible solo en la versión Apps Script compartida.'
+  };
+  renderAdminNightlySummaryState(appState.adminNightlySummary);
+}
+
 function sendDailyAuditReportNow(){
   const info = ensureServerInfo();
   const selectedDate = text(document.getElementById('adminAuditDate') && document.getElementById('adminAuditDate').value) || todayCalendarIso();
   if(!(isSharedBackendMode() && info.admin)) return;
-  setAdminDailyDeliveryFeedback('Procesando envío', 'Apps Script está procesando el reporte diario seleccionado.', 'info');
+  setAdminDailyDeliveryFeedback('Procesando envío', 'Apps Script está procesando el recordatorio operativo matutino.', 'info');
   google.script.run
     .withSuccessHandler(result => {
       updateServerInfoFromEnvelope(result || {});
       const ok = result && result.ok;
-      const message = text(result && result.message) || (ok ? 'Reporte diario procesado.' : 'No se pudo procesar el reporte diario.');
-      setImportFeedback(ok ? 'Reporte diario procesado' : 'No se envió el reporte diario', message, ok ? 'success' : 'warn');
-      setAdminDailyDeliveryFeedback(ok ? 'Reporte diario procesado' : 'No se envió el reporte diario', message, ok ? 'success' : 'warn');
+      const message = text(result && result.message) || (ok ? 'Recordatorio operativo procesado.' : 'No se pudo procesar el recordatorio operativo.');
+      setImportFeedback(ok ? 'Recordatorio operativo procesado' : 'No se envió el recordatorio operativo', message, ok ? 'success' : 'warn');
+      setAdminDailyDeliveryFeedback(ok ? 'Recordatorio operativo procesado' : 'No se envió el recordatorio operativo', message, ok ? 'success' : 'warn');
       loadDailyAuditDeliveryState();
       loadOperationalControlState();
       loadAdminDailyAuditReport(selectedDate);
     })
     .withFailureHandler(error => {
-      console.error('No se pudo enviar el reporte diario.', error);
-      setImportFeedback('No se envió el reporte diario', 'Apps Script no pudo procesar el envío del reporte diario.', 'warn');
-      setAdminDailyDeliveryFeedback('No se envió el reporte diario', 'Apps Script no pudo procesar el envío del reporte diario.', 'warn');
+      console.error('No se pudo enviar el recordatorio operativo.', error);
+      setImportFeedback('No se envió el recordatorio operativo', 'Apps Script no pudo procesar el envío del recordatorio operativo.', 'warn');
+      setAdminDailyDeliveryFeedback('No se envió el recordatorio operativo', 'Apps Script no pudo procesar el envío del recordatorio operativo.', 'warn');
       loadDailyAuditDeliveryState();
       loadOperationalControlState();
     })
@@ -4270,21 +4445,21 @@ function saveDailyAuditDeliveryConfig(){
   const info = ensureServerInfo();
   if(!(isSharedBackendMode() && info.admin)) return;
   const payload = collectDailyAuditDeliveryForm();
-  setAdminDailyDeliveryFeedback('Guardando entrega', 'Apps Script está guardando la configuración del reporte diario.', 'info');
+  setAdminDailyDeliveryFeedback('Guardando entrega', 'Apps Script está guardando la configuración del recordatorio matutino.', 'info');
   google.script.run
     .withSuccessHandler(result => {
       updateServerInfoFromEnvelope(result || {});
       appState.dailyReportDelivery = result || {ok:false, message:'No se pudo guardar la entrega diaria.'};
       renderDailyAuditDeliveryState(appState.dailyReportDelivery);
       const ok = result && result.ok;
-      setImportFeedback(ok ? 'Entrega diaria guardada' : 'No se guardó la entrega diaria', text(result && result.message) || 'No se pudo guardar la configuración del reporte diario.', ok ? 'success' : 'warn');
-      setAdminDailyDeliveryFeedback(ok ? 'Entrega diaria guardada' : 'No se guardó la entrega diaria', text(result && result.message) || 'No se pudo guardar la configuración del reporte diario.', ok ? 'success' : 'warn');
+      setImportFeedback(ok ? 'Entrega diaria guardada' : 'No se guardó la entrega diaria', text(result && result.message) || 'No se pudo guardar la configuración del recordatorio matutino.', ok ? 'success' : 'warn');
+      setAdminDailyDeliveryFeedback(ok ? 'Entrega diaria guardada' : 'No se guardó la entrega diaria', text(result && result.message) || 'No se pudo guardar la configuración del recordatorio matutino.', ok ? 'success' : 'warn');
       loadOperationalControlState();
     })
     .withFailureHandler(error => {
       console.error('No se pudo guardar la entrega diaria.', error);
-      setImportFeedback('No se guardó la entrega diaria', 'Apps Script no pudo guardar la configuración del reporte diario.', 'warn');
-      setAdminDailyDeliveryFeedback('No se guardó la entrega diaria', 'Apps Script no pudo guardar la configuración del reporte diario.', 'warn');
+      setImportFeedback('No se guardó la entrega diaria', 'Apps Script no pudo guardar la configuración del recordatorio matutino.', 'warn');
+      setAdminDailyDeliveryFeedback('No se guardó la entrega diaria', 'Apps Script no pudo guardar la configuración del recordatorio matutino.', 'warn');
       loadDailyAuditDeliveryState();
       loadOperationalControlState();
     })
@@ -4294,20 +4469,20 @@ function saveDailyAuditDeliveryConfig(){
 function createDailyAuditDeliveryTrigger(){
   const info = ensureServerInfo();
   if(!(isSharedBackendMode() && info.admin)) return;
-  setAdminDailyDeliveryFeedback('Actualizando trigger', 'Apps Script está recreando el trigger diario del reporte.', 'info');
+  setAdminDailyDeliveryFeedback('Actualizando trigger', 'Apps Script está recreando el trigger del recordatorio matutino.', 'info');
   google.script.run
     .withSuccessHandler(result => {
       updateServerInfoFromEnvelope(result || {});
       const ok = result && result.ok;
-      setImportFeedback(ok ? 'Trigger diario actualizado' : 'No se creó el trigger diario', text(result && result.message) || 'No se pudo crear el trigger diario.', ok ? 'success' : 'warn');
-      setAdminDailyDeliveryFeedback(ok ? 'Trigger diario actualizado' : 'No se creó el trigger diario', text(result && result.message) || 'No se pudo crear el trigger diario.', ok ? 'success' : 'warn');
+      setImportFeedback(ok ? 'Trigger diario actualizado' : 'No se creó el trigger diario', text(result && result.message) || 'No se pudo crear el trigger del recordatorio matutino.', ok ? 'success' : 'warn');
+      setAdminDailyDeliveryFeedback(ok ? 'Trigger diario actualizado' : 'No se creó el trigger diario', text(result && result.message) || 'No se pudo crear el trigger del recordatorio matutino.', ok ? 'success' : 'warn');
       loadDailyAuditDeliveryState();
       loadOperationalControlState();
     })
     .withFailureHandler(error => {
-      console.error('No se pudo crear el trigger diario del reporte.', error);
-      setImportFeedback('No se creó el trigger diario', 'Apps Script no pudo crear el trigger diario del reporte.', 'warn');
-      setAdminDailyDeliveryFeedback('No se creó el trigger diario', 'Apps Script no pudo crear el trigger diario del reporte.', 'warn');
+      console.error('No se pudo crear el trigger del recordatorio matutino.', error);
+      setImportFeedback('No se creó el trigger diario', 'Apps Script no pudo crear el trigger del recordatorio matutino.', 'warn');
+      setAdminDailyDeliveryFeedback('No se creó el trigger diario', 'Apps Script no pudo crear el trigger del recordatorio matutino.', 'warn');
       loadDailyAuditDeliveryState();
       loadOperationalControlState();
     })
@@ -4317,24 +4492,121 @@ function createDailyAuditDeliveryTrigger(){
 function deleteDailyAuditDeliveryTrigger(){
   const info = ensureServerInfo();
   if(!(isSharedBackendMode() && info.admin)) return;
-  setAdminDailyDeliveryFeedback('Eliminando trigger', 'Apps Script está eliminando el trigger diario del reporte.', 'info');
+  setAdminDailyDeliveryFeedback('Eliminando trigger', 'Apps Script está eliminando el trigger del recordatorio matutino.', 'info');
   google.script.run
     .withSuccessHandler(result => {
       updateServerInfoFromEnvelope(result || {});
       const ok = result && result.ok;
-      setImportFeedback(ok ? 'Trigger diario eliminado' : 'No se eliminaron triggers', text(result && result.message) || 'No se pudo eliminar el trigger diario.', ok ? 'success' : 'warn');
-      setAdminDailyDeliveryFeedback(ok ? 'Trigger diario eliminado' : 'No se eliminaron triggers', text(result && result.message) || 'No se pudo eliminar el trigger diario.', ok ? 'success' : 'warn');
+      setImportFeedback(ok ? 'Trigger diario eliminado' : 'No se eliminaron triggers', text(result && result.message) || 'No se pudo eliminar el trigger del recordatorio matutino.', ok ? 'success' : 'warn');
+      setAdminDailyDeliveryFeedback(ok ? 'Trigger diario eliminado' : 'No se eliminaron triggers', text(result && result.message) || 'No se pudo eliminar el trigger del recordatorio matutino.', ok ? 'success' : 'warn');
       loadDailyAuditDeliveryState();
       loadOperationalControlState();
     })
     .withFailureHandler(error => {
-      console.error('No se pudo eliminar el trigger diario del reporte.', error);
-      setImportFeedback('No se eliminaron triggers', 'Apps Script no pudo eliminar el trigger diario del reporte.', 'warn');
-      setAdminDailyDeliveryFeedback('No se eliminaron triggers', 'Apps Script no pudo eliminar el trigger diario del reporte.', 'warn');
+      console.error('No se pudo eliminar el trigger del recordatorio matutino.', error);
+      setImportFeedback('No se eliminaron triggers', 'Apps Script no pudo eliminar el trigger del recordatorio matutino.', 'warn');
+      setAdminDailyDeliveryFeedback('No se eliminaron triggers', 'Apps Script no pudo eliminar el trigger del recordatorio matutino.', 'warn');
       loadDailyAuditDeliveryState();
       loadOperationalControlState();
     })
     .deleteDailyAuditReportTriggers();
+}
+
+function sendAdminNightlySummaryNow(){
+  const info = ensureServerInfo();
+  const selectedDate = text(document.getElementById('adminAuditDate') && document.getElementById('adminAuditDate').value) || todayCalendarIso();
+  if(!(isSharedBackendMode() && info.admin)) return;
+  setAdminNightlySummaryFeedback('Procesando resumen admin', 'Apps Script está procesando el resumen ejecutivo nocturno.', 'info');
+  google.script.run
+    .withSuccessHandler(result => {
+      updateServerInfoFromEnvelope(result || {});
+      const ok = result && result.ok;
+      const message = text(result && result.message) || (ok ? 'Resumen ejecutivo admin procesado.' : 'No se pudo procesar el resumen ejecutivo admin.');
+      setImportFeedback(ok ? 'Resumen admin procesado' : 'No se envió el resumen admin', message, ok ? 'success' : 'warn');
+      setAdminNightlySummaryFeedback(ok ? 'Resumen admin procesado' : 'No se envió el resumen admin', message, ok ? 'success' : 'warn');
+      loadAdminNightlySummaryState();
+      loadOperationalControlState();
+      loadAdminDailyAuditReport(selectedDate);
+    })
+    .withFailureHandler(error => {
+      console.error('No se pudo enviar el resumen ejecutivo admin.', error);
+      setImportFeedback('No se envió el resumen admin', 'Apps Script no pudo procesar el envío del resumen ejecutivo admin.', 'warn');
+      setAdminNightlySummaryFeedback('No se envió el resumen admin', 'Apps Script no pudo procesar el envío del resumen ejecutivo admin.', 'warn');
+      loadAdminNightlySummaryState();
+      loadOperationalControlState();
+    })
+    .sendSharedTrackingAdminExecutiveSummaryEmail(selectedDate);
+}
+
+function saveAdminNightlySummaryConfig(){
+  const info = ensureServerInfo();
+  if(!(isSharedBackendMode() && info.admin)) return;
+  const payload = collectAdminNightlySummaryForm();
+  setAdminNightlySummaryFeedback('Guardando horario', 'Apps Script está guardando la configuración del resumen ejecutivo admin.', 'info');
+  google.script.run
+    .withSuccessHandler(result => {
+      updateServerInfoFromEnvelope(result || {});
+      appState.adminNightlySummary = result || {ok:false, message:'No se pudo guardar el resumen admin.'};
+      renderAdminNightlySummaryState(appState.adminNightlySummary);
+      const ok = result && result.ok;
+      setImportFeedback(ok ? 'Resumen admin guardado' : 'No se guardó el resumen admin', text(result && result.message) || 'No se pudo guardar la configuración del resumen ejecutivo admin.', ok ? 'success' : 'warn');
+      setAdminNightlySummaryFeedback(ok ? 'Resumen admin guardado' : 'No se guardó el resumen admin', text(result && result.message) || 'No se pudo guardar la configuración del resumen ejecutivo admin.', ok ? 'success' : 'warn');
+      loadOperationalControlState();
+    })
+    .withFailureHandler(error => {
+      console.error('No se pudo guardar el resumen ejecutivo admin.', error);
+      setImportFeedback('No se guardó el resumen admin', 'Apps Script no pudo guardar la configuración del resumen ejecutivo admin.', 'warn');
+      setAdminNightlySummaryFeedback('No se guardó el resumen admin', 'Apps Script no pudo guardar la configuración del resumen ejecutivo admin.', 'warn');
+      loadAdminNightlySummaryState();
+      loadOperationalControlState();
+    })
+    .updateSharedTrackingAdminExecutiveSummaryConfig(payload);
+}
+
+function createAdminNightlySummaryTrigger(){
+  const info = ensureServerInfo();
+  if(!(isSharedBackendMode() && info.admin)) return;
+  setAdminNightlySummaryFeedback('Actualizando trigger', 'Apps Script está recreando el trigger del resumen ejecutivo admin.', 'info');
+  google.script.run
+    .withSuccessHandler(result => {
+      updateServerInfoFromEnvelope(result || {});
+      const ok = result && result.ok;
+      setImportFeedback(ok ? 'Trigger nocturno actualizado' : 'No se creó el trigger nocturno', text(result && result.message) || 'No se pudo crear el trigger nocturno admin.', ok ? 'success' : 'warn');
+      setAdminNightlySummaryFeedback(ok ? 'Trigger nocturno actualizado' : 'No se creó el trigger nocturno', text(result && result.message) || 'No se pudo crear el trigger nocturno admin.', ok ? 'success' : 'warn');
+      loadAdminNightlySummaryState();
+      loadOperationalControlState();
+    })
+    .withFailureHandler(error => {
+      console.error('No se pudo crear el trigger del resumen ejecutivo admin.', error);
+      setImportFeedback('No se creó el trigger nocturno', 'Apps Script no pudo crear el trigger del resumen ejecutivo admin.', 'warn');
+      setAdminNightlySummaryFeedback('No se creó el trigger nocturno', 'Apps Script no pudo crear el trigger del resumen ejecutivo admin.', 'warn');
+      loadAdminNightlySummaryState();
+      loadOperationalControlState();
+    })
+    .createAdminExecutiveSummaryTrigger();
+}
+
+function deleteAdminNightlySummaryTrigger(){
+  const info = ensureServerInfo();
+  if(!(isSharedBackendMode() && info.admin)) return;
+  setAdminNightlySummaryFeedback('Eliminando trigger', 'Apps Script está eliminando el trigger del resumen ejecutivo admin.', 'info');
+  google.script.run
+    .withSuccessHandler(result => {
+      updateServerInfoFromEnvelope(result || {});
+      const ok = result && result.ok;
+      setImportFeedback(ok ? 'Trigger nocturno eliminado' : 'No se eliminaron triggers', text(result && result.message) || 'No se pudo eliminar el trigger nocturno admin.', ok ? 'success' : 'warn');
+      setAdminNightlySummaryFeedback(ok ? 'Trigger nocturno eliminado' : 'No se eliminaron triggers', text(result && result.message) || 'No se pudo eliminar el trigger nocturno admin.', ok ? 'success' : 'warn');
+      loadAdminNightlySummaryState();
+      loadOperationalControlState();
+    })
+    .withFailureHandler(error => {
+      console.error('No se pudo eliminar el trigger del resumen ejecutivo admin.', error);
+      setImportFeedback('No se eliminaron triggers', 'Apps Script no pudo eliminar el trigger del resumen ejecutivo admin.', 'warn');
+      setAdminNightlySummaryFeedback('No se eliminaron triggers', 'Apps Script no pudo eliminar el trigger del resumen ejecutivo admin.', 'warn');
+      loadAdminNightlySummaryState();
+      loadOperationalControlState();
+    })
+    .deleteAdminExecutiveSummaryTriggers();
 }
 
 function exportDailyAuditReport(){
@@ -6289,11 +6561,13 @@ function openAdminModal(){
   renderAdminAudit();
   renderAdminDailyAuditReport(appState.adminDailyReport);
   renderDailyAuditDeliveryState(appState.dailyReportDelivery);
+  renderAdminNightlySummaryState(appState.adminNightlySummary);
   renderOperationalControlState(appState.operationalControl);
   document.getElementById('adminModal').classList.add('open');
   loadOperationalControlState();
   loadAdminDailyAuditReport();
   loadDailyAuditDeliveryState();
+  loadAdminNightlySummaryState();
   refreshSharedAudit(180);
 }
 
@@ -7221,7 +7495,7 @@ function setImportFeedback(title, detail, tone){
 
 function setAdminDailyDeliveryFeedback(title, detail, tone){
   appState.adminDeliveryFeedback = {
-    title: text(title) || 'Entrega diaria lista',
+    title: text(title) || 'Recordatorio matutino listo',
     detail: text(detail) || 'Sin novedades.',
     tone: tone || 'info'
   };
@@ -7233,7 +7507,24 @@ function renderAdminDailyDeliveryFeedback(){
   if(!host) return;
   const feedback = appState.adminDeliveryFeedback || {};
   host.className = 'ops-feedback ' + escapeHtml(feedback.tone || 'info');
-  host.innerHTML = '<strong>' + escapeHtml(feedback.title || 'Entrega diaria lista') + '</strong><p>' + escapeHtml(feedback.detail || '') + '</p>';
+  host.innerHTML = '<strong>' + escapeHtml(feedback.title || 'Recordatorio matutino listo') + '</strong><p>' + escapeHtml(feedback.detail || '') + '</p>';
+}
+
+function setAdminNightlySummaryFeedback(title, detail, tone){
+  appState.adminNightlySummaryFeedback = {
+    title: text(title) || 'Resumen nocturno listo',
+    detail: text(detail) || 'Sin novedades.',
+    tone: tone || 'info'
+  };
+  renderAdminNightlySummaryFeedback();
+}
+
+function renderAdminNightlySummaryFeedback(){
+  const host = document.getElementById('adminNightlySummaryFeedback');
+  if(!host) return;
+  const feedback = appState.adminNightlySummaryFeedback || {};
+  host.className = 'ops-feedback ' + escapeHtml(feedback.tone || 'info');
+  host.innerHTML = '<strong>' + escapeHtml(feedback.title || 'Resumen nocturno listo') + '</strong><p>' + escapeHtml(feedback.detail || '') + '</p>';
 }
 
 function sourceModeLabel(){
@@ -8797,6 +9088,11 @@ function bindEvents(){
   document.getElementById('sendDailyAuditMailBtn').addEventListener('click', sendDailyAuditReportNow);
   document.getElementById('createDailyAuditTriggerBtn').addEventListener('click', createDailyAuditDeliveryTrigger);
   document.getElementById('deleteDailyAuditTriggerBtn').addEventListener('click', deleteDailyAuditDeliveryTrigger);
+  document.getElementById('refreshAdminNightlySummaryBtn').addEventListener('click', loadAdminNightlySummaryState);
+  document.getElementById('saveAdminNightlySummaryConfigBtn').addEventListener('click', saveAdminNightlySummaryConfig);
+  document.getElementById('sendAdminNightlySummaryBtn').addEventListener('click', sendAdminNightlySummaryNow);
+  document.getElementById('createAdminNightlySummaryTriggerBtn').addEventListener('click', createAdminNightlySummaryTrigger);
+  document.getElementById('deleteAdminNightlySummaryTriggerBtn').addEventListener('click', deleteAdminNightlySummaryTrigger);
   document.getElementById('exportAuditBtn').addEventListener('click', exportAuditLog);
   document.getElementById('exportBackupBtn').addEventListener('click', exportLatestBackup);
   document.getElementById('addChildBtn').addEventListener('click', addLocalChildRecord);

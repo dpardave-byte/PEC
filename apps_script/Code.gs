@@ -80,7 +80,8 @@ const OPERATIONAL_DEFAULTS = {
   sharedTrackingOperationalEmails: [],
   dgppcsSummaryRecipients: ['mmelletp@yahoo.com'],
   dailyReportMode: 'REAL',
-  dailyReportSendHour: 18,
+  dailyReportSendHour: 9,
+  adminSummarySendHour: 21,
   dailyReportConfirmRealSend: true,
   weekdayAutoSendHour: 18,
   actorEmailDirectory: {
@@ -96,6 +97,7 @@ const PANEL_PUBLIC_VISOR_GUIDE_URL = 'https://dpardave-byte.github.io/PEC/guia-r
 function doGet(e) {
   const params = e && e.parameter ? e.parameter : {};
   ensureOperationalDailyReportDelivery_();
+  ensureOperationalAdminExecutiveSummaryDelivery_();
   if (params.view === 'visor') {
     return renderSharedVisor_();
   }
@@ -123,6 +125,28 @@ function doGet(e) {
       actionLabel: 'Cierre diario del visor PEC',
       successTitle: 'Cierre diario procesado',
       failureTitle: 'No se pudo procesar el cierre diario'
+    });
+  }
+  if (params.action === 'visor_admin_summary_status') {
+    var adminSummaryStatus = getSharedTrackingAdminExecutiveSummaryStatus();
+    if (params.callback || String(params.format || '').trim().toLowerCase() === 'json') {
+      return outputPayload_(adminSummaryStatus, params);
+    }
+    return buildSharedTrackingActionHtml_(adminSummaryStatus, getTrackingWebAppUrl_(), {
+      actionLabel: 'Resumen ejecutivo admin del visor PEC',
+      successTitle: 'Estado del resumen admin consultado',
+      failureTitle: 'No se pudo consultar el resumen admin'
+    });
+  }
+  if (params.action === 'visor_send_admin_summary_now') {
+    var sendAdminSummaryStatus = sendSharedTrackingAdminExecutiveSummaryEmail(params.date);
+    if (params.callback || String(params.format || '').trim().toLowerCase() === 'json') {
+      return outputPayload_(sendAdminSummaryStatus, params);
+    }
+    return buildSharedTrackingActionHtml_(sendAdminSummaryStatus, getTrackingWebAppUrl_(), {
+      actionLabel: 'Resumen ejecutivo admin del visor PEC',
+      successTitle: 'Resumen ejecutivo admin procesado',
+      failureTitle: 'No se pudo procesar el resumen ejecutivo admin'
     });
   }
   if (params.action === 'visor_send_due_tracking_now') {
@@ -1734,8 +1758,11 @@ function humanizeAuditAction_(action) {
     case 'cargar_sustento': return 'Cargar sustento';
     case 'retirar_sustento': return 'Retirar sustento';
     case 'preparar_carpeta_sustento': return 'Preparar carpeta de sustento';
-    case 'configurar_reporte_diario': return 'Configurar reporte diario';
-    case 'enviar_reporte_diario_correo': return 'Enviar reporte diario por correo';
+    case 'configurar_reporte_diario': return 'Configurar recordatorio operativo matutino';
+    case 'enviar_reporte_diario_correo': return 'Enviar recordatorio operativo por correo';
+    case 'configurar_resumen_admin_nocturno': return 'Configurar resumen ejecutivo admin';
+    case 'enviar_resumen_ejecutivo_admin': return 'Enviar resumen ejecutivo admin';
+    case 'omitir_resumen_ejecutivo_admin': return 'Omitir resumen ejecutivo admin';
     case 'enviar_alertas_correo': return 'Enviar alertas por correo';
     case 'omitir_alertas_correo': return 'Omitir alertas por correo';
     case 'guardar_estado_compartido': return 'Guardar estado compartido';
@@ -2027,6 +2054,7 @@ function buildAuditDailyReportFromItems_(items, reportDate, timezone, options) {
         sectionsMap: new Map(),
         sourcesMap: new Map(),
         recordsMap: new Map(),
+        emailsMap: new Map(),
         verifiedEntries: 0,
         declaredEntries: 0,
         unknownEntries: 0,
@@ -2042,6 +2070,7 @@ function buildAuditDailyReportFromItems_(items, reportDate, timezone, options) {
     const sections = getAuditItemSections_(item);
     const actorSource = inferAuditActorSource_(item);
     const actorVerified = inferAuditActorVerified_(item, actorSource);
+    const actorEmail = String(item && item.actorEmail || '').trim().toLowerCase();
     bucket.totalEntries += 1;
     bucket.totalChanges += changeTotal;
     bucket.actionsMap.set(action, (bucket.actionsMap.get(action) || 0) + 1);
@@ -2049,6 +2078,11 @@ function buildAuditDailyReportFromItems_(items, reportDate, timezone, options) {
     if (actorVerified) bucket.verifiedEntries += 1;
     else if (actorSource === 'client_query' || actorSource === 'legacy_actor') bucket.declaredEntries += 1;
     else bucket.unknownEntries += 1;
+    if (isEmailLike_(actorEmail)) {
+      bucket.emailsMap.set(actorEmail, actorEmail);
+    } else if (isEmailLike_(actor)) {
+      bucket.emailsMap.set(String(actor).trim().toLowerCase(), String(actor).trim().toLowerCase());
+    }
     sections.forEach(function(section) {
       bucket.sectionsMap.set(section.name, (bucket.sectionsMap.get(section.name) || 0) + section.count);
     });
@@ -2084,6 +2118,7 @@ function buildAuditDailyReportFromItems_(items, reportDate, timezone, options) {
         sections: mapAuditSummaryPairs_(bucket.sectionsMap),
         identityLabel: identity.label,
         identitySources: identity.sources,
+        emails: Array.from(bucket.emailsMap.keys()).slice(0, 12),
         verifiedEntries: identity.verifiedEntries,
         declaredEntries: identity.declaredEntries,
         unknownEntries: identity.unknownEntries,
@@ -2139,7 +2174,7 @@ function getSharedTrackingDailyReportDeliveryStatus() {
       ok: false,
       actor: getSharedTrackingActor_(),
       admin: false,
-      message: 'No autorizado para revisar la entrega del reporte diario.'
+      message: 'No autorizado para revisar el recordatorio operativo matutino.'
     };
   }
   const config = getDailyAuditReportConfig_();
@@ -2174,8 +2209,47 @@ function getSharedTrackingDailyReportDeliveryStatus() {
     hasConfiguredRecipients: config.to.length > 0,
     webappUrl: getTrackingWebAppUrl_(),
     message: recipients.length
-      ? ('Entrega diaria preparada para ' + recipients.join(', ') + (config.usingAdminFallback ? ' usando PEC_VISOR_ADMIN_EMAILS.' : '.'))
-      : 'Configura los destinatarios del reporte diario antes del envío operativo.'
+      ? ('Recordatorio operativo matutino preparado para ' + recipients.join(', ') + (config.usingAdminFallback ? ' usando PEC_VISOR_ADMIN_EMAILS.' : '.'))
+      : 'Configura los destinatarios del recordatorio matutino antes del envío operativo.'
+  };
+}
+
+function getSharedTrackingAdminExecutiveSummaryStatus() {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para revisar el resumen ejecutivo nocturno admin.'
+    };
+  }
+  var config = getAdminExecutiveSummaryConfig_();
+  var triggers = getAdminExecutiveSummaryTriggers_();
+  var markerState = readOperationalMarkerState_('ADMIN_SUMMARY');
+  var audience = buildSharedTrackingOperationalAudience_();
+  return {
+    ok: true,
+    actor: getSharedTrackingActor_(),
+    actorVerified: Boolean(getSharedTrackingActor_()),
+    actorSource: getSharedTrackingActor_() ? 'session_email' : 'missing',
+    admin: true,
+    recipients: config.recipients.slice(),
+    sendHour: config.sendHour,
+    scheduleLabel: 'Lunes a viernes | ' + String(config.sendHour).padStart(2, '0') + ':00',
+    triggerCount: triggers.length,
+    triggerEnabled: triggers.length > 0,
+    lastExecutionAt: markerState.lastExecutionAt,
+    lastExecutionOrigin: markerState.lastExecutionOrigin,
+    lastDeliveryAt: markerState.lastDeliveryAt,
+    lastDeliveryOrigin: markerState.lastDeliveryOrigin,
+    lastDeliveryRecipients: markerState.lastDeliveryRecipients,
+    lastDeliveryRecipientsCount: markerState.lastDeliveryRecipients.length,
+    expectedAudienceCount: audience.length,
+    expectedAudience: audience,
+    webappUrl: getTrackingWebAppUrl_(),
+    message: config.recipients.length
+      ? 'Resumen ejecutivo admin listo para enviarse a los administradores con respaldo de auditoría y backup.'
+      : 'No se detectaron correos administradores para enviar el resumen ejecutivo nocturno.'
   };
 }
 
@@ -2238,7 +2312,7 @@ function updateSharedTrackingDailyReportConfig(config) {
       ok: false,
       actor: getSharedTrackingActor_(),
       admin: false,
-      message: 'No autorizado para actualizar la entrega del reporte diario.'
+      message: 'No autorizado para actualizar el recordatorio operativo matutino.'
     };
   }
   const current = getDailyAuditReportConfig_();
@@ -2278,7 +2352,7 @@ function updateSharedTrackingDailyReportConfig(config) {
     declaredActor: actorMeta.declaredActor,
     action: 'configurar_reporte_diario',
     origin: 'updateSharedTrackingDailyReportConfig',
-    detail: 'Configuración de entrega diaria actualizada | Modo: ' + mode + ' | Destinatarios: ' + (to.join(', ') || 'usar admins') + ' | Hora: ' + String(sendHour).padStart(2, '0') + ':00',
+    detail: 'Configuración del recordatorio operativo matutino actualizada | Modo: ' + mode + ' | Destinatarios: ' + (to.join(', ') || 'usar admins') + ' | Hora: ' + String(sendHour).padStart(2, '0') + ':00',
     summary: {
       total: 1,
       bySection: { dailyReportDelivery: 1 },
@@ -2293,7 +2367,47 @@ function updateSharedTrackingDailyReportConfig(config) {
   });
   const status = getSharedTrackingDailyReportDeliveryStatus();
   status.saved = true;
-  status.message = 'Configuración de entrega diaria guardada.';
+  status.message = 'Configuración del recordatorio operativo matutino guardada.';
+  return status;
+}
+
+function updateSharedTrackingAdminExecutiveSummaryConfig(config) {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para actualizar el resumen ejecutivo nocturno admin.'
+    };
+  }
+  var current = getAdminExecutiveSummaryConfig_();
+  var input = config && typeof config === 'object' ? config : {};
+  var sendHour = normalizeAdminExecutiveSummarySendHour_(
+    Object.prototype.hasOwnProperty.call(input, 'sendHour') ? input.sendHour : current.sendHour
+  );
+  var properties = PropertiesService.getScriptProperties();
+  setOrDeleteScriptProperty_(properties, 'PEC_VISOR_ADMIN_SUMMARY_HOUR', String(sendHour));
+  var actorMeta = buildAuditActorMeta_(resolveSharedTrackingActorInfo_(getSharedTrackingActor_()));
+  appendSharedTrackingAudit_({
+    at: new Date().toISOString(),
+    actor: actorMeta.actor || getSharedTrackingActor_() || 'admin_config',
+    actorEmail: actorMeta.actorEmail,
+    actorSource: actorMeta.actorSource,
+    actorVerified: actorMeta.actorVerified,
+    declaredActor: actorMeta.declaredActor,
+    action: 'configurar_resumen_admin_nocturno',
+    origin: 'updateSharedTrackingAdminExecutiveSummaryConfig',
+    detail: 'Configuración del resumen ejecutivo admin actualizada | Hora: ' + String(sendHour).padStart(2, '0') + ':00',
+    summary: {
+      total: 1,
+      bySection: { adminExecutiveSummary: 1 },
+      sendHour: sendHour,
+      recipients: getSharedTrackingAdminEmailList_()
+    }
+  });
+  var status = getSharedTrackingAdminExecutiveSummaryStatus();
+  status.saved = true;
+  status.message = 'Configuración del resumen ejecutivo admin guardada.';
   return status;
 }
 
@@ -2303,12 +2417,28 @@ function sendSharedTrackingDailyAuditReportEmail(date) {
       ok: false,
       actor: getSharedTrackingActor_(),
       admin: false,
-      message: 'No autorizado para enviar el reporte diario por correo.'
+      message: 'No autorizado para enviar el recordatorio operativo matutino por correo.'
     };
   }
   return dispatchSharedTrackingDailyAuditReportEmail_({
     actor: getSharedTrackingActor_() || 'admin_manual',
     origin: 'envio_manual_reporte_diario',
+    reportDate: date
+  });
+}
+
+function sendSharedTrackingAdminExecutiveSummaryEmail(date) {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para enviar el resumen ejecutivo admin.'
+    };
+  }
+  return dispatchSharedTrackingAdminExecutiveSummaryEmail_({
+    actor: getSharedTrackingActor_() || 'admin_manual',
+    origin: 'envio_manual_resumen_admin',
     reportDate: date
   });
 }
@@ -2319,7 +2449,7 @@ function createDailyAuditReportTrigger() {
       ok: false,
       actor: getSharedTrackingActor_(),
       admin: false,
-      message: 'No autorizado para crear el trigger del reporte diario.'
+      message: 'No autorizado para crear el trigger del recordatorio operativo matutino.'
     };
   }
   const config = getDailyAuditReportConfig_();
@@ -2332,7 +2462,7 @@ function createDailyAuditReportTrigger() {
       mode: config.mode,
       realSendConfirmed: config.realSendConfirmed,
       sendHour: config.sendHour,
-      message: 'No se creó el trigger diario porque PEC_VISOR_DAILY_REPORT_MODE no está en REAL.'
+      message: 'No se creó el trigger matutino porque PEC_VISOR_DAILY_REPORT_MODE no está en REAL.'
     };
   }
   if (!config.realSendConfirmed) {
@@ -2344,7 +2474,7 @@ function createDailyAuditReportTrigger() {
       mode: config.mode,
       realSendConfirmed: config.realSendConfirmed,
       sendHour: config.sendHour,
-      message: 'No se creó el trigger diario porque falta PEC_VISOR_DAILY_REPORT_CONFIRM_REAL_SEND=SI.'
+      message: 'No se creó el trigger matutino porque falta PEC_VISOR_DAILY_REPORT_CONFIRM_REAL_SEND=SI.'
     };
   }
   if (!config.to.length) {
@@ -2356,7 +2486,7 @@ function createDailyAuditReportTrigger() {
       mode: config.mode,
       realSendConfirmed: config.realSendConfirmed,
       sendHour: config.sendHour,
-      message: 'No se creó el trigger diario porque faltan destinatarios en PEC_VISOR_DAILY_REPORT_TO.'
+      message: 'No se creó el trigger matutino porque faltan destinatarios en PEC_VISOR_DAILY_REPORT_TO.'
     };
   }
   const replaced = recreateDailyAuditReportTrigger_();
@@ -2371,8 +2501,8 @@ function createDailyAuditReportTrigger() {
     replacedTriggerCount: replaced,
     triggerCount: getDailyAuditReportTriggers_().length,
     message: replaced
-      ? 'Trigger automático reconfigurado para las ' + String(config.sendHour).padStart(2, '0') + ':00 de lunes a viernes.'
-      : 'Trigger automático creado para las ' + String(config.sendHour).padStart(2, '0') + ':00 de lunes a viernes.'
+      ? 'Trigger del recordatorio matutino reconfigurado para las ' + String(config.sendHour).padStart(2, '0') + ':00 de lunes a viernes.'
+      : 'Trigger del recordatorio matutino creado para las ' + String(config.sendHour).padStart(2, '0') + ':00 de lunes a viernes.'
   };
 }
 
@@ -2382,7 +2512,7 @@ function deleteDailyAuditReportTriggers() {
       ok: false,
       actor: getSharedTrackingActor_(),
       admin: false,
-      message: 'No autorizado para eliminar el trigger del reporte diario.'
+      message: 'No autorizado para eliminar el trigger del recordatorio operativo matutino.'
     };
   }
   let removed = 0;
@@ -2396,8 +2526,68 @@ function deleteDailyAuditReportTriggers() {
     admin: true,
     removed: removed,
     message: removed
-      ? 'Se eliminaron los triggers diarios del reporte.'
-      : 'No había triggers diarios del reporte para eliminar.'
+      ? 'Se eliminaron los triggers del recordatorio operativo matutino.'
+      : 'No había triggers del recordatorio operativo matutino para eliminar.'
+  };
+}
+
+function createAdminExecutiveSummaryTrigger() {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para crear el trigger del resumen ejecutivo admin.'
+    };
+  }
+  var config = getAdminExecutiveSummaryConfig_();
+  if (!config.recipients.length) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: true,
+      created: false,
+      sendHour: config.sendHour,
+      message: 'No se creó el trigger nocturno porque faltan correos administradores.'
+    };
+  }
+  var replaced = recreateAdminExecutiveSummaryTrigger_();
+  return {
+    ok: true,
+    actor: getSharedTrackingActor_(),
+    admin: true,
+    created: true,
+    sendHour: config.sendHour,
+    replacedTriggerCount: replaced,
+    triggerCount: getAdminExecutiveSummaryTriggers_().length,
+    message: replaced
+      ? 'Trigger nocturno admin reconfigurado para las ' + String(config.sendHour).padStart(2, '0') + ':00 de lunes a viernes.'
+      : 'Trigger nocturno admin creado para las ' + String(config.sendHour).padStart(2, '0') + ':00 de lunes a viernes.'
+  };
+}
+
+function deleteAdminExecutiveSummaryTriggers() {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para eliminar el trigger del resumen ejecutivo admin.'
+    };
+  }
+  var removed = 0;
+  getAdminExecutiveSummaryTriggers_().forEach(function(trigger) {
+    ScriptApp.deleteTrigger(trigger);
+    removed += 1;
+  });
+  return {
+    ok: true,
+    actor: getSharedTrackingActor_(),
+    admin: true,
+    removed: removed,
+    message: removed
+      ? 'Se eliminaron los triggers nocturnos del resumen ejecutivo admin.'
+      : 'No había triggers nocturnos del resumen ejecutivo admin para eliminar.'
   };
 }
 
@@ -2410,12 +2600,45 @@ function runDailyAuditReportEmail_() {
       admin: true,
       skipped: true,
       weekend: true,
-      message: 'El reporte diario automático no se envió porque hoy no es un día hábil.'
+      message: 'El recordatorio operativo matutino no se envió porque hoy no es un día hábil.'
     };
   }
   return dispatchSharedTrackingDailyAuditReportEmail_({
     actor: getSharedTrackingActor_() || 'trigger_reporte_diario',
     origin: 'trigger_diario_reporte'
+  });
+}
+
+function runNightlyAdminExecutiveSummaryEmail_() {
+  if (!isOperationalWeekday_(new Date())) {
+    markOperationalExecution_('ADMIN_SUMMARY', 'trigger_nocturno_admin');
+    var skippedWeekendAt = new Date().toISOString();
+    appendSharedTrackingAudit_({
+      at: skippedWeekendAt,
+      actor: String(getSharedTrackingActor_() || 'trigger_nocturno_admin').trim(),
+      action: 'omitir_resumen_ejecutivo_admin',
+      origin: 'trigger_nocturno_admin',
+      detail: 'Resumen ejecutivo admin omitido | Motivo: fin de semana',
+      summary: {
+        sendHour: getAdminExecutiveSummaryConfig_().sendHour
+      },
+      recipients: [],
+      effectiveRecipients: [],
+      skipped: true,
+      reason: 'automatic_weekend_guard'
+    });
+    return {
+      ok: true,
+      actor: String(getSharedTrackingActor_() || 'trigger_nocturno_admin').trim(),
+      admin: true,
+      skipped: true,
+      weekend: true,
+      message: 'El resumen ejecutivo admin no se envió porque hoy no es un día hábil.'
+    };
+  }
+  return dispatchSharedTrackingAdminExecutiveSummaryEmail_({
+    actor: getSharedTrackingActor_() || 'trigger_nocturno_admin',
+    origin: 'trigger_nocturno_admin'
   });
 }
 
@@ -2431,7 +2654,7 @@ function resetDailyAuditReportWeekdayTrigger_() {
       ok: false,
       actor: getSharedTrackingActor_(),
       admin: false,
-      message: 'No autorizado para reconfigurar el cierre diario.'
+      message: 'No autorizado para reconfigurar el recordatorio operativo matutino.'
     };
   }
   var saved = updateSharedTrackingDailyReportConfig({
@@ -2447,8 +2670,8 @@ function resetDailyAuditReportWeekdayTrigger_() {
     trigger: trigger,
     sendHour: OPERATIONAL_DEFAULTS.dailyReportSendHour,
     message: trigger && trigger.ok
-      ? 'El cierre diario quedó reconfigurado para las ' + String(OPERATIONAL_DEFAULTS.dailyReportSendHour).padStart(2, '0') + ':00 de lunes a viernes.'
-      : 'Se actualizó la hora del cierre diario, pero no se pudo recrear el trigger automático.'
+      ? 'El recordatorio operativo matutino quedó reconfigurado para las ' + String(OPERATIONAL_DEFAULTS.dailyReportSendHour).padStart(2, '0') + ':00 de lunes a viernes.'
+      : 'Se actualizó la hora del recordatorio operativo matutino, pero no se pudo recrear el trigger automático.'
   };
 }
 
@@ -2475,7 +2698,7 @@ function dispatchSharedTrackingDailyAuditReportEmail_(options) {
       reportDate: preview.report.date,
       report: preview.report,
       subject: preview.subject,
-      message: 'Modo PREVIEW_ONLY activo. No se envió el reporte diario.'
+      message: 'Modo PREVIEW_ONLY activo. No se envió el recordatorio operativo matutino.'
     };
   }
   if (preview.mode === 'REAL' && !preview.realSendConfirmed) {
@@ -2494,7 +2717,7 @@ function dispatchSharedTrackingDailyAuditReportEmail_(options) {
       reportDate: preview.report.date,
       report: preview.report,
       subject: preview.subject,
-      message: 'Modo REAL solicitado, pero falta PEC_VISOR_DAILY_REPORT_CONFIRM_REAL_SEND=SI.'
+      message: 'Modo REAL solicitado, pero falta PEC_VISOR_DAILY_REPORT_CONFIRM_REAL_SEND=SI para el recordatorio matutino.'
     };
   }
   if (preview.mode === 'TEST_REDIRECT' && !preview.testRecipients.length) {
@@ -2532,7 +2755,7 @@ function dispatchSharedTrackingDailyAuditReportEmail_(options) {
       reportDate: preview.report.date,
       report: preview.report,
       subject: preview.subject,
-      message: 'Faltan destinatarios del reporte diario en PEC_VISOR_DAILY_REPORT_TO.'
+      message: 'Faltan destinatarios del recordatorio operativo matutino en PEC_VISOR_DAILY_REPORT_TO.'
     };
   }
   const mailOptions = {
@@ -2616,7 +2839,7 @@ function buildSharedTrackingDailyAuditEmailPreview_(date, options) {
   report.admin = isSharedTrackingAdmin_();
   const recipients = config.mode === 'TEST_REDIRECT' ? config.testRecipients.slice() : config.to.slice();
   const prefix = config.mode === 'TEST_REDIRECT' ? '[PRUEBA PEC] ' : '';
-  const subject = prefix + 'PEC | Cierre diario de cambios | ' + (report.dateLabel || report.date || normalizedDate) + ' | ' + Number(report.totalActors || 0) + ' usuario(s)';
+  const subject = prefix + 'PEC | Recordatorio operativo diario | ' + (report.dateLabel || report.date || normalizedDate) + ' | Actualiza el visor hoy';
   const plainBody = buildSharedTrackingDailyAuditEmailPlainText_(report, config, getTrackingWebAppUrl_());
   const preview = {
     ok: true,
@@ -2646,8 +2869,9 @@ function buildSharedTrackingDailyAuditEmailPlainText_(report, config, webappUrl)
   return [
     'Visor de Seguimiento PEC',
     config && config.mode === 'TEST_REDIRECT' ? 'Correo de prueba. No enviado al destinatario final.' : '',
-    'Cierre diario por usuario: ' + (report.dateLabel || report.date || ''),
+    'Recordatorio operativo diario: ' + (report.dateLabel || report.date || ''),
     'Generado: ' + formatTrackingDateTime_(report.generatedAt),
+    'Este correo se envía como recordatorio para trabajar y actualizar el visor durante el día, existan o no cambios registrados al momento del envío.',
     '',
     textOrDash_(report.plainText),
     '',
@@ -2677,8 +2901,9 @@ function buildSharedTrackingDailyAuditEmailHtml_(report, config, webappUrl) {
   return [
     '<div style="font-family:Arial,sans-serif;color:#16324f;line-height:1.5;max-width:980px;">',
     '<h2 style="margin:0 0 10px;font-size:20px;">Visor de Seguimiento PEC</h2>',
-    '<p style="margin:0 0 12px;">Se remite el cierre diario por usuario del visor compartido correspondiente al <strong>' + escapeHtmlEmail_(report.dateLabel || report.date || '') + '</strong>.</p>',
-    '<p style="margin:0 0 12px;">Usuarios con cambios: <strong>' + escapeHtmlEmail_(String(report.totalActors || 0)) + '</strong> | Movimientos auditados: <strong>' + escapeHtmlEmail_(String(report.totalEntries || 0)) + '</strong> | Registros tocados: <strong>' + escapeHtmlEmail_(String(report.totalTouchedRecords || 0)) + '</strong></p>',
+    '<p style="margin:0 0 12px;">Se remite el recordatorio operativo diario del visor compartido correspondiente al <strong>' + escapeHtmlEmail_(report.dateLabel || report.date || '') + '</strong>.</p>',
+    '<p style="margin:0 0 12px;">Este mensaje se envía a primera hora para recordar la actualización del visor durante el día, incluso si todavía no existen movimientos registrados.</p>',
+    '<p style="margin:0 0 12px;">Usuarios con cambios hasta el momento: <strong>' + escapeHtmlEmail_(String(report.totalActors || 0)) + '</strong> | Movimientos auditados: <strong>' + escapeHtmlEmail_(String(report.totalEntries || 0)) + '</strong> | Registros tocados: <strong>' + escapeHtmlEmail_(String(report.totalTouchedRecords || 0)) + '</strong></p>',
     introNotice,
     '<p style="margin:0 0 12px;color:#4d6379;font-size:12px;">Generado: ' + escapeHtmlEmail_(formatTrackingDateTime_(report.generatedAt) || report.generatedAt || '') + '</p>',
     '<table style="border-collapse:collapse;width:100%;font-size:13px;background:#ffffff;">',
@@ -2693,8 +2918,8 @@ function buildSharedTrackingDailyAuditEmailHtml_(report, config, webappUrl) {
     '</tbody></table>',
     '<p style="margin:18px 0 0;"><a href="' + escapeHtmlEmail_(webappUrl) + '" style="display:inline-block;padding:10px 16px;border-radius:8px;background:#1d5f8f;color:#ffffff;text-decoration:none;font-weight:600;">Abrir visor compartido</a></p>',
     '<div style="margin:18px 0 0;padding:16px;border-radius:14px;background:#f7fbff;border:1px solid #d7e2ef;">',
-    '<h3 style="margin:0 0 6px;font-size:17px;color:#16324f;">Detalle del reporte</h3>',
-    '<p style="margin:0 0 14px;color:#4d6379;font-size:13px;">Se presenta el mismo contenido del cierre diario con formato estructurado por usuario, identidad, acciones y movimientos auditados.</p>',
+    '<h3 style="margin:0 0 6px;font-size:17px;color:#16324f;">Estado del día al momento del envío</h3>',
+    '<p style="margin:0 0 14px;color:#4d6379;font-size:13px;">Se presenta el mismo contenido estructurado por usuario, identidad, acciones y movimientos auditados como base de seguimiento durante la jornada.</p>',
     detailSections,
     '</div>',
     '<p style="margin:16px 0 0;color:#4d6379;font-size:12px;">Este mensaje fue generado automáticamente por el Visor de Seguimiento PEC.</p>',
@@ -2761,9 +2986,260 @@ function renderSharedTrackingDailyAuditCountListText_(items, labelFormatter, fal
   return rendered.length ? rendered.join('; ') : fallback;
 }
 
+function buildSharedTrackingOperationalAudience_() {
+  var dailyConfig = getDailyAuditReportConfig_();
+  var emailMap = getTrackingNotificationEmailMap_();
+  var recipients = []
+    .concat(Array.isArray(dailyConfig.configuredTo) && dailyConfig.configuredTo.length ? dailyConfig.configuredTo : dailyConfig.to)
+    .concat(getSharedTrackingOperationalEmailList_())
+    .concat(getTrackingNotificationDgppcsRecipients_(emailMap));
+  var seen = {};
+  return recipients
+    .map(function(item) { return String(item || '').trim().toLowerCase(); })
+    .filter(function(email) {
+      return Boolean(email && !seen[email] && isEmailLike_(email) && (seen[email] = true));
+    })
+    .map(function(email) {
+      return {
+        email: email,
+        actor: resolveTrackingActorDisplayName_(email, email)
+      };
+    })
+    .sort(function(a, b) {
+      return String(a.actor || a.email).localeCompare(String(b.actor || b.email), 'es', { sensitivity: 'base' });
+    });
+}
+
+function buildAdminExecutiveSummaryAudienceSnapshot_(report) {
+  var summary = report && typeof report === 'object' ? report : {};
+  var actors = Array.isArray(summary.actors) ? summary.actors : [];
+  var audience = buildSharedTrackingOperationalAudience_();
+  var activeEmails = {};
+  actors.forEach(function(actor) {
+    (Array.isArray(actor && actor.emails) ? actor.emails : []).forEach(function(email) {
+      var normalized = String(email || '').trim().toLowerCase();
+      if (normalized) activeEmails[normalized] = true;
+    });
+  });
+  var inactiveAudience = audience.filter(function(entry) {
+    return !activeEmails[String(entry.email || '').trim().toLowerCase()];
+  });
+  return {
+    activeEmails: Object.keys(activeEmails),
+    expectedAudience: audience,
+    inactiveAudience: inactiveAudience
+  };
+}
+
+function buildSharedTrackingAdminExecutiveSummaryPreview_(date, options) {
+  var settings = options || {};
+  var config = getAdminExecutiveSummaryConfig_();
+  var timezone = Session.getScriptTimeZone();
+  var normalizedDate = normalizeRequestedAuditReportDate_(date, timezone);
+  var auditItems = loadSharedTrackingAudit_().filter(function(item) {
+    return getAuditDateKeyInTimezone_(item && item.at, timezone) === normalizedDate;
+  });
+  var report = buildAuditDailyReportFromItems_(auditItems, normalizedDate, timezone, {
+    mode: 'apps_script',
+    actor: getSharedTrackingActor_()
+  });
+  var snapshot = buildAdminExecutiveSummaryAudienceSnapshot_(report);
+  var recipients = config.recipients.slice();
+  var subject = 'PEC | Resumen ejecutivo admin | ' + (report.dateLabel || report.date || normalizedDate) + ' | ' + Number(report.totalActors || 0) + ' usuario(s) con cambios';
+  var preview = {
+    ok: true,
+    actor: getSharedTrackingActor_(),
+    admin: isSharedTrackingAdmin_(),
+    recipients: recipients,
+    effectiveRecipients: recipients.slice(),
+    to: recipients.join(','),
+    sendHour: config.sendHour,
+    webappUrl: getTrackingWebAppUrl_(),
+    report: report,
+    auditItems: auditItems,
+    expectedAudience: snapshot.expectedAudience,
+    inactiveAudience: snapshot.inactiveAudience,
+    subject: subject
+  };
+  preview.plainBody = buildSharedTrackingAdminExecutiveSummaryPlainText_(preview);
+  if (settings.includeHtml !== false) {
+    preview.htmlBody = buildSharedTrackingAdminExecutiveSummaryHtml_(preview);
+  }
+  return preview;
+}
+
+function buildSharedTrackingAdminExecutiveSummaryPlainText_(preview) {
+  var safePreview = preview && typeof preview === 'object' ? preview : {};
+  var report = safePreview.report || {};
+  var inactive = Array.isArray(safePreview.inactiveAudience) ? safePreview.inactiveAudience : [];
+  var expected = Array.isArray(safePreview.expectedAudience) ? safePreview.expectedAudience : [];
+  var lines = [
+    'Visor de Seguimiento PEC',
+    'Resumen ejecutivo admin con corte: ' + (report.dateLabel || report.date || ''),
+    'Generado: ' + formatTrackingDateTime_(report.generatedAt),
+    'Usuarios esperados: ' + expected.length,
+    'Usuarios con cambios: ' + Number(report.totalActors || 0),
+    'Usuarios sin cambios: ' + inactive.length,
+    'Movimientos auditados: ' + Number(report.totalEntries || 0),
+    'Impactos auditados: ' + Number(report.totalChanges || 0),
+    'Registros tocados: ' + Number(report.totalTouchedRecords || 0),
+    '',
+    'Este resumen ejecutivo se envía con respaldo de auditoría y backup para facilitar revisión y eventual reversión manual controlada.',
+    ''
+  ];
+  if (inactive.length) {
+    lines.push('Usuarios sin cambios registrados:');
+    inactive.forEach(function(entry) {
+      lines.push('- ' + (entry.actor || entry.email) + ' | ' + entry.email);
+    });
+    lines.push('');
+  }
+  lines.push(textOrDash_(report.plainText));
+  lines.push('');
+  lines.push('Abrir visor compartido: ' + safePreview.webappUrl);
+  lines.push('');
+  lines.push('Se adjuntan la auditoría del día y el backup compartido más reciente.');
+  return lines.filter(Boolean).join('\n');
+}
+
+function buildSharedTrackingAdminExecutiveSummaryHtml_(preview) {
+  var safePreview = preview && typeof preview === 'object' ? preview : {};
+  var report = safePreview.report || {};
+  var actors = Array.isArray(report.actors) ? report.actors : [];
+  var inactive = Array.isArray(safePreview.inactiveAudience) ? safePreview.inactiveAudience : [];
+  var expected = Array.isArray(safePreview.expectedAudience) ? safePreview.expectedAudience : [];
+  var inactiveHtml = inactive.length
+    ? '<div style="margin:0 0 14px;padding:14px;border:1px solid #f0d7a7;border-radius:12px;background:#fff8e7;">' +
+        '<h4 style="margin:0 0 8px;font-size:16px;color:#6a4a00;">Usuarios sin cambios registrados</h4>' +
+        '<ul style="margin:0;padding-left:18px;color:#6a4a00;">' +
+        inactive.map(function(entry) {
+          return '<li>' + escapeHtmlEmail_(String(entry.actor || entry.email || 'Sin identificar')) + ' | ' + escapeHtmlEmail_(String(entry.email || '')) + '</li>';
+        }).join('') +
+        '</ul>' +
+      '</div>'
+    : '<div style="margin:0 0 14px;padding:14px;border:1px solid #d7e2ef;border-radius:12px;background:#f7fbff;color:#1d5f8f;"><strong>Todos los usuarios esperados registraron actividad hoy.</strong></div>';
+  var detailSections = actors.length
+    ? actors.map(renderSharedTrackingDailyAuditActorSectionHtml_).join('')
+    : '<div style="padding:14px;border:1px solid #d7e2ef;border-radius:12px;background:#ffffff;color:#4d6379;">No se registraron cambios auditados durante el día.</div>';
+  return [
+    '<div style="font-family:Arial,sans-serif;color:#16324f;line-height:1.5;max-width:980px;">',
+    '<h2 style="margin:0 0 10px;font-size:20px;">Visor de Seguimiento PEC</h2>',
+    '<p style="margin:0 0 12px;">Se remite el resumen ejecutivo nocturno para administradores con corte del <strong>' + escapeHtmlEmail_(report.dateLabel || report.date || '') + '</strong>.</p>',
+    '<p style="margin:0 0 12px;">Usuarios esperados: <strong>' + escapeHtmlEmail_(String(expected.length || 0)) + '</strong> | Usuarios con cambios: <strong>' + escapeHtmlEmail_(String(report.totalActors || 0)) + '</strong> | Usuarios sin cambios: <strong>' + escapeHtmlEmail_(String(inactive.length || 0)) + '</strong></p>',
+    '<p style="margin:0 0 12px;">Movimientos auditados: <strong>' + escapeHtmlEmail_(String(report.totalEntries || 0)) + '</strong> | Impactos: <strong>' + escapeHtmlEmail_(String(report.totalChanges || 0)) + '</strong> | Registros tocados: <strong>' + escapeHtmlEmail_(String(report.totalTouchedRecords || 0)) + '</strong></p>',
+    '<p style="margin:0 0 12px;color:#4d6379;font-size:12px;">Generado: ' + escapeHtmlEmail_(formatTrackingDateTime_(report.generatedAt) || report.generatedAt || '') + '</p>',
+    '<p style="margin:0 0 14px;padding:10px 12px;border:1px solid #d7e2ef;background:#f7fbff;color:#16324f;border-radius:8px;">Se adjuntan la auditoría del día y el backup compartido más reciente como base para revisión y eventual reversión manual controlada.</p>',
+    inactiveHtml,
+    '<p style="margin:18px 0 0;"><a href="' + escapeHtmlEmail_(safePreview.webappUrl) + '" style="display:inline-block;padding:10px 16px;border-radius:8px;background:#1d5f8f;color:#ffffff;text-decoration:none;font-weight:600;">Abrir visor compartido</a></p>',
+    '<div style="margin:18px 0 0;padding:16px;border-radius:14px;background:#f7fbff;border:1px solid #d7e2ef;">',
+    '<h3 style="margin:0 0 6px;font-size:17px;color:#16324f;">Detalle por usuario y acción</h3>',
+    '<p style="margin:0 0 14px;color:#4d6379;font-size:13px;">Se presenta el detalle de auditoría por actor, identidad, acciones y registros tocados durante la jornada.</p>',
+    detailSections,
+    '</div>',
+    '<p style="margin:16px 0 0;color:#4d6379;font-size:12px;">Este mensaje fue generado automáticamente por el Visor de Seguimiento PEC.</p>',
+    '</div>'
+  ].join('');
+}
+
 function textOrDash_(value) {
   const raw = String(value == null ? '' : value).trim();
   return raw || '-';
+}
+
+function dispatchSharedTrackingAdminExecutiveSummaryEmail_(options) {
+  var safeOptions = options || {};
+  var preview = buildSharedTrackingAdminExecutiveSummaryPreview_(safeOptions.reportDate, { includeHtml: true });
+  if (!preview.ok) return preview;
+  markOperationalExecution_('ADMIN_SUMMARY', String(safeOptions.origin || 'sendSharedTrackingAdminExecutiveSummaryEmail').trim());
+  if (!preview.to) {
+    return {
+      ok: false,
+      actor: String(safeOptions.actor || getSharedTrackingActor_() || 'admin_manual').trim(),
+      admin: isSharedTrackingAdmin_(),
+      sent: false,
+      sendHour: preview.sendHour,
+      recipients: preview.recipients,
+      effectiveRecipients: preview.effectiveRecipients,
+      reportDate: preview.report.date,
+      report: preview.report,
+      subject: preview.subject,
+      message: 'Faltan administradores configurados para el resumen ejecutivo nocturno.'
+    };
+  }
+  var backup = writeSharedTrackingBackup_(loadSharedTrackingState_());
+  var auditFileName = 'auditoria_resumen_admin_' + String(preview.report.date || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd')).replace(/[^0-9-]/g, '') + '.json';
+  var attachments = [
+    Utilities.newBlob(JSON.stringify({
+      generatedAt: new Date().toISOString(),
+      reportDate: preview.report.date,
+      summary: {
+        totalActors: Number(preview.report.totalActors || 0),
+        totalEntries: Number(preview.report.totalEntries || 0),
+        totalChanges: Number(preview.report.totalChanges || 0),
+        totalTouchedRecords: Number(preview.report.totalTouchedRecords || 0),
+        inactiveAudience: preview.inactiveAudience
+      },
+      report: preview.report,
+      auditItems: preview.auditItems
+    }, null, 2), 'application/json', auditFileName),
+    Utilities.newBlob(String(backup.content || ''), 'application/json', String(backup.fileName || 'shared_tracking_backup.json'))
+  ];
+  MailApp.sendEmail(preview.to, preview.subject, preview.plainBody, {
+    htmlBody: preview.htmlBody,
+    attachments: attachments,
+    name: 'Visor de Seguimiento PEC'
+  });
+  var sentAt = new Date().toISOString();
+  var actorMeta = buildAuditActorMeta_(resolveSharedTrackingActorInfo_(safeOptions.actor));
+  appendSharedTrackingAudit_({
+    at: sentAt,
+    actor: actorMeta.actor || String(safeOptions.actor || 'trigger_nocturno_admin').trim(),
+    actorEmail: actorMeta.actorEmail,
+    actorSource: actorMeta.actorSource,
+    actorVerified: actorMeta.actorVerified,
+    declaredActor: actorMeta.declaredActor,
+    action: 'enviar_resumen_ejecutivo_admin',
+    origin: String(safeOptions.origin || 'sendSharedTrackingAdminExecutiveSummaryEmail').trim(),
+    detail: 'Resumen ejecutivo admin enviado para ' + (preview.report.dateLabel || preview.report.date) + ' | Usuarios con cambios: ' + Number(preview.report.totalActors || 0) + ' | Usuarios sin cambios: ' + Number((preview.inactiveAudience || []).length || 0),
+    summary: {
+      total: Number(preview.report.totalEntries || 0),
+      totalActors: Number(preview.report.totalActors || 0),
+      inactiveUsers: Number((preview.inactiveAudience || []).length || 0),
+      recipients: preview.effectiveRecipients.length,
+      effectiveRecipients: preview.effectiveRecipients,
+      reportDate: preview.report.date,
+      backupFile: backup.fileName,
+      backupUpdatedAt: backup.updatedAt
+    },
+    recipients: preview.effectiveRecipients,
+    effectiveRecipients: preview.effectiveRecipients,
+    reportDate: preview.report.date
+  });
+  markOperationalDelivery_(
+    'ADMIN_SUMMARY',
+    String(safeOptions.origin || 'sendSharedTrackingAdminExecutiveSummaryEmail').trim(),
+    preview.effectiveRecipients,
+    sentAt
+  );
+  return {
+    ok: true,
+    actor: actorMeta.actor || String(safeOptions.actor || 'trigger_nocturno_admin').trim(),
+    admin: isSharedTrackingAdmin_(),
+    sent: true,
+    sentAt: sentAt,
+    sendHour: preview.sendHour,
+    recipients: preview.recipients,
+    effectiveRecipients: preview.effectiveRecipients,
+    reportDate: preview.report.date,
+    report: preview.report,
+    inactiveAudience: preview.inactiveAudience,
+    subject: preview.subject,
+    backup: {
+      fileName: backup.fileName,
+      updatedAt: backup.updatedAt
+    },
+    message: 'Resumen ejecutivo admin enviado a ' + preview.effectiveRecipients.join(', ') + '.'
+  };
 }
 
 function previewDueTrackingEmails() {
@@ -2917,13 +3393,16 @@ function getSharedTrackingOperationalControlStatus() {
   }
   var dailyReport = getSharedTrackingDailyReportDeliveryStatus();
   var dueTracking = getDueTrackingNotificationStatus();
+  var adminSummary = getSharedTrackingAdminExecutiveSummaryStatus();
   var backend = getSharedTrackingBackendMeta_();
   var products = buildSharedTrackingOperationalProducts_(dailyReport, dueTracking);
   var controlReady = Boolean(
     dailyReport && dailyReport.ok !== false &&
     dueTracking && dueTracking.ok !== false &&
+    adminSummary && adminSummary.ok !== false &&
     dailyReport.triggerEnabled &&
-    dueTracking.triggerEnabled
+    dueTracking.triggerEnabled &&
+    adminSummary.triggerEnabled
   );
   return {
     ok: true,
@@ -2932,10 +3411,11 @@ function getSharedTrackingOperationalControlStatus() {
     backend: backend,
     dailyReport: dailyReport,
     dueTracking: dueTracking,
+    adminSummary: adminSummary,
     products: products,
     controlReady: controlReady,
     message: controlReady
-      ? 'Centro de control operativo listo para seguimiento, cierre diario y correos automáticos.'
+      ? 'Centro de control operativo listo para recordatorio matutino, resumen admin y correos automáticos.'
       : 'Centro de control operativo con puntos por revisar antes del siguiente corte automático.'
   };
 }
@@ -4057,6 +4537,16 @@ function getDailyAuditReportConfig_() {
   };
 }
 
+function getAdminExecutiveSummaryConfig_() {
+  var properties = PropertiesService.getScriptProperties();
+  var recipients = getSharedTrackingAdminEmailList_();
+  var sendHour = normalizeAdminExecutiveSummarySendHour_(properties.getProperty('PEC_VISOR_ADMIN_SUMMARY_HOUR'));
+  return {
+    recipients: recipients,
+    sendHour: sendHour
+  };
+}
+
 function ensureOperationalDailyReportDelivery_() {
   const config = getDailyAuditReportConfig_();
   const recipients = config.mode === 'TEST_REDIRECT' ? config.testRecipients : config.to;
@@ -4083,6 +4573,31 @@ function ensureOperationalDailyReportDelivery_() {
   });
 }
 
+function ensureOperationalAdminExecutiveSummaryDelivery_() {
+  const config = getAdminExecutiveSummaryConfig_();
+  if (!config.recipients.length) return;
+  if (!getAdminExecutiveSummaryTriggers_().length) {
+    recreateAdminExecutiveSummaryTrigger_();
+  }
+  if (!isOperationalWeekday_(new Date())) return;
+  const timezone = Session.getScriptTimeZone();
+  const now = new Date();
+  const currentHour = Number(Utilities.formatDate(now, timezone, 'H'));
+  if (!isFinite(currentHour) || currentHour < config.sendHour) return;
+  const today = Utilities.formatDate(now, timezone, 'yyyy-MM-dd');
+  const alreadySent = loadSharedTrackingAudit_().some(function(entry) {
+    if (!entry || entry.action !== 'enviar_resumen_ejecutivo_admin') return false;
+    const marker = entry.reportDate || entry.at || '';
+    return normalizeRequestedAuditReportDate_(marker, timezone) === today;
+  });
+  if (alreadySent) return;
+  dispatchSharedTrackingAdminExecutiveSummaryEmail_({
+    actor: 'operacion_admin_automatica',
+    origin: 'operacion_nocturna_recuperacion',
+    reportDate: today
+  });
+}
+
 function recreateDailyAuditReportTrigger_() {
   var removed = 0;
   getDailyAuditReportTriggers_().forEach(function(trigger) {
@@ -4100,7 +4615,33 @@ function recreateDailyAuditReportTrigger_() {
 function normalizeDailyAuditReportSendHour_(value) {
   var parsed = Number(value);
   if (!isFinite(parsed)) return OPERATIONAL_DEFAULTS.dailyReportSendHour;
-  return Math.max(OPERATIONAL_DEFAULTS.dailyReportSendHour, Math.min(23, Math.round(parsed)));
+  return Math.max(0, Math.min(23, Math.round(parsed)));
+}
+
+function getAdminExecutiveSummaryTriggers_() {
+  return ScriptApp.getProjectTriggers().filter(function(trigger) {
+    return trigger.getHandlerFunction && trigger.getHandlerFunction() === 'runNightlyAdminExecutiveSummaryEmail_';
+  });
+}
+
+function recreateAdminExecutiveSummaryTrigger_() {
+  var removed = 0;
+  getAdminExecutiveSummaryTriggers_().forEach(function(trigger) {
+    ScriptApp.deleteTrigger(trigger);
+    removed += 1;
+  });
+  ScriptApp.newTrigger('runNightlyAdminExecutiveSummaryEmail_')
+    .timeBased()
+    .everyDays(1)
+    .atHour(getAdminExecutiveSummaryConfig_().sendHour)
+    .create();
+  return removed;
+}
+
+function normalizeAdminExecutiveSummarySendHour_(value) {
+  var parsed = Number(value);
+  if (!isFinite(parsed)) return OPERATIONAL_DEFAULTS.adminSummarySendHour;
+  return Math.max(0, Math.min(23, Math.round(parsed)));
 }
 
 function isOperationalWeekday_(date, timezone) {

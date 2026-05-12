@@ -78,6 +78,9 @@ const LOADER_PROPERTY_KEYS = {
 const OPERATIONAL_DEFAULTS = {
   sharedTrackingAdminEmails: ['dpardave@gmail.com'],
   sharedTrackingOperationalEmails: [],
+  sharedTrackingDocumentOperatorEmails: [],
+  sharedTrackingPmoEmails: [],
+  sharedTrackingAuditorEmails: [],
   dgppcsSummaryRecipients: ['mmelletp@yahoo.com'],
   dailyReportMode: 'REAL',
   dailyReportSendHour: 9,
@@ -1351,6 +1354,75 @@ function saveSharedTrackingState(bundle, actorName, action) {
   });
 }
 
+function withSharedTrackingAttachmentMutationLock_(state, actorInfo, origin, callback) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(15000);
+  } catch (error) {
+    const currentState = loadSharedTrackingState_();
+    const actorMeta = buildAuditActorMeta_(actorInfo);
+    if (actorMeta.actor || actorMeta.actorEmail || actorMeta.declaredActor) {
+      appendSharedTrackingAudit_({
+        at: new Date().toISOString(),
+        actor: actorMeta.actor,
+        actorEmail: actorMeta.actorEmail,
+        actorSource: actorMeta.actorSource,
+        actorVerified: actorMeta.actorVerified,
+        declaredActor: actorMeta.declaredActor,
+        action: 'conflicto_sustento_en_curso',
+        origin: String(origin || 'mutacion_sustento').trim() || 'mutacion_sustento',
+        permissionRole: String(actorInfo && actorInfo.permissionRole || 'viewer').trim() || 'viewer',
+        message: 'Otra operación documental sigue en curso para el visor compartido. Intenta nuevamente en unos segundos.'
+      });
+    }
+    return buildSharedTrackingEnvelope_(currentState, {
+      ok: false,
+      busy: true,
+      actor: actorMeta.actor,
+      actorVerified: actorMeta.actorVerified,
+      actorSource: actorMeta.actorSource,
+      declaredActor: actorMeta.declaredActor,
+      message: 'Otra operación documental sigue en curso. Intenta nuevamente en unos segundos.',
+      backend: getSharedTrackingBackendMeta_(actorInfo)
+    });
+  }
+  try {
+    return callback();
+  } finally {
+    try {
+      lock.releaseLock();
+    } catch (error) {}
+  }
+}
+
+function buildSharedTrackingAttachmentMergeKey_(value) {
+  const attachment = normalizeSharedTrackingAttachmentMeta_(value);
+  if (!attachment) return '';
+  return String(attachment.fileId || attachment.id || attachment.url || attachment.name || '').trim();
+}
+
+function mergeSharedTrackingAttachmentList_(currentValues, nextValues) {
+  const merged = [];
+  const indexByKey = {};
+  normalizeSharedTrackingAttachmentList_(currentValues).forEach(function(item) {
+    const key = buildSharedTrackingAttachmentMergeKey_(item);
+    if (!key || Object.prototype.hasOwnProperty.call(indexByKey, key)) return;
+    indexByKey[key] = merged.length;
+    merged.push(item);
+  });
+  normalizeSharedTrackingAttachmentList_(nextValues).forEach(function(item) {
+    const key = buildSharedTrackingAttachmentMergeKey_(item);
+    if (!key) return;
+    if (Object.prototype.hasOwnProperty.call(indexByKey, key)) {
+      merged[indexByKey[key]] = item;
+      return;
+    }
+    indexByKey[key] = merged.length;
+    merged.push(item);
+  });
+  return normalizeSharedTrackingAttachmentList_(merged);
+}
+
 function uploadSharedTrackingAttachments(recordId, uploads, actorName) {
   const previous = loadSharedTrackingState_();
   const actorInfo = resolveSharedTrackingPermissionContext_(actorName);
@@ -1429,56 +1501,59 @@ function uploadSharedTrackingAttachments(recordId, uploads, actorName) {
       backend: getSharedTrackingBackendMeta_(actorInfo)
     });
   }
-  const recordMeta = getSharedTrackingRecordMetaForState_(previous, safeRecordId);
-  const noteEntry = normalizeSharedTrackingNoteEntry_(previous.notes && previous.notes[safeRecordId]);
-  const folder = getOrCreateBackendRecordAttachmentFolder_(recordMeta);
-  const folderMeta = buildSharedTrackingAttachmentFolderMeta_(folder, recordMeta);
-  const uploadedAt = new Date().toISOString();
-  const uploaded = safeUploads.map(function(upload) {
-    const storedName = buildSharedTrackingStoredAttachmentName_(upload.name);
-    const file = folder.createFile(Utilities.newBlob(Utilities.base64Decode(upload.contentBase64), upload.mimeType || 'application/octet-stream', storedName));
-    try {
-      file.setDescription([
-        'Visor PEC',
-        'Registro: ' + safeRecordId,
-        recordMeta && recordMeta.label ? ('Etiqueta: ' + recordMeta.label) : '',
-        'Actor: ' + actorInfo.actor,
-        'Fecha: ' + uploadedAt
-      ].filter(Boolean).join(' | '));
-    } catch (error) {}
-    return {
-      id: Utilities.getUuid(),
-      name: upload.name,
-      mimeType: String(file.getMimeType() || upload.mimeType || 'application/octet-stream'),
-      size: Number(upload.size || file.getSize() || 0),
-      fileId: file.getId(),
-      url: file.getUrl(),
-      uploadedAt: uploadedAt,
-      uploadedBy: actorInfo.actor
-    };
-  });
-  const nextNotes = Object.assign({}, previous.notes || {});
-  const nextNoteEntry = Object.assign({}, noteEntry, {
-    attachmentFolder: folderMeta,
-    attachments: normalizeSharedTrackingAttachmentList_((noteEntry.attachments || []).concat(uploaded))
-  });
-  nextNotes[safeRecordId] = nextNoteEntry;
-  const next = normalizeSharedTrackingStateBundle_(Object.assign({}, previous, { notes: nextNotes }), previous);
-  next.revision = Number(previous.revision || 0) + 1;
-  next.savedAt = uploadedAt;
-  next.savedBy = actorInfo.actor;
-  writeSharedTrackingState_(next);
-  appendSharedTrackingAudit_(buildSharedTrackingAttachmentAuditEntry_(actorInfo, 'cargar_sustento', recordMeta, uploaded, next));
-  writeSharedTrackingBackup_(next);
-  return buildSharedTrackingEnvelope_(next, {
-    actor: actorInfo.actor,
-    actorVerified: actorInfo.verified,
-    actorSource: actorInfo.source,
-    declaredActor: actorInfo.declaredActor,
-    message: uploaded.length === 1
-      ? 'Se cargó 1 sustento en ' + (recordMeta.label || safeRecordId) + '.'
-      : 'Se cargaron ' + uploaded.length + ' sustento(s) en ' + (recordMeta.label || safeRecordId) + '.',
-    backend: getSharedTrackingBackendMeta_(actorInfo)
+  return withSharedTrackingAttachmentMutationLock_(previous, actorInfo, 'cargar_sustento', function() {
+    const latest = loadSharedTrackingState_();
+    const recordMeta = getSharedTrackingRecordMetaForState_(latest, safeRecordId);
+    const noteEntry = normalizeSharedTrackingNoteEntry_(latest.notes && latest.notes[safeRecordId]);
+    const folder = getOrCreateBackendRecordAttachmentFolder_(recordMeta);
+    const folderMeta = buildSharedTrackingAttachmentFolderMeta_(folder, recordMeta);
+    const uploadedAt = new Date().toISOString();
+    const uploaded = safeUploads.map(function(upload) {
+      const storedName = buildSharedTrackingStoredAttachmentName_(upload.name);
+      const file = folder.createFile(Utilities.newBlob(Utilities.base64Decode(upload.contentBase64), upload.mimeType || 'application/octet-stream', storedName));
+      try {
+        file.setDescription([
+          'Visor PEC',
+          'Registro: ' + safeRecordId,
+          recordMeta && recordMeta.label ? ('Etiqueta: ' + recordMeta.label) : '',
+          'Actor: ' + actorInfo.actor,
+          'Fecha: ' + uploadedAt
+        ].filter(Boolean).join(' | '));
+      } catch (error) {}
+      return {
+        id: Utilities.getUuid(),
+        name: upload.name,
+        mimeType: String(file.getMimeType() || upload.mimeType || 'application/octet-stream'),
+        size: Number(upload.size || file.getSize() || 0),
+        fileId: file.getId(),
+        url: file.getUrl(),
+        uploadedAt: uploadedAt,
+        uploadedBy: actorInfo.actor
+      };
+    });
+    const nextNotes = Object.assign({}, latest.notes || {});
+    const nextNoteEntry = Object.assign({}, noteEntry, {
+      attachmentFolder: folderMeta,
+      attachments: mergeSharedTrackingAttachmentList_(noteEntry.attachments || [], uploaded)
+    });
+    nextNotes[safeRecordId] = nextNoteEntry;
+    const next = normalizeSharedTrackingStateBundle_(Object.assign({}, latest, { notes: nextNotes }), latest);
+    next.revision = Number(latest.revision || 0) + 1;
+    next.savedAt = uploadedAt;
+    next.savedBy = actorInfo.actor;
+    writeSharedTrackingState_(next);
+    appendSharedTrackingAudit_(buildSharedTrackingAttachmentAuditEntry_(actorInfo, 'cargar_sustento', recordMeta, uploaded, next));
+    writeSharedTrackingBackup_(next);
+    return buildSharedTrackingEnvelope_(next, {
+      actor: actorInfo.actor,
+      actorVerified: actorInfo.verified,
+      actorSource: actorInfo.source,
+      declaredActor: actorInfo.declaredActor,
+      message: uploaded.length === 1
+        ? 'Se cargó 1 sustento en ' + (recordMeta.label || safeRecordId) + '.'
+        : 'Se cargaron ' + uploaded.length + ' sustento(s) en ' + (recordMeta.label || safeRecordId) + '.',
+      backend: getSharedTrackingBackendMeta_(actorInfo)
+    });
   });
 }
 
@@ -1510,46 +1585,49 @@ function ensureSharedTrackingAttachmentFolder(recordId, actorName) {
       backend: getSharedTrackingBackendMeta_(actorInfo)
     });
   }
-  const recordMeta = getSharedTrackingRecordMetaForState_(previous, safeRecordId);
-  const noteEntry = normalizeSharedTrackingNoteEntry_(previous.notes && previous.notes[safeRecordId]);
-  const folder = getOrCreateBackendRecordAttachmentFolder_(recordMeta);
-  const folderMeta = buildSharedTrackingAttachmentFolderMeta_(folder, recordMeta);
-  const currentFolderId = String(noteEntry.attachmentFolder && noteEntry.attachmentFolder.folderId || '').trim();
-  if (currentFolderId === folderMeta.folderId) {
-    return buildSharedTrackingEnvelope_(previous, {
+  return withSharedTrackingAttachmentMutationLock_(previous, actorInfo, 'preparar_carpeta_sustento', function() {
+    const latest = loadSharedTrackingState_();
+    const recordMeta = getSharedTrackingRecordMetaForState_(latest, safeRecordId);
+    const noteEntry = normalizeSharedTrackingNoteEntry_(latest.notes && latest.notes[safeRecordId]);
+    const folder = getOrCreateBackendRecordAttachmentFolder_(recordMeta);
+    const folderMeta = buildSharedTrackingAttachmentFolderMeta_(folder, recordMeta);
+    const currentFolderId = String(noteEntry.attachmentFolder && noteEntry.attachmentFolder.folderId || '').trim();
+    if (currentFolderId === folderMeta.folderId) {
+      return buildSharedTrackingEnvelope_(latest, {
+        actor: actorInfo.actor,
+        actorVerified: actorInfo.verified,
+        actorSource: actorInfo.source,
+        declaredActor: actorInfo.declaredActor,
+        message: 'La carpeta de sustento ya estaba preparada para ' + (recordMeta.label || safeRecordId) + '.',
+        backend: getSharedTrackingBackendMeta_(actorInfo)
+      });
+    }
+    const nextNotes = Object.assign({}, latest.notes || {});
+    nextNotes[safeRecordId] = Object.assign({}, noteEntry, {
+      attachmentFolder: folderMeta
+    });
+    const next = normalizeSharedTrackingStateBundle_(Object.assign({}, latest, { notes: nextNotes }), latest);
+    next.revision = Number(latest.revision || 0) + 1;
+    next.savedAt = new Date().toISOString();
+    next.savedBy = actorInfo.actor;
+    writeSharedTrackingState_(next);
+    appendSharedTrackingAudit_(buildSharedTrackingAttachmentFolderAuditEntry_(actorInfo, recordMeta, folderMeta, next));
+    writeSharedTrackingBackup_(next);
+    return buildSharedTrackingEnvelope_(next, {
       actor: actorInfo.actor,
       actorVerified: actorInfo.verified,
       actorSource: actorInfo.source,
       declaredActor: actorInfo.declaredActor,
-      message: 'La carpeta de sustento ya estaba preparada para ' + (recordMeta.label || safeRecordId) + '.',
+      message: 'La carpeta de sustento quedó preparada para ' + (recordMeta.label || safeRecordId) + '.',
       backend: getSharedTrackingBackendMeta_(actorInfo)
     });
-  }
-  const nextNotes = Object.assign({}, previous.notes || {});
-  nextNotes[safeRecordId] = Object.assign({}, noteEntry, {
-    attachmentFolder: folderMeta
-  });
-  const next = normalizeSharedTrackingStateBundle_(Object.assign({}, previous, { notes: nextNotes }), previous);
-  next.revision = Number(previous.revision || 0) + 1;
-  next.savedAt = new Date().toISOString();
-  next.savedBy = actorInfo.actor;
-  writeSharedTrackingState_(next);
-  appendSharedTrackingAudit_(buildSharedTrackingAttachmentFolderAuditEntry_(actorInfo, recordMeta, folderMeta, next));
-  writeSharedTrackingBackup_(next);
-  return buildSharedTrackingEnvelope_(next, {
-    actor: actorInfo.actor,
-    actorVerified: actorInfo.verified,
-    actorSource: actorInfo.source,
-    declaredActor: actorInfo.declaredActor,
-    message: 'La carpeta de sustento quedó preparada para ' + (recordMeta.label || safeRecordId) + '.',
-    backend: getSharedTrackingBackendMeta_(actorInfo)
   });
 }
 
 function deleteSharedTrackingAttachment(recordId, attachmentId, actorName) {
   const previous = loadSharedTrackingState_();
   const actorInfo = resolveSharedTrackingPermissionContext_(actorName);
-  if (!actorInfo.canManageAttachments) {
+  if (!actorInfo.canRemoveAttachments) {
     return buildSharedTrackingPermissionDeniedEnvelope_(
       previous,
       actorInfo,
@@ -1575,52 +1653,55 @@ function deleteSharedTrackingAttachment(recordId, attachmentId, actorName) {
       backend: getSharedTrackingBackendMeta_(actorInfo)
     });
   }
-  const noteEntry = normalizeSharedTrackingNoteEntry_(previous.notes && previous.notes[safeRecordId]);
-  const attachments = Array.isArray(noteEntry.attachments) ? noteEntry.attachments.slice() : [];
-  const targetIndex = attachments.findIndex(function(item) {
-    return String(item && item.id || '').trim() === safeAttachmentId;
-  });
-  if (targetIndex < 0) {
-    return buildSharedTrackingEnvelope_(previous, {
-      ok: false,
-      message: 'El sustento solicitado ya no está disponible en esta ficha.',
+  return withSharedTrackingAttachmentMutationLock_(previous, actorInfo, 'retirar_sustento', function() {
+    const latest = loadSharedTrackingState_();
+    const noteEntry = normalizeSharedTrackingNoteEntry_(latest.notes && latest.notes[safeRecordId]);
+    const attachments = Array.isArray(noteEntry.attachments) ? noteEntry.attachments.slice() : [];
+    const targetIndex = attachments.findIndex(function(item) {
+      return String(item && item.id || '').trim() === safeAttachmentId;
+    });
+    if (targetIndex < 0) {
+      return buildSharedTrackingEnvelope_(latest, {
+        ok: false,
+        message: 'El sustento solicitado ya no está disponible en esta ficha.',
+        actor: actorInfo.actor,
+        actorVerified: actorInfo.verified,
+        actorSource: actorInfo.source,
+        declaredActor: actorInfo.declaredActor,
+        backend: getSharedTrackingBackendMeta_(actorInfo)
+      });
+    }
+    const removed = attachments[targetIndex];
+    attachments.splice(targetIndex, 1);
+    const nextNotes = Object.assign({}, latest.notes || {});
+    if (attachments.length || String(noteEntry.note || '').trim() || String(noteEntry.action || '').trim() || hasSharedTrackingAttachmentFolderMeta_(noteEntry.attachmentFolder)) {
+      nextNotes[safeRecordId] = Object.assign({}, noteEntry, {
+        attachments: normalizeSharedTrackingAttachmentList_(attachments)
+      });
+    } else {
+      delete nextNotes[safeRecordId];
+    }
+    const next = normalizeSharedTrackingStateBundle_(Object.assign({}, latest, { notes: nextNotes }), latest);
+    next.revision = Number(latest.revision || 0) + 1;
+    next.savedAt = new Date().toISOString();
+    next.savedBy = actorInfo.actor;
+    const recordMeta = getSharedTrackingRecordMetaForState_(latest, safeRecordId);
+    writeSharedTrackingState_(next);
+    if (removed && removed.fileId) {
+      try {
+        DriveApp.getFileById(String(removed.fileId)).setTrashed(true);
+      } catch (error) {}
+    }
+    appendSharedTrackingAudit_(buildSharedTrackingAttachmentAuditEntry_(actorInfo, 'retirar_sustento', recordMeta, [removed], next));
+    writeSharedTrackingBackup_(next);
+    return buildSharedTrackingEnvelope_(next, {
       actor: actorInfo.actor,
       actorVerified: actorInfo.verified,
       actorSource: actorInfo.source,
       declaredActor: actorInfo.declaredActor,
+      message: 'Se retiró el sustento ' + String(removed && removed.name || 'seleccionado') + ' de ' + (recordMeta.label || safeRecordId) + '.',
       backend: getSharedTrackingBackendMeta_(actorInfo)
     });
-  }
-  const removed = attachments[targetIndex];
-  if (removed && removed.fileId) {
-    try {
-      DriveApp.getFileById(String(removed.fileId)).setTrashed(true);
-    } catch (error) {}
-  }
-  attachments.splice(targetIndex, 1);
-  const nextNotes = Object.assign({}, previous.notes || {});
-  if (attachments.length || String(noteEntry.note || '').trim() || String(noteEntry.action || '').trim() || hasSharedTrackingAttachmentFolderMeta_(noteEntry.attachmentFolder)) {
-    nextNotes[safeRecordId] = Object.assign({}, noteEntry, {
-      attachments: normalizeSharedTrackingAttachmentList_(attachments)
-    });
-  } else {
-    delete nextNotes[safeRecordId];
-  }
-  const next = normalizeSharedTrackingStateBundle_(Object.assign({}, previous, { notes: nextNotes }), previous);
-  next.revision = Number(previous.revision || 0) + 1;
-  next.savedAt = new Date().toISOString();
-  next.savedBy = actorInfo.actor;
-  const recordMeta = getSharedTrackingRecordMetaForState_(previous, safeRecordId);
-  writeSharedTrackingState_(next);
-  appendSharedTrackingAudit_(buildSharedTrackingAttachmentAuditEntry_(actorInfo, 'retirar_sustento', recordMeta, [removed], next));
-  writeSharedTrackingBackup_(next);
-  return buildSharedTrackingEnvelope_(next, {
-    actor: actorInfo.actor,
-    actorVerified: actorInfo.verified,
-    actorSource: actorInfo.source,
-    declaredActor: actorInfo.declaredActor,
-    message: 'Se retiró el sustento ' + String(removed && removed.name || 'seleccionado') + ' de ' + (recordMeta.label || safeRecordId) + '.',
-    backend: getSharedTrackingBackendMeta_(actorInfo)
   });
 }
 
@@ -1660,7 +1741,7 @@ function getSharedTrackingAudit(limit) {
     actorVerified: Boolean(permission.verified),
     actorSource: String(permission.source || 'missing').trim() || 'missing',
     declaredActor: String(permission.declaredActor || '').trim(),
-    admin: true,
+    admin: Boolean(permission.isAdmin),
     items: loadSharedTrackingAudit_().slice(0, Math.max(1, Number(limit || 100))),
     backend: getSharedTrackingBackendMeta_(permission)
   };
@@ -4497,9 +4578,33 @@ function getSharedTrackingAdminEmailList_() {
   return Array.from(new Set(configured.concat(splitEmailList_(OPERATIONAL_DEFAULTS.sharedTrackingAdminEmails.join(';')))));
 }
 
-function getSharedTrackingOperationalEmailList_() {
+function getSharedTrackingLegacyOperationalEmailList_() {
   const configured = splitEmailList_(PropertiesService.getScriptProperties().getProperty('PEC_VISOR_OPERATIONAL_EMAILS') || '');
-  return Array.from(new Set(getSharedTrackingAdminEmailList_().concat(configured.concat(splitEmailList_(OPERATIONAL_DEFAULTS.sharedTrackingOperationalEmails.join(';'))))));
+  return Array.from(new Set(configured.concat(splitEmailList_(OPERATIONAL_DEFAULTS.sharedTrackingOperationalEmails.join(';')))));
+}
+
+function getSharedTrackingDocumentOperatorEmailList_() {
+  const configured = splitEmailList_(PropertiesService.getScriptProperties().getProperty('PEC_VISOR_DOCUMENT_OPERATOR_EMAILS') || '');
+  return Array.from(new Set(configured.concat(splitEmailList_(OPERATIONAL_DEFAULTS.sharedTrackingDocumentOperatorEmails.join(';')))));
+}
+
+function getSharedTrackingPmoEmailList_() {
+  const configured = splitEmailList_(PropertiesService.getScriptProperties().getProperty('PEC_VISOR_PMO_EMAILS') || '');
+  return Array.from(new Set(configured.concat(splitEmailList_(OPERATIONAL_DEFAULTS.sharedTrackingPmoEmails.join(';')))));
+}
+
+function getSharedTrackingAuditorEmailList_() {
+  const configured = splitEmailList_(PropertiesService.getScriptProperties().getProperty('PEC_VISOR_AUDITOR_EMAILS') || '');
+  return Array.from(new Set(configured.concat(splitEmailList_(OPERATIONAL_DEFAULTS.sharedTrackingAuditorEmails.join(';')))));
+}
+
+function getSharedTrackingOperationalEmailList_() {
+  return Array.from(new Set(
+    getSharedTrackingAdminEmailList_()
+      .concat(getSharedTrackingLegacyOperationalEmailList_())
+      .concat(getSharedTrackingDocumentOperatorEmailList_())
+      .concat(getSharedTrackingPmoEmailList_())
+  ));
 }
 
 function setOrDeleteScriptProperty_(properties, key, value) {
@@ -5167,11 +5272,24 @@ function resolveSharedTrackingPermissionContext_(clientActorName) {
   const adminEmails = getSharedTrackingAdminEmailList_()
     .map(function(item) { return String(item || '').trim().toLowerCase(); })
     .filter(Boolean);
-  const operationalEmails = getSharedTrackingOperationalEmailList_()
+  const legacyOperationalEmails = getSharedTrackingLegacyOperationalEmailList_()
+    .map(function(item) { return String(item || '').trim().toLowerCase(); })
+    .filter(Boolean);
+  const documentOperatorEmails = getSharedTrackingDocumentOperatorEmailList_()
+    .map(function(item) { return String(item || '').trim().toLowerCase(); })
+    .filter(Boolean);
+  const pmoEmails = getSharedTrackingPmoEmailList_()
+    .map(function(item) { return String(item || '').trim().toLowerCase(); })
+    .filter(Boolean);
+  const auditorEmails = getSharedTrackingAuditorEmailList_()
     .map(function(item) { return String(item || '').trim().toLowerCase(); })
     .filter(Boolean);
   const isAdmin = Boolean(verified && adminEmails.indexOf(email) >= 0);
-  const isOperational = Boolean(verified && operationalEmails.indexOf(email) >= 0);
+  const isLegacyOperational = Boolean(verified && legacyOperationalEmails.indexOf(email) >= 0);
+  const isPmo = Boolean(verified && (pmoEmails.indexOf(email) >= 0 || isLegacyOperational));
+  const isDocumentOperator = Boolean(verified && !isPmo && documentOperatorEmails.indexOf(email) >= 0);
+  const isAuditor = Boolean(verified && !isAdmin && !isPmo && !isDocumentOperator && auditorEmails.indexOf(email) >= 0);
+  const isOperational = Boolean(isPmo || isDocumentOperator || isLegacyOperational);
   let permissionRole = 'viewer';
   let reasonCode = 'missing_verified_identity';
   let reasonMessage = 'No se pudo verificar tu identidad. Inicia sesión con una cuenta Google autorizada para editar o cargar sustento.';
@@ -5179,10 +5297,20 @@ function resolveSharedTrackingPermissionContext_(clientActorName) {
     permissionRole = 'admin';
     reasonCode = 'admin_verified';
     reasonMessage = 'Correo verificado con acceso administrador al visor compartido.';
-  } else if (isOperational) {
-    permissionRole = 'operational';
-    reasonCode = 'operational_verified';
-    reasonMessage = 'Correo verificado con acceso operativo para editar ficha y administrar sustentos.';
+  } else if (isPmo) {
+    permissionRole = 'pmo';
+    reasonCode = isLegacyOperational ? 'pmo_verified_legacy' : 'pmo_verified';
+    reasonMessage = isLegacyOperational
+      ? 'Tu correo verificado mantiene compatibilidad con la lista operativa heredada y puede editar fichas y administrar sustentos.'
+      : 'Correo verificado con acceso PMO para editar fichas y administrar sustentos.';
+  } else if (isDocumentOperator) {
+    permissionRole = 'document_operator';
+    reasonCode = 'document_operator_verified';
+    reasonMessage = 'Correo verificado con acceso documental para cargar y retirar sustentos, sin editar la ficha compartida.';
+  } else if (isAuditor) {
+    permissionRole = 'auditor';
+    reasonCode = 'auditor_verified';
+    reasonMessage = 'Correo verificado con acceso de auditoría. Puedes revisar la trazabilidad, pero no editar fichas ni administrar sustentos.';
   } else if (verified) {
     permissionRole = 'verified_viewer';
     reasonCode = 'verified_not_authorized';
@@ -5196,10 +5324,16 @@ function resolveSharedTrackingPermissionContext_(clientActorName) {
     email: email,
     verified: verified,
     isAdmin: isAdmin,
+    isPmo: isPmo,
+    isDocumentOperator: isDocumentOperator,
+    isAuditor: isAuditor,
     isOperational: isOperational,
-    canEditShared: Boolean(isAdmin || isOperational),
-    canManageAttachments: Boolean(isAdmin || isOperational),
-    canViewSensitiveAudit: Boolean(isAdmin),
+    canEditShared: Boolean(isAdmin || isPmo),
+    canManageAttachments: Boolean(isAdmin || isPmo || isDocumentOperator),
+    canRemoveAttachments: Boolean(isAdmin || isPmo || isDocumentOperator),
+    canViewSensitiveAudit: Boolean(isAdmin || isAuditor),
+    canViewOperationalCenter: Boolean(isAdmin),
+    canExportSupportInventory: Boolean(isAdmin || isPmo || isAuditor),
     permissionRole: permissionRole,
     reasonCode: reasonCode,
     reasonMessage: reasonMessage
@@ -5286,7 +5420,10 @@ function getSharedTrackingBackendMeta_(actorInfo) {
     admin: Boolean(permission.isAdmin),
     canEditShared: Boolean(permission.canEditShared),
     canManageAttachments: Boolean(permission.canManageAttachments),
+    canRemoveAttachments: Boolean(permission.canRemoveAttachments),
     canViewSensitiveAudit: Boolean(permission.canViewSensitiveAudit),
+    canViewOperationalCenter: Boolean(permission.canViewOperationalCenter),
+    canExportSupportInventory: Boolean(permission.canExportSupportInventory),
     permissionRole: String(permission.permissionRole || 'viewer').trim() || 'viewer',
     permissionReasonCode: String(permission.reasonCode || '').trim(),
     permissionReasonMessage: String(permission.reasonMessage || '').trim(),

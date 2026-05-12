@@ -3080,6 +3080,7 @@ function describeCurrentActorIdentity(identity){
 function getCurrentPermissionState(){
   const info = ensureServerInfo();
   const identity = getCurrentActorIdentity();
+  const role = text(info.permissionRole);
   if(!isSharedBackendMode()){
     return {
       role: 'local_mode',
@@ -3087,6 +3088,8 @@ function getCurrentPermissionState(){
       detail: 'Los cambios se guardan en este navegador. La carga real de sustento requiere abrir la versión compartida de Apps Script.',
       canEditShared: true,
       canManageAttachments: false,
+      canRemoveAttachments: false,
+      canViewSensitiveAudit: false,
       isAdmin: Boolean(info.admin)
     };
   }
@@ -3097,16 +3100,44 @@ function getCurrentPermissionState(){
       detail: text(info.permissionReasonMessage) || 'Correo verificado con acceso administrador al visor compartido.',
       canEditShared: true,
       canManageAttachments: true,
+      canRemoveAttachments: true,
+      canViewSensitiveAudit: true,
       isAdmin: true
     };
   }
-  if(info.canEditShared || info.canManageAttachments || text(info.permissionRole) === 'operational'){
+  if(role === 'pmo' || role === 'operational'){
     return {
-      role: 'operational',
-      label: 'Operador verificado',
+      role: 'pmo',
+      label: 'Responsable PMO verificado',
       detail: text(info.permissionReasonMessage) || 'Tu correo verificado puede editar la ficha compartida y administrar sustentos.',
       canEditShared: true,
       canManageAttachments: true,
+      canRemoveAttachments: true,
+      canViewSensitiveAudit: Boolean(info.canViewSensitiveAudit),
+      isAdmin: false
+    };
+  }
+  if(role === 'document_operator' || (!info.canEditShared && info.canManageAttachments)){
+    return {
+      role: 'document_operator',
+      label: 'Operador documental verificado',
+      detail: text(info.permissionReasonMessage) || 'Tu correo verificado puede cargar y retirar sustentos, pero no editar la ficha compartida.',
+      canEditShared: false,
+      canManageAttachments: true,
+      canRemoveAttachments: Boolean(info.canRemoveAttachments),
+      canViewSensitiveAudit: false,
+      isAdmin: false
+    };
+  }
+  if(role === 'auditor' || (!info.admin && info.canViewSensitiveAudit)){
+    return {
+      role: 'auditor',
+      label: 'Auditor verificado',
+      detail: text(info.permissionReasonMessage) || 'Tu correo verificado puede revisar la auditoría compartida, pero no editar la ficha ni administrar sustentos.',
+      canEditShared: false,
+      canManageAttachments: false,
+      canRemoveAttachments: false,
+      canViewSensitiveAudit: true,
       isAdmin: false
     };
   }
@@ -3117,6 +3148,8 @@ function getCurrentPermissionState(){
       detail: 'La identidad es referencial. Puedes consultar el visor, pero la edición compartida y la carga de sustento requieren correo verificado.',
       canEditShared: false,
       canManageAttachments: false,
+      canRemoveAttachments: false,
+      canViewSensitiveAudit: false,
       isAdmin: false
     };
   }
@@ -3127,6 +3160,8 @@ function getCurrentPermissionState(){
       detail: text(info.permissionReasonMessage) || 'Tu correo fue verificado, pero no está autorizado para editar ni cargar sustento en el visor compartido.',
       canEditShared: false,
       canManageAttachments: false,
+      canRemoveAttachments: false,
+      canViewSensitiveAudit: Boolean(info.canViewSensitiveAudit),
       isAdmin: false
     };
   }
@@ -3136,6 +3171,8 @@ function getCurrentPermissionState(){
     detail: text(info.permissionReasonMessage) || 'Puedes consultar el visor. Para editar o cargar sustento necesitas una cuenta Google autorizada.',
     canEditShared: false,
     canManageAttachments: false,
+    canRemoveAttachments: false,
+    canViewSensitiveAudit: false,
     isAdmin: false
   };
 }
@@ -3146,6 +3183,10 @@ function canCurrentUserEditShared(){
 
 function canCurrentUserManageAttachments(){
   return Boolean(getCurrentPermissionState().canManageAttachments);
+}
+
+function canCurrentUserRemoveAttachments(){
+  return Boolean(getCurrentPermissionState().canRemoveAttachments);
 }
 
 function loadAuditLog(){
@@ -3468,7 +3509,10 @@ function getDefaultServerInfo(){
     admin: false,
     canEditShared: false,
     canManageAttachments: false,
+    canRemoveAttachments: false,
     canViewSensitiveAudit: false,
+    canViewOperationalCenter: false,
+    canExportSupportInventory: false,
     permissionRole: isSharedBackendMode() ? 'viewer' : 'local_mode',
     permissionReasonCode: isSharedBackendMode() ? 'backend_pending' : 'local_mode',
     permissionReasonMessage: isSharedBackendMode()
@@ -3495,6 +3539,7 @@ function ensureServerInfo(){
 }
 
 function renderAdminAccess(){
+  const info = ensureServerInfo();
   const enabled = Boolean(appState.adminEnabled);
   const adminBtn = document.getElementById('openAdminBtn');
   const quickBtn = document.getElementById('openAdminQuickBtn');
@@ -3505,7 +3550,11 @@ function renderAdminAccess(){
   if(adminStrip) adminStrip.style.display = enabled ? 'flex' : 'none';
   if(adminMeta){
     adminMeta.textContent = isSharedBackendMode()
-      ? 'Abre el panel de control operativo, la entrega diaria y las alertas del backend compartido.'
+      ? (info.admin
+          ? 'Abre el panel de control operativo, la entrega diaria y las alertas del backend compartido.'
+          : (info.canViewSensitiveAudit
+              ? 'Abre el panel de auditoría compartida. El centro operativo, los correos y los triggers siguen restringidos a administradores.'
+              : 'Abre el panel administrador de esta sesión.'))
       : 'Abre el panel administrador de esta sesión y usa ?admin=darwin para habilitarlo en la vista pública.';
   }
 }
@@ -3527,7 +3576,10 @@ function updateServerInfoFromEnvelope(result){
   if(explicitAdmin !== null) info.admin = explicitAdmin;
   if(typeof backend.canEditShared !== 'undefined') info.canEditShared = Boolean(backend.canEditShared);
   if(typeof backend.canManageAttachments !== 'undefined') info.canManageAttachments = Boolean(backend.canManageAttachments);
+  if(typeof backend.canRemoveAttachments !== 'undefined') info.canRemoveAttachments = Boolean(backend.canRemoveAttachments);
   if(typeof backend.canViewSensitiveAudit !== 'undefined') info.canViewSensitiveAudit = Boolean(backend.canViewSensitiveAudit);
+  if(typeof backend.canViewOperationalCenter !== 'undefined') info.canViewOperationalCenter = Boolean(backend.canViewOperationalCenter);
+  if(typeof backend.canExportSupportInventory !== 'undefined') info.canExportSupportInventory = Boolean(backend.canExportSupportInventory);
   info.permissionRole = text(backend.permissionRole || info.permissionRole);
   info.permissionReasonCode = text((result && result.permissionReasonCode) || backend.permissionReasonCode || info.permissionReasonCode);
   info.permissionReasonMessage = permissionMessage || text(backend.permissionReasonMessage || info.permissionReasonMessage);
@@ -3538,7 +3590,7 @@ function updateServerInfoFromEnvelope(result){
   info.lastBackupAt = text(backend.lastBackupAt || info.lastBackupAt);
   info.lastBackupFile = text(backend.lastBackupFile || info.lastBackupFile);
   appState.adminEnabled = info.mode === 'apps_script'
-    ? Boolean(info.admin)
+    ? Boolean(info.admin || info.canViewSensitiveAudit)
     : (Boolean(info.admin) || isAdminMode());
   renderAdminAccess();
   return info;
@@ -4687,6 +4739,7 @@ function applySharedStateBundle(bundle, options){
     actorSource: text(currentInfo.actorSource),
     canEditShared: Boolean(currentInfo.canEditShared),
     canManageAttachments: Boolean(currentInfo.canManageAttachments),
+    canRemoveAttachments: Boolean(currentInfo.canRemoveAttachments),
     canViewSensitiveAudit: Boolean(currentInfo.canViewSensitiveAudit),
     permissionRole: text(currentInfo.permissionRole),
     permissionReasonCode: text(currentInfo.permissionReasonCode),
@@ -7840,6 +7893,17 @@ function canMutateCaseAttachments(){
   return Boolean(supportsSharedCaseAttachments() && canCurrentUserManageAttachments() && !appState.hasUnsyncedSharedChanges && !sharedSyncInFlight && !sharedAttachmentActionInFlight);
 }
 
+function describeCurrentAttachmentPermissionSummary(permission){
+  const safe = permission || getCurrentPermissionState();
+  return [
+    'Rol actual: ' + text(safe.label || 'Usuario estándar'),
+    'Editar ficha: ' + (safe.canEditShared ? 'Sí' : 'No'),
+    'Cargar sustento: ' + (safe.canManageAttachments ? 'Sí' : 'No'),
+    'Retirar sustento: ' + (safe.canRemoveAttachments ? 'Sí' : 'No'),
+    'Auditoría: ' + (safe.canViewSensitiveAudit ? 'Sí' : 'No')
+  ].join(' | ');
+}
+
 function formatFileSize(bytes){
   const size = Number(bytes || 0);
   if(!(size > 0)) return 'Sin tamaño';
@@ -7871,11 +7935,12 @@ function renderCaseAttachments(record){
   const sharedReady = supportsSharedCaseAttachments();
   const canRefresh = Boolean(sharedReady && !appState.hasUnsyncedSharedChanges && !sharedSyncInFlight && !sharedAttachmentActionInFlight);
   const canMutate = canMutateCaseAttachments();
+  const permissionSummary = describeCurrentAttachmentPermissionSummary(permission);
   hintHost.textContent = sharedReady
-    ? (permission.canManageAttachments
+    ? (permissionSummary + ' | ' + (permission.canManageAttachments
         ? 'Sube uno o varios archivos de sustento para este bloque o subactividad. Se guardarán en el backend compartido del visor.'
-        : permission.detail)
-    : 'La carga operativa de sustento está disponible en la versión compartida de Apps Script. Aquí solo puedes consultar la lista sincronizada.';
+        : permission.detail))
+    : (permissionSummary + ' | La carga operativa de sustento está disponible en la versión compartida de Apps Script. Aquí solo puedes consultar la lista sincronizada.');
   input.disabled = !sharedReady || !permission.canManageAttachments || sharedAttachmentActionInFlight;
   uploadBtn.disabled = !sharedReady || !canMutate;
   refreshBtn.disabled = !canRefresh;
@@ -7916,7 +7981,7 @@ function renderCaseAttachments(record){
         ].filter(Boolean).join(' | ')) + '</span>' +
         '<div class="case-attachment-actions">' +
           (item.url ? '<button type="button" class="secondary" data-attachment-open="' + escapeHtml(item.url) + '">Abrir sustento</button>' : '') +
-          '<button type="button" class="ghost" data-attachment-delete="' + escapeHtml(item.id) + '"' + (canMutate ? '' : ' disabled') + '>Retirar sustento</button>' +
+          '<button type="button" class="ghost" data-attachment-delete="' + escapeHtml(item.id) + '"' + (permission.canRemoveAttachments && !appState.hasUnsyncedSharedChanges && !sharedSyncInFlight && !sharedAttachmentActionInFlight ? '' : ' disabled') + '>Retirar sustento</button>' +
         '</div>' +
       '</div>'
     )).join('');
@@ -8129,7 +8194,7 @@ function removeCaseAttachment(attachmentId){
     return;
   }
   const permission = getCurrentPermissionState();
-  if(!permission.canManageAttachments){
+  if(!permission.canRemoveAttachments){
     setCaseAttachmentFeedback(permission.label, permission.detail, 'warn');
     return;
   }

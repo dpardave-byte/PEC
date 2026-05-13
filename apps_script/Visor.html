@@ -80,6 +80,8 @@ button{
   border:0;border-radius:12px;background:var(--blue);color:#fff;font-weight:700;cursor:pointer;
   min-height:42px;padding:0 15px;box-shadow:0 10px 24px rgba(22,99,199,.18)
 }
+button.action-save{background:#0d7a5f;color:#fff;box-shadow:0 12px 24px rgba(13,122,95,.22)}
+button.action-save:hover{background:#0b6a53}
 button.secondary{background:#41586f}
 button.secondary.is-active,button.ghost.is-active{background:#103958;color:#fff;box-shadow:none}
 button.ghost{background:#edf4ff;color:var(--blue)}
@@ -355,6 +357,25 @@ tbody tr:hover td{background:#f8fbfe}
 .case-attachments-head{display:grid;gap:4px}
 .case-attachments-head strong{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
 .case-attachments-head p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
+.case-traceability-box{display:grid;gap:12px;padding:14px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,#ffffff 0,#f8fbfe 100%)}
+.case-traceability-head{display:grid;gap:4px}
+.case-traceability-head strong{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.case-traceability-head p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
+.case-traceability-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.case-traceability-metric{border:1px solid var(--line);border-radius:12px;background:#fff;padding:10px 12px;display:grid;gap:4px}
+.case-traceability-metric span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+.case-traceability-metric b{font-size:14px;color:var(--ink);line-height:1.35}
+.case-traceability-list{display:grid;gap:8px}
+.case-traceability-entry{padding-top:8px;border-top:1px solid #e6edf4}
+.case-traceability-entry:first-child{padding-top:0;border-top:0}
+.case-traceability-entry strong{display:block;color:var(--ink)}
+.case-traceability-entry span{display:block;color:var(--muted);font-size:12px;line-height:1.45}
+.recovery-clarity-card{display:grid;gap:10px;padding:14px;border:1px solid var(--line);border-radius:14px;background:#fbfdff}
+.recovery-clarity-card strong{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.recovery-clarity-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.recovery-clarity-item{border:1px solid var(--line);border-radius:12px;background:#fff;padding:10px 12px;display:grid;gap:4px}
+.recovery-clarity-item span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+.recovery-clarity-item b{font-size:14px;color:var(--ink);line-height:1.35}
 .case-attachment-folder-card{display:grid;gap:8px;padding:12px;border:1px solid #e6edf4;border-radius:12px;background:#fff}
 .case-attachment-folder-card strong{display:block;color:var(--ink)}
 .case-attachment-folder-card span{display:block;color:var(--muted);font-size:12px;line-height:1.45}
@@ -508,8 +529,8 @@ tbody tr:hover td{background:#f8fbfe}
       </div>
     </div>
     <div class="toolbar-actions">
-      <button id="openPendingModalBtn" class="ghost" type="button">Ver pendientes</button>
-      <button id="openMonitoringBtn" class="ghost" type="button">Ver monitoreo</button>
+      <button id="openPendingModalBtn" class="ghost" type="button">Ver pendientes puntuales</button>
+      <button id="openMonitoringBtn" class="ghost" type="button">Seguimiento y pendientes</button>
       <button id="resetFiltersBtn" class="secondary">Limpiar filtros</button>
     </div>
   </section>
@@ -645,6 +666,10 @@ tbody tr:hover td{background:#f8fbfe}
             <button id="exportSupportInventoryCsvBtn" class="secondary">Inventario sustentos CSV</button>
             <button id="exportSupportInventoryHtmlBtn" class="soft">Inventario sustentos HTML</button>
           </div>
+          <div class="recovery-clarity-card" id="recoveryStatusCard">
+            <strong>Respaldo, reversión y trazabilidad</strong>
+            <div class="recovery-clarity-grid" id="recoveryStatusGrid"></div>
+          </div>
         </div>
       </details>
       <details class="operations-accordion" id="opsConfigSection">
@@ -726,6 +751,14 @@ tbody tr:hover td{background:#f8fbfe}
         <div class="case-attachment-folder-card" id="caseAttachmentFolderCard"></div>
         <div class="case-attachment-list" id="caseAttachmentList"></div>
       </div>
+      <div class="case-traceability-box">
+        <div class="case-traceability-head">
+          <strong>Trazabilidad operativa del caso</strong>
+          <p>Resume el último movimiento, la bitácora vigente del caso, sus brechas abiertas y el estado documental sin depender solo del panel admin.</p>
+        </div>
+        <div class="case-traceability-grid" id="caseTraceabilitySummary"></div>
+        <div class="case-traceability-list" id="caseTraceabilityEntries"></div>
+      </div>
       <div class="split">
         <div class="field">
           <label for="newChildTitle">Nueva subactividad</label>
@@ -754,7 +787,7 @@ tbody tr:hover td{background:#f8fbfe}
       <div class="toolbar-actions">
         <button id="addChildBtn" class="soft">Agregar subactividad</button>
         <button id="deleteNodeBtn" class="danger" type="button">Eliminar actividad</button>
-        <button id="saveCaseNoteBtn">Guardar informacion</button>
+        <button id="saveCaseNoteBtn" class="action-save">Guardar y cerrar</button>
         <button id="clearCaseNoteBtn" class="secondary">Limpiar informacion local</button>
       </div>
     </div>
@@ -835,7 +868,7 @@ tbody tr:hover td{background:#f8fbfe}
   <div class="modal-card monitoring-modal-card">
     <div class="modal-head">
       <div>
-        <h3>Centro de monitoreo</h3>
+        <h3>Centro de seguimiento y pendientes</h3>
         <div class="hero-meta">
           <div><b>Base:</b> vista filtrada actual</div>
         </div>
@@ -858,6 +891,24 @@ tbody tr:hover td{background:#f8fbfe}
       <div class="panel" id="ownerPanel">
         <h2>Carga de seguimiento DGPPCS</h2>
         <div class="bar-list" id="ownerBars"></div>
+      </div>
+    </div>
+    <div class="pending-grid monitoring-pending-grid">
+      <div class="panel" id="monitoringPendingResponsiblePanel">
+        <h2>Pendientes sin responsable</h2>
+        <div class="pending-panel-head">
+          <p id="monitoringPendingResponsibleSummary">Sin casos pendientes.</p>
+          <button id="monitoringFilterMissingResponsibleBtn" class="ghost" type="button">Filtrar en Gantt</button>
+        </div>
+        <div class="alert-list" id="monitoringPendingResponsibleList"></div>
+      </div>
+      <div class="panel" id="monitoringPendingOwnerPanel">
+        <h2>Pendientes sin seguimiento DGPPCS</h2>
+        <div class="pending-panel-head">
+          <p id="monitoringPendingOwnerSummary">Sin casos pendientes.</p>
+          <button id="monitoringFilterMissingOwnerBtn" class="ghost" type="button">Filtrar en Gantt</button>
+        </div>
+        <div class="alert-list" id="monitoringPendingOwnerList"></div>
       </div>
     </div>
   </div>
@@ -1950,8 +2001,8 @@ window.PEC_TRACKING_DATA = {
     },
     {
       "id": "case-045",
-      "edt": "2.3.3",
-      "actividad": "Conformación Equipo ETGP- (DGPPCS)",
+      "edt": "4.1",
+      "actividad": "Conformación Equipo ETGP - (DGPPCS)",
       "responsable": "",
       "inicio": "2026-03-20",
       "final": "2026-04-21",
@@ -1961,15 +2012,15 @@ window.PEC_TRACKING_DATA = {
       "estado": "En Proceso",
       "seguimiento_dgppcs": "",
       "contacto": "",
-      "nivel": 3,
-      "grupo": "2",
+      "nivel": 2,
+      "grupo": "4",
       "avance_estimado": 55,
       "alerta": "vencido",
-      "resumen": "EDT 2.3.3 | En Proceso"
+      "resumen": "EDT 4.1 | En Proceso"
     },
     {
       "id": "case-046",
-      "edt": "2.3.3.1",
+      "edt": "4.1.1",
       "actividad": "Propuesta de conformación equipo clave para efectividad (un especialista de seguimiento y monitoreo) se considera coordinaciones internas con el BM",
       "responsable": "DGPPCS",
       "inicio": "2026-03-20",
@@ -1980,15 +2031,15 @@ window.PEC_TRACKING_DATA = {
       "estado": "En Proceso",
       "seguimiento_dgppcs": "",
       "contacto": "",
-      "nivel": 4,
-      "grupo": "2",
+      "nivel": 3,
+      "grupo": "4",
       "avance_estimado": 55,
       "alerta": "vencido",
-      "resumen": "EDT 2.3.3.1 | DGPPCS | En Proceso"
+      "resumen": "EDT 4.1.1 | DGPPCS | En Proceso"
     },
     {
       "id": "case-047",
-      "edt": "2.3.3.2",
+      "edt": "4.1.2",
       "actividad": "Solicitud de no objeción del BM",
       "responsable": "DGPPCS",
       "inicio": "2026-04-11",
@@ -1999,15 +2050,15 @@ window.PEC_TRACKING_DATA = {
       "estado": "En Proceso",
       "seguimiento_dgppcs": "",
       "contacto": "",
-      "nivel": 4,
-      "grupo": "2",
+      "nivel": 3,
+      "grupo": "4",
       "avance_estimado": 55,
       "alerta": "vencido",
-      "resumen": "EDT 2.3.3.2 | DGPPCS | En Proceso"
+      "resumen": "EDT 4.1.2 | DGPPCS | En Proceso"
     },
     {
       "id": "case-048",
-      "edt": "2.3.3.3",
+      "edt": "4.1.3",
       "actividad": "No objeción del BM  en forma y contenido satisfactorio",
       "responsable": "BM",
       "inicio": "2026-04-17",
@@ -2018,16 +2069,16 @@ window.PEC_TRACKING_DATA = {
       "estado": "En Proceso",
       "seguimiento_dgppcs": "",
       "contacto": "",
-      "nivel": 4,
-      "grupo": "2",
+      "nivel": 3,
+      "grupo": "4",
       "avance_estimado": 55,
       "alerta": "vencido",
-      "resumen": "EDT 2.3.3.3 | BM | En Proceso"
+      "resumen": "EDT 4.1.3 | BM | En Proceso"
     },
     {
       "id": "case-049",
       "edt": "3",
-      "actividad": "Otras Condiciones Solicitadas por el BM",
+      "actividad": "Plazo para cumplimiento de condiciones de efectividad",
       "responsable": "",
       "inicio": "2026-03-20",
       "final": "2026-06-17",
@@ -2577,7 +2628,7 @@ window.PEC_TRACKING_DATA = {
     },
     {
       "id": "case-078",
-      "edt": "4",
+      "edt": "",
       "actividad": "Elaboración del Sistema de Seguimiento",
       "responsable": "",
       "inicio": "2026-04-06",
@@ -2588,16 +2639,16 @@ window.PEC_TRACKING_DATA = {
       "estado": "En Proceso",
       "seguimiento_dgppcs": "Alain Sanchez",
       "contacto": "",
-      "nivel": 1,
-      "grupo": "4",
+      "nivel": 0,
+      "grupo": "Sin grupo",
       "avance_estimado": 55,
       "alerta": "vencido",
-      "resumen": "EDT 4 | Alain Sanchez | En Proceso"
+      "resumen": "Alain Sanchez | En Proceso"
     },
     {
       "id": "case-079",
-      "edt": "",
-      "actividad": "INICIO DE EFECTIVIDAD DEL PRÉSTAMO",
+      "edt": "4",
+      "actividad": "Inicio de Efectividad del Préstamo",
       "responsable": "",
       "inicio": "2026-06-17",
       "final": "2026-06-17",
@@ -2607,11 +2658,11 @@ window.PEC_TRACKING_DATA = {
       "estado": "Sin estado",
       "seguimiento_dgppcs": "",
       "contacto": "",
-      "nivel": 0,
-      "grupo": "Sin grupo",
+      "nivel": 1,
+      "grupo": "4",
       "avance_estimado": 15,
       "alerta": "ok",
-      "resumen": "Sin estado"
+      "resumen": "EDT 4 | Sin estado"
     },
     {
       "id": "case-080",
@@ -2740,9 +2791,19 @@ const HIERARCHY_ACTIVITY_OVERRIDES = [
   }
 ];
 const DEFAULT_TITLE_BY_EDT = {
+  '3': 'Plazo para cumplimiento de condiciones de efectividad',
   '3.2': 'Creación del Equipo Técnico de Gestión del Programa - Programa de Economía Circular (ETGP-PEC)',
   '3.2.1': 'Aprobación de la RM de Creación del CCP-PEC',
-  '4': 'Inicio de Efectividad del Préstamo'
+  '4': 'Inicio de Efectividad del Préstamo',
+  '4.1': 'Conformación Equipo ETGP - (DGPPCS)'
+};
+const CANONICAL_EDT_BY_ID = {
+  'case-045': '4.1',
+  'case-046': '4.1.1',
+  'case-047': '4.1.2',
+  'case-048': '4.1.3',
+  'case-078': '',
+  'case-079': '4'
 };
 const DEFAULT_HERO = {
   title: 'Visor Ejecutivo de Proyectos PEC',
@@ -3151,7 +3212,15 @@ function normalizeCaseNotesMap(value){
     const safeId = text(id);
     if(!safeId) return;
     const entry = normalizeCaseNoteEntry(raw[id]);
-    if(entry.note || entry.action || entry.attachments.length || hasCaseAttachmentFolderMeta(entry.attachmentFolder)){
+    if(
+      entry.note ||
+      entry.action ||
+      entry.attachments.length ||
+      hasCaseAttachmentFolderMeta(entry.attachmentFolder) ||
+      text(entry.updatedAt) ||
+      text(entry.updatedBy) ||
+      text(entry.updatedByEmail)
+    ){
       out[safeId] = entry;
     }
   });
@@ -5520,11 +5589,12 @@ function getMergedRecord(record){
     document_score_class: documentScore.classification,
     document_score_missing: documentScore.missing
   };
+  merged.actividad = normalizeProgramActivityTitle(merged.actividad, merged.edt);
   if(!text(merged.edt) && /inicio de efectividad del pr[eé]stamo/i.test(text(merged.actividad))){
     merged.edt = '4';
     merged.actividad = 'Inicio de Efectividad del Préstamo';
   }
-  merged.edt = normalizeProgramEdt(merged.edt, merged.actividad);
+  merged.edt = normalizeProgramEdt(merged.edt, merged.actividad, record && record.id);
   if(/^5(\.|$)/.test(text(merged.parent_edt))){
     merged.parent_edt = text(merged.parent_edt).replace(/^5(?=\.|$)/, '4');
   }
@@ -5650,7 +5720,7 @@ function resolveHierarchyOverride(record, assignedRecords){
 
 function resolveExplicitHierarchyParent(record, assignedRecords){
   const explicitParentEdt = text(record.parent_edt);
-  const rawEdt = normalizeProgramEdt(text(record.edt), text(record.actividad));
+  const rawEdt = normalizeProgramEdt(text(record.edt), text(record.actividad), text(record.id));
   const inferredParentEdt = parentEdt(rawEdt);
   const requestedParentEdt = explicitParentEdt || inferredParentEdt;
   if(!requestedParentEdt) return null;
@@ -5670,7 +5740,7 @@ function reconcileHierarchyRecords(records){
 
   ordered.forEach(record => {
     let level = Math.max(1, Number(record.nivel || deriveLevel(record.edt) || 1));
-    const rawEdt = normalizeProgramEdt(text(record.edt), text(record.actividad));
+    const rawEdt = normalizeProgramEdt(text(record.edt), text(record.actividad), text(record.id));
     if(rawEdt && isRootBlockEdt(rawEdt)){
       level = 1;
       stack.length = 0;
@@ -6035,6 +6105,36 @@ function expandRecordAncestors(recordId){
     appState.expanded[parentId] = true;
     currentId = parentId;
   }
+}
+
+function captureExpandedState(focusRecordId){
+  const expandedIds = new Set(
+    Object.keys(appState.expanded || {}).filter(id => appState.expanded[id])
+  );
+  const focusId = text(focusRecordId);
+  if(focusId){
+    expandedIds.add(focusId);
+    const {childrenMap} = buildHierarchyMaps(appState.raw);
+    const parentById = new Map();
+    childrenMap.forEach((items, parentId) => {
+      items.forEach(item => parentById.set(item.id, parentId === '__root__' ? '' : parentId));
+    });
+    let currentId = focusId;
+    while(currentId){
+      const parentId = parentById.get(currentId);
+      if(!parentId) break;
+      expandedIds.add(parentId);
+      currentId = parentId;
+    }
+  }
+  return Array.from(expandedIds);
+}
+
+function restoreExpandedState(expandedIds){
+  const validIds = new Set((appState.raw || []).map(record => record && record.id).filter(Boolean));
+  (Array.isArray(expandedIds) ? expandedIds : []).forEach(id => {
+    if(validIds.has(id)) appState.expanded[id] = true;
+  });
 }
 
 function revealRecordInGantt(recordId, options){
@@ -6690,9 +6790,45 @@ function deriveGroup(edt){
   return raw ? raw.split('.')[0] : 'Sin grupo';
 }
 
-function normalizeProgramEdt(edt, actividad){
-  const rawEdt = text(edt);
+function isSystemTrackingActivity(actividad){
+  return /elaboraci[oó]n del sistema de seguimiento/i.test(text(actividad));
+}
+
+function isEtgpDgppcsActivity(actividad){
+  return /conformaci[oó]n equipo etgp.*dgppcs/i.test(text(actividad));
+}
+
+function isLegacyRootThreeActivity(actividad){
+  return /otras condiciones solicitadas por el bm/i.test(text(actividad));
+}
+
+function normalizeProgramActivityTitle(actividad, edt){
   const rawActividad = text(actividad);
+  const rawEdt = text(edt);
+  if(isEtgpDgppcsActivity(rawActividad)) return 'Conformación Equipo ETGP - (DGPPCS)';
+  if(/inicio de efectividad del pr[eé]stamo/i.test(rawActividad)) return 'Inicio de Efectividad del Préstamo';
+  if(rawEdt === '3' && isLegacyRootThreeActivity(rawActividad)) return 'Plazo para cumplimiento de condiciones de efectividad';
+  return rawActividad;
+}
+
+function normalizeProgramEdt(edt, actividad, recordId){
+  const rawEdt = text(edt);
+  const rawActividad = normalizeProgramActivityTitle(actividad, edt);
+  const canonicalById = Object.prototype.hasOwnProperty.call(CANONICAL_EDT_BY_ID, text(recordId))
+    ? CANONICAL_EDT_BY_ID[text(recordId)]
+    : null;
+  if(canonicalById != null){
+    return canonicalById;
+  }
+  if(isSystemTrackingActivity(rawActividad)){
+    return '';
+  }
+  if(isEtgpDgppcsActivity(rawActividad)){
+    return '4.1';
+  }
+  if(/^2\.4\.2\.5(\.|$)/.test(rawEdt)){
+    return rawEdt.replace(/^2\.4\.2\.5(?=\.|$)/, '4.1');
+  }
   if(!rawEdt && /inicio de efectividad del pr[eé]stamo/i.test(rawActividad)){
     return '4';
   }
@@ -6703,12 +6839,13 @@ function normalizeProgramEdt(edt, actividad){
 }
 
 function isSystemTrackingBlock(record){
-  const actividad = text(record.actividad);
+  const actividad = normalizeProgramActivityTitle(record && record.actividad, record && record.edt);
   const edt = text(record.edt);
-  return /elaboraci[oó]n del sistema de seguimiento/i.test(actividad) || /^4(\.|$)/.test(edt) && /sistema de seguimiento/i.test(actividad);
+  return isSystemTrackingActivity(actividad) || /^4(\.|$)/.test(edt) && /sistema de seguimiento/i.test(actividad);
 }
 
 function buildRecordFromExcel(raw, idx){
+  const recordId = `case-${String(idx).padStart(3,'0')}`;
   const row = {
     edt: readImportField(raw, 'edt'),
     actividad: readImportField(raw, 'actividad'),
@@ -6727,12 +6864,13 @@ function buildRecordFromExcel(raw, idx){
     resumen: readImportField(raw, 'resumen')
   };
   let edt = text(row.edt);
-  let actividad = text(row.actividad);
+  let actividad = normalizeProgramActivityTitle(row.actividad, edt);
   if(!edt && /inicio de efectividad del pr[eé]stamo/i.test(actividad)){
     edt = '4';
     actividad = 'Inicio de Efectividad del Préstamo';
   }
-  edt = normalizeProgramEdt(edt, actividad);
+  edt = normalizeProgramEdt(edt, actividad, recordId);
+  actividad = normalizeProgramActivityTitle(actividad, edt);
   const responsable = normalizeResponsibleValue(row.responsable);
   const inicio = toIsoDate(row.inicio);
   const final = toIsoDate(row.final);
@@ -6741,7 +6879,7 @@ function buildRecordFromExcel(raw, idx){
   const contacto = text(row.contacto);
   const alerta = normalizeAlertValue(row.alerta, inicio, final, estado);
   return {
-    id: `case-${String(idx).padStart(3,'0')}`,
+    id: recordId,
     source_order: idx,
     edt,
     parent_edt: text(row.parent_edt) || parentEdt(edt),
@@ -6925,17 +7063,19 @@ function normalizeStructureRow(raw, idx){
     comentario_seguimiento: raw.comentario_seguimiento,
     proximo_paso: raw.proximo_paso
   };
-  let edt = normalizeProgramEdt(row.edt, row.actividad);
-  let actividad = text(row.actividad);
+  const recordId = text(row.id) || `imported-${String(idx).padStart(3,'0')}`;
+  let edt = normalizeProgramEdt(row.edt, row.actividad, recordId);
+  let actividad = normalizeProgramActivityTitle(row.actividad, edt || row.edt);
   if(!edt && /inicio de efectividad del pr[eé]stamo/i.test(actividad)){
     edt = '4';
     actividad = 'Inicio de Efectividad del Préstamo';
   }
+  actividad = normalizeProgramActivityTitle(actividad, edt);
   const estado = normalizeStateValue(row.estado);
   const inicio = toIsoDate(row.inicio);
   const final = toIsoDate(row.final);
   return {
-    id: text(row.id) || `imported-${String(idx).padStart(3,'0')}`,
+    id: recordId,
     source_order: Number(row.source_order || idx),
     edt,
     parent_edt: text(row.parent_edt) || parentEdt(edt),
@@ -7369,6 +7509,22 @@ function renderMonitoringPanels(){
   renderStatusBars();
   renderResponsibleBars();
   renderOwnerBars();
+  renderPendingPanels();
+}
+
+function renderPendingPanelState(summaryId, listId, buttonId, items, activeLabel, emptyLabel){
+  const summaryHost = document.getElementById(summaryId);
+  const listHost = document.getElementById(listId);
+  const actionBtn = document.getElementById(buttonId);
+  if(summaryHost){
+    summaryHost.textContent = items.length ? activeLabel(items.length) : emptyLabel;
+  }
+  if(listHost){
+    listHost.innerHTML = items.length
+      ? items.slice(0, 18).map(pendingCaseItem).join('')
+      : '<div class="empty">' + escapeHtml(emptyLabel) + '</div>';
+  }
+  if(actionBtn) actionBtn.disabled = !items.length;
 }
 
 function pendingCaseItem(record){
@@ -7395,22 +7551,44 @@ function renderPendingPanels(){
     .sort((a,b) => alertRank(a.alerta) - alertRank(b.alerta) || text(a.final).localeCompare(text(b.final)));
   const responsiblePanel = document.getElementById('pendingResponsiblePanel');
   const ownerPanel = document.getElementById('pendingOwnerPanel');
+  const monitoringResponsiblePanel = document.getElementById('monitoringPendingResponsiblePanel');
+  const monitoringOwnerPanel = document.getElementById('monitoringPendingOwnerPanel');
   if(responsiblePanel) responsiblePanel.dataset.empty = missingResponsible.length ? '0' : '1';
   if(ownerPanel) ownerPanel.dataset.empty = missingOwner.length ? '0' : '1';
-  document.getElementById('pendingResponsibleSummary').textContent = missingResponsible.length
-    ? (missingResponsible.length + ' caso(s) requieren entidad responsable.')
-    : 'No hay casos sin responsable asignado en la vista actual.';
-  document.getElementById('pendingOwnerSummary').textContent = missingOwner.length
-    ? (missingOwner.length + ' caso(s) requieren seguimiento DGPPCS.')
-    : 'No hay casos sin seguimiento DGPPCS en la vista actual.';
-  document.getElementById('pendingResponsibleList').innerHTML = missingResponsible.length
-    ? missingResponsible.slice(0, 18).map(pendingCaseItem).join('')
-    : '<div class="empty">No hay casos sin responsable asignado.</div>';
-  document.getElementById('pendingOwnerList').innerHTML = missingOwner.length
-    ? missingOwner.slice(0, 18).map(pendingCaseItem).join('')
-    : '<div class="empty">No hay casos sin seguimiento DGPPCS asignado.</div>';
-  document.getElementById('filterMissingResponsibleBtn').disabled = !missingResponsible.length;
-  document.getElementById('filterMissingOwnerBtn').disabled = !missingOwner.length;
+  if(monitoringResponsiblePanel) monitoringResponsiblePanel.dataset.empty = missingResponsible.length ? '0' : '1';
+  if(monitoringOwnerPanel) monitoringOwnerPanel.dataset.empty = missingOwner.length ? '0' : '1';
+  renderPendingPanelState(
+    'pendingResponsibleSummary',
+    'pendingResponsibleList',
+    'filterMissingResponsibleBtn',
+    missingResponsible,
+    count => count + ' caso(s) requieren entidad responsable.',
+    'No hay casos sin responsable asignado en la vista actual.'
+  );
+  renderPendingPanelState(
+    'pendingOwnerSummary',
+    'pendingOwnerList',
+    'filterMissingOwnerBtn',
+    missingOwner,
+    count => count + ' caso(s) requieren seguimiento DGPPCS.',
+    'No hay casos sin seguimiento DGPPCS en la vista actual.'
+  );
+  renderPendingPanelState(
+    'monitoringPendingResponsibleSummary',
+    'monitoringPendingResponsibleList',
+    'monitoringFilterMissingResponsibleBtn',
+    missingResponsible,
+    count => count + ' caso(s) requieren entidad responsable.',
+    'No hay casos sin responsable asignado en la vista actual.'
+  );
+  renderPendingPanelState(
+    'monitoringPendingOwnerSummary',
+    'monitoringPendingOwnerList',
+    'monitoringFilterMissingOwnerBtn',
+    missingOwner,
+    count => count + ' caso(s) requieren seguimiento DGPPCS.',
+    'No hay casos sin seguimiento DGPPCS en la vista actual.'
+  );
 }
 
 function sortBySourceOrder(records){
@@ -7476,6 +7654,47 @@ function getInheritedRange(record, childrenMap){
   return {start:min, end:max};
 }
 
+function buildHierarchyProgressMap(records){
+  const {ordered, childrenMap} = buildHierarchyMaps(records || []);
+  const orderedById = new Map(ordered.map(record => [record.id, record]));
+  const progressMap = new Map();
+  const weightMap = new Map();
+  function walk(recordId){
+    if(progressMap.has(recordId)){
+      return {
+        progress: progressMap.get(recordId),
+        weight: weightMap.get(recordId) || 1
+      };
+    }
+    const record = orderedById.get(recordId);
+    if(!record){
+      progressMap.set(recordId, 0);
+      weightMap.set(recordId, 1);
+      return {progress:0, weight:1};
+    }
+    const children = childrenMap.get(recordId) || [];
+    if(!children.length){
+      const leafProgress = clamp(Number(record.avance_estimado) || 0, 0, 100);
+      progressMap.set(recordId, leafProgress);
+      weightMap.set(recordId, 1);
+      return {progress:leafProgress, weight:1};
+    }
+    let totalProgress = 0;
+    let totalWeight = 0;
+    children.forEach(child => {
+      const childSummary = walk(child.id);
+      totalProgress += childSummary.progress * childSummary.weight;
+      totalWeight += childSummary.weight;
+    });
+    const computedProgress = totalWeight ? Math.round(totalProgress / totalWeight) : clamp(Number(record.avance_estimado) || 0, 0, 100);
+    progressMap.set(recordId, computedProgress);
+    weightMap.set(recordId, totalWeight || 1);
+    return {progress:computedProgress, weight:totalWeight || 1};
+  }
+  ordered.forEach(record => walk(record.id));
+  return progressMap;
+}
+
 function nextChildEdt(parentRecord, childrenMap){
   const parentEdt = text(parentRecord.edt);
   if(!parentEdt) return '';
@@ -7533,11 +7752,10 @@ function getCurrentParentRecord(record, ordered, childrenMap){
 function getMoveTargetOptions(record){
   const {ordered, childrenMap} = buildHierarchyMaps(appState.raw);
   const blocked = new Set([record.id].concat(collectSubtreeRecords(record.id, childrenMap).map(item => item.id)));
-  const currentParent = getCurrentParentRecord(record, ordered, childrenMap);
   const options = [{
     value: '__KEEP__',
     label: 'Mantener ubicación actual',
-    selected: !currentParent
+    selected: true
   }];
   getGroupRecords(ordered).forEach(groupRecord => {
     options.push({
@@ -7553,7 +7771,7 @@ function getMoveTargetOptions(record){
     options.push({
       value: item.id,
       label: prefix + displayTitle(item),
-      selected: currentParent ? currentParent.id === item.id : false
+      selected: false
     });
   });
   return options;
@@ -7582,13 +7800,13 @@ function getSubtreeIdSet(rootRecord){
 }
 
 function findEdtConflict(targetEdt, ignoredIds){
-  const normalized = normalizeProgramEdt(targetEdt, '');
+  const normalized = normalizeProgramEdt(targetEdt, '', rootRecord && rootRecord.id);
   if(!normalized) return null;
   return appState.raw.find(record => !ignoredIds.has(record.id) && text(record.edt) === normalized) || null;
 }
 
 function validateEditedHierarchyTarget(rootRecord, nextEdt, nextParentEdt, ignoredIds){
-  const normalizedEdt = normalizeProgramEdt(nextEdt, rootRecord && rootRecord.actividad);
+  const normalizedEdt = normalizeProgramEdt(nextEdt, rootRecord && rootRecord.actividad, rootRecord && rootRecord.id);
   if(!normalizedEdt) return 'El EDT visible no puede quedar vacío.';
   if(!/^\d+(?:\.\d+)*$/.test(normalizedEdt)) return 'El EDT visible debe usar un formato numérico válido, por ejemplo 2.3 o 3.1.4.';
   if(!isTopLevelEdt(normalizedEdt) && !text(nextParentEdt)) return 'El EDT visible requiere un EDT padre válido para mantener la jerarquía.';
@@ -8203,6 +8421,35 @@ function renderOperationsStatus(){
     feedbackHost.className = 'ops-feedback ' + escapeHtml(feedback.tone || 'info');
     feedbackHost.innerHTML = '<strong>' + escapeHtml(feedback.title || 'Fuente lista') + '</strong><p>' + escapeHtml(feedback.detail || '') + '</p>';
   }
+  renderRecoveryStatus();
+}
+
+function renderRecoveryStatus(){
+  const host = document.getElementById('recoveryStatusGrid');
+  if(!host) return;
+  const info = ensureServerInfo();
+  const backupValue = info.lastBackupAt
+    ? [formatIsoDisplay(info.lastBackupAt), text(info.lastBackupFile)].filter(Boolean).join(' | ')
+    : (isSharedBackendMode() ? 'Disponible para descarga desde Drive o exportación del día.' : 'Se genera respaldo local exportable desde este navegador.');
+  const snapshotValue = info.lastSnapshotAt
+    ? [formatIsoDisplay(info.lastSnapshotAt), text(info.lastSnapshotFile)].filter(Boolean).join(' | ')
+    : (isSharedBackendMode() ? 'Los snapshots se crean antes de mutaciones críticas del estado compartido.' : 'Los snapshots reversibles existen solo en Apps Script compartido.');
+  const rollbackValue = isSharedBackendMode()
+    ? (info.admin && info.canRestoreSharedState
+        ? 'Disponible desde esta sesión admin mediante “Restaurar último snapshot”.'
+        : 'Reservado al administrador verificado del canal de trabajo.')
+    : 'Disponible solo en el visor compartido de Apps Script.';
+  const auditValue = isSharedBackendMode()
+    ? (info.admin || info.canViewSensitiveAudit
+        ? 'La auditoría detallada se consulta desde el panel admin.'
+        : 'Las acciones quedan auditadas en backend; la vista detallada está restringida.')
+    : 'La bitácora local se conserva en este navegador para continuidad operativa.';
+  host.innerHTML = [
+    '<div class="recovery-clarity-item"><span>Backup exportable</span><b>' + escapeHtml(backupValue) + '</b></div>',
+    '<div class="recovery-clarity-item"><span>Snapshot reversible</span><b>' + escapeHtml(snapshotValue) + '</b></div>',
+    '<div class="recovery-clarity-item"><span>Rollback admin</span><b>' + escapeHtml(rollbackValue) + '</b></div>',
+    '<div class="recovery-clarity-item"><span>Auditoría</span><b>' + escapeHtml(auditValue) + '</b></div>'
+  ].join('');
 }
 
 function renderTreeAffordance(recordId, hasChildren, level){
@@ -8215,6 +8462,7 @@ function renderTreeAffordance(recordId, hasChildren, level){
 function renderGantt(){
   const source = appState.filtered.filter(r => !isExcludedRecord(r) && !isCommentOnlyRecord(r));
   const blockSummaryMap = getBlockSummaryMap(appState.raw.filter(record => !isExcludedRecord(record) && !isCommentOnlyRecord(record)));
+  const progressMap = buildHierarchyProgressMap(source);
   const monthsEl = document.getElementById('timelineMonths');
   const listEl = document.getElementById('ganttList');
   if(!source.length){
@@ -8262,7 +8510,8 @@ function renderGantt(){
     const rowClasses = ['timeline-row', 'level-' + level];
     if(appState.highlightedId === r.id) rowClasses.push('reveal-highlight');
     if(collapsedCompleted) rowClasses.push('collapsed-completed');
-    const avgProgress = rootSummary && rootSummary.total ? Math.round(rootSummary.progressTotal / rootSummary.total) : clamp(r.avance_estimado,0,100);
+    const aggregatedProgress = progressMap.has(r.id) ? progressMap.get(r.id) : clamp(r.avance_estimado,0,100);
+    const avgProgress = rootSummary && rootSummary.total ? Math.round(rootSummary.progressTotal / rootSummary.total) : aggregatedProgress;
     const primaryMeta = collapsedCompleted
       ? ('Bloque completado | ' + rootSummary.total + ' casos | ' + avgProgress + '% de avance')
       : ((r.seguimiento_dgppcs || r.responsable || 'Sin responsable') + ' | ' + fmtDate(startIso) + ' a ' + fmtDate(endIso) + (hasChildren ? ' | ' + kids.length + ' subactividad(es)' : ''));
@@ -8271,7 +8520,7 @@ function renderGantt(){
       : ((r.responsable ? 'Responsable: ' + r.responsable : 'Responsable pendiente') + ' | ' + (r.seguimiento_dgppcs ? 'Seguimiento: ' + r.seguimiento_dgppcs : 'Seguimiento DGPPCS pendiente') + (hasChildren ? ' | ' + kids.length + ' subactividad(es)' : ''));
     const effectiveDisplayState = collapsedCompleted ? 'Completado' : displayState;
     const effectiveStateCls = collapsedCompleted ? 'completed' : stateCls;
-    const progressValue = collapsedCompleted ? avgProgress : clamp(r.avance_estimado,0,100);
+    const progressValue = collapsedCompleted ? avgProgress : aggregatedProgress;
     const alertChip = collapsedCompleted
       ? '<span class="status-pill st-completado">Completado</span>'
       : '<span class="alert-pill al-' + slugify(r.alerta) + '">' + escapeHtml(alertLabel(r.alerta)) + '</span>';
@@ -8321,6 +8570,7 @@ function renderTable(){
   const panel = document.getElementById('tablePanel');
   if(panel && panel.hidden) return;
   const {childrenMap, visible} = getVisibleHierarchy(appState.filtered);
+  const progressMap = buildHierarchyProgressMap(appState.filtered);
   tbody.innerHTML = visible.map(r => {
       const kids = childrenMap.get(r.id) || [];
       const hasChildren = kids.length > 0;
@@ -8328,6 +8578,7 @@ function renderTable(){
       const indent = (level - 1) * 18;
       const rowClasses = ['row-level-' + level];
       if(appState.highlightedId === r.id) rowClasses.push('row-highlight');
+      const progressValue = progressMap.has(r.id) ? progressMap.get(r.id) : clamp(r.avance_estimado,0,100);
       return '<tr class="' + rowClasses.join(' ') + '" data-open="' + escapeHtml(r.id) + '">' +
         '<td>' +
           '<div class="edt-cell" style="padding-left:' + indent + 'px">' +
@@ -8347,7 +8598,7 @@ function renderTable(){
         '<td>' + escapeHtml(fmtDate(r.inicio) + ' - ' + fmtDate(r.final)) + '</td>' +
         '<td><span class="status-pill st-' + slugify(r.estado) + '">' + escapeHtml(r.estado) + '</span></td>' +
         '<td><span class="alert-pill al-' + slugify(r.alerta) + '">' + escapeHtml(alertLabel(r.alerta)) + '</span></td>' +
-        '<td><div class="progress"><div class="progress-track"><i style="width:' + clamp(r.avance_estimado,0,100) + '%"></i></div><span>' + escapeHtml(String(r.avance_estimado)) + '%</span></div></td>' +
+        '<td><div class="progress"><div class="progress-track"><i style="width:' + progressValue + '%"></i></div><span>' + escapeHtml(String(progressValue)) + '%</span></div></td>' +
       '</tr>';
     }).join('');
 }
@@ -8406,6 +8657,7 @@ function openDrawer(recordId){
   document.getElementById('addChildBtn').dataset.parentId = record.id;
   document.getElementById('addChildBtn').dataset.nextEdt = nextChildEdt(record, childrenMap);
   renderCaseAttachments(record);
+  renderCaseTraceability(record);
   const deleteBtn = document.getElementById('deleteNodeBtn');
   if(deleteBtn){
     const protectedRoot = isRootBlockEdt(record.edt) || normalizedLevelValue(record.edt, record.nivel) === 1;
@@ -8520,6 +8772,139 @@ function formatDocumentScoreMissing(missing){
   });
 }
 
+function getCaseAuditEntries(recordId){
+  const targetId = text(recordId);
+  if(!targetId) return [];
+  return (Array.isArray(appState.audit) ? appState.audit : [])
+    .filter(item => getAuditItemTouchedRecords(item).includes(targetId))
+    .sort((a,b) => text(b && b.at).localeCompare(text(a && a.at)));
+}
+
+function buildCaseTraceabilityState(record){
+  const safeRecord = record && typeof record === 'object' ? record : {};
+  const noteEntry = getCaseNoteEntry(safeRecord.id);
+  const folderMeta = normalizeCaseAttachmentFolderMeta(noteEntry.attachmentFolder);
+  const attachments = normalizeCaseAttachmentList(noteEntry.attachments);
+  const activeAttachments = getActiveCaseAttachments(attachments);
+  const removedAttachments = getRemovedCaseAttachments(attachments);
+  const documentScore = buildCaseDocumentScore(safeRecord);
+  const auditEntries = getCaseAuditEntries(safeRecord.id).slice(0,4);
+  const latestUpload = activeAttachments
+    .slice()
+    .sort((a,b) => text(b.uploadedAt).localeCompare(text(a.uploadedAt)))[0] || null;
+  const latestRemoval = removedAttachments
+    .slice()
+    .sort((a,b) => text(b.removedAt).localeCompare(text(a.removedAt)))[0] || null;
+  const movementCandidates = [];
+  if(noteEntry.updatedAt || noteEntry.updatedBy){
+    movementCandidates.push({
+      at: text(noteEntry.updatedAt),
+      label: 'Bitácora del caso actualizada',
+      actor: text(noteEntry.updatedBy) || text(noteEntry.updatedByEmail)
+    });
+  }
+  if(latestUpload && latestUpload.uploadedAt){
+    movementCandidates.push({
+      at: text(latestUpload.uploadedAt),
+      label: 'Sustento cargado',
+      actor: text(latestUpload.uploadedBy) || text(latestUpload.uploadedByEmail)
+    });
+  }
+  if(latestRemoval && latestRemoval.removedAt){
+    movementCandidates.push({
+      at: text(latestRemoval.removedAt),
+      label: 'Sustento retirado',
+      actor: text(latestRemoval.removedBy)
+    });
+  }
+  if(folderMeta && (folderMeta.updatedAt || folderMeta.createdAt)){
+    movementCandidates.push({
+      at: text(folderMeta.updatedAt || folderMeta.createdAt),
+      label: folderMeta.updatedAt ? 'Carpeta documental actualizada' : 'Carpeta documental preparada',
+      actor: text(folderMeta.createdBy) || text(folderMeta.createdByEmail)
+    });
+  }
+  if(auditEntries.length){
+    movementCandidates.push({
+      at: text(auditEntries[0].at),
+      label: text(auditEntries[0].actionLabel) || humanizeAuditAction(auditEntries[0].action),
+      actor: text(auditEntries[0].actor)
+    });
+  }
+  const latestMovement = movementCandidates
+    .filter(item => item.at || item.label || item.actor)
+    .sort((a,b) => text(b.at).localeCompare(text(a.at)))[0] || null;
+  const openIssues = [];
+  if(!hasResponsibleAssigned(safeRecord)) openIssues.push('Responsable pendiente');
+  if(!hasSeguimientoAssigned(safeRecord)) openIssues.push('Seguimiento DGPPCS pendiente');
+  if(!text(noteEntry.note)) openIssues.push('Sin comentario de seguimiento');
+  if(!text(noteEntry.action)) openIssues.push('Sin próximo paso');
+  formatDocumentScoreMissing(documentScore.missing).forEach(issue => openIssues.push(issue));
+  return {
+    noteEntry,
+    folderMeta,
+    attachments,
+    activeAttachments,
+    removedAttachments,
+    documentScore,
+    auditEntries,
+    latestMovement,
+    openIssues: Array.from(new Set(openIssues.filter(Boolean)))
+  };
+}
+
+function renderCaseTraceability(record){
+  const summaryHost = document.getElementById('caseTraceabilitySummary');
+  const entriesHost = document.getElementById('caseTraceabilityEntries');
+  if(!summaryHost || !entriesHost) return;
+  const trace = buildCaseTraceabilityState(record);
+  const latest = trace.latestMovement;
+  const latestMovementLabel = latest
+    ? [latest.label, formatIsoDisplay(latest.at), latest.actor].filter(Boolean).join(' | ')
+    : 'Sin movimiento reciente consolidado para este caso.';
+  const nextStep = text(trace.noteEntry.action) || 'Próximo paso pendiente de registrar';
+  const noteLabel = text(trace.noteEntry.note) || 'Sin comentario de seguimiento vigente';
+  summaryHost.innerHTML = [
+    '<div class="case-traceability-metric"><span>Último movimiento</span><b>' + escapeHtml(latestMovementLabel) + '</b></div>',
+    '<div class="case-traceability-metric"><span>Bitácora vigente</span><b>' + escapeHtml(noteLabel) + '</b></div>',
+    '<div class="case-traceability-metric"><span>Próximo paso</span><b>' + escapeHtml(nextStep) + '</b></div>',
+    '<div class="case-traceability-metric"><span>Estado documental</span><b>' + escapeHtml(String(trace.documentScore.score) + '/100 · ' + describeDocumentScoreClass(trace.documentScore.classification)) + '</b></div>'
+  ].join('');
+  const entryBlocks = [];
+  entryBlocks.push(
+    '<div class="case-traceability-entry"><strong>Brechas abiertas</strong><span>' +
+      escapeHtml(trace.openIssues.length ? trace.openIssues.join(' | ') : 'Sin brechas abiertas prioritarias en la ficha y la documentación visible.') +
+    '</span></div>'
+  );
+  entryBlocks.push(
+    '<div class="case-traceability-entry"><strong>Repositorio documental</strong><span>' +
+      escapeHtml([
+        trace.folderMeta && trace.folderMeta.folderId ? 'Carpeta Drive disponible' : 'Carpeta Drive pendiente',
+        trace.activeAttachments.length + ' sustento(s) activo(s)',
+        trace.removedAttachments.length + ' retirado(s)'
+      ].join(' | ')) +
+    '</span></div>'
+  );
+  if(trace.auditEntries.length){
+    entryBlocks.push(
+      '<div class="case-traceability-entry"><strong>Resumen de auditoría del caso</strong><span>' +
+        escapeHtml(trace.auditEntries.slice(0,3).map(item => {
+          return [
+            formatIsoDisplay(item.at) || 'Sin hora',
+            text(item.actionLabel) || humanizeAuditAction(item.action),
+            text(item.actor)
+          ].filter(Boolean).join(' | ');
+        }).join(' || ')) +
+      '</span></div>'
+    );
+  }else{
+    entryBlocks.push(
+      '<div class="case-traceability-entry"><strong>Resumen de auditoría del caso</strong><span>La bitácora visible de este caso se sostiene con comentarios, próximos pasos, score documental y metadata de sustentos. La auditoría detallada compartida queda centralizada en el panel admin.</span></div>'
+    );
+  }
+  entriesHost.innerHTML = entryBlocks.join('');
+}
+
 function copyTextToClipboard(value){
   const safe = text(value);
   if(!safe) return Promise.reject(new Error('No hay texto disponible para copiar.'));
@@ -8612,11 +8997,12 @@ function renderCaseAttachments(record){
   const uploadBtn = document.getElementById('uploadCaseAttachmentsBtn');
   const refreshBtn = document.getElementById('refreshCaseAttachmentsBtn');
   if(!hintHost || !debugHost || !folderHost || !listHost || !input || !uploadBtn || !refreshBtn) return;
-  const noteEntry = getCaseNoteEntry(record && record.id);
+  const resolvedRecord = appState.raw.find(item => item.id === text(record && record.id)) || record || {};
+  const noteEntry = getCaseNoteEntry(resolvedRecord && resolvedRecord.id);
   const folderMeta = normalizeCaseAttachmentFolderMeta(noteEntry.attachmentFolder);
   const attachments = normalizeCaseAttachmentList(noteEntry.attachments);
   const activeAttachments = getActiveCaseAttachments(attachments);
-  const documentScore = buildCaseDocumentScore(record);
+  const documentScore = buildCaseDocumentScore(resolvedRecord);
   const permission = getCurrentPermissionState();
   const sharedReady = supportsSharedCaseAttachments();
   const canRefresh = Boolean(sharedReady && !appState.hasUnsyncedSharedChanges && !sharedSyncInFlight && !sharedAttachmentActionInFlight);
@@ -8739,9 +9125,10 @@ function renderCaseAttachments(record){
   const prepareBtn = document.getElementById('prepareCaseAttachmentFolderBtn');
   if(prepareBtn) prepareBtn.addEventListener('click', ensureCaseAttachmentFolder);
   const exportCaseInventoryBtn = document.getElementById('exportCaseSupportInventoryBtn');
-  if(exportCaseInventoryBtn) exportCaseInventoryBtn.addEventListener('click', () => exportSupportInventory('json', text(record && record.id)));
+  if(exportCaseInventoryBtn) exportCaseInventoryBtn.addEventListener('click', () => exportSupportInventory('json', text(resolvedRecord && resolvedRecord.id)));
   const copyPathBtn = document.getElementById('copyCaseAttachmentPathBtn');
   if(copyPathBtn) copyPathBtn.addEventListener('click', copyCurrentCaseAttachmentPath);
+  renderCaseTraceability(resolvedRecord);
 }
 
 function readFileAsUploadPayload(file){
@@ -9285,6 +9672,8 @@ function saveCurrentCase(){
   if(!appState.selectedId) return;
   const currentRecord = appState.raw.find(r => r.id === appState.selectedId);
   if(!currentRecord) return;
+  const {ordered: hierarchyOrdered, childrenMap: hierarchyChildrenMap} = buildHierarchyMaps(appState.raw);
+  const currentParentRecord = getCurrentParentRecord(currentRecord, hierarchyOrdered, hierarchyChildrenMap);
   const newPeople = splitPeople(document.getElementById('editNewPerson-seguimiento')?.value || '');
   const newEntities = splitEntities(document.getElementById('editNewPerson-responsable')?.value || '');
   if(newPeople.length){
@@ -9305,14 +9694,31 @@ function saveCurrentCase(){
   saveCustomEntities();
   const currentGroup = text(currentRecord.grupo) || deriveGroup(currentRecord.edt);
   const selectedGroup = text(document.getElementById('editGrupo')?.value) || currentGroup;
-  const manualEdt = normalizeProgramEdt(text(document.getElementById('editEdt')?.value), currentRecord.actividad);
+  const currentEdt = text(currentRecord.edt);
+  const manualEdt = normalizeProgramEdt(text(document.getElementById('editEdt')?.value), currentRecord.actividad, currentRecord.id);
+  const hasManualEdtOverride = Boolean(manualEdt && manualEdt !== currentEdt);
+  const manualRootTargetRecord = hasManualEdtOverride && isTopLevelEdt(manualEdt)
+    ? appState.raw.find(record => record.id !== currentRecord.id && text(record.edt) === manualEdt && visualHierarchyLevel(record) === 1)
+    : null;
+  const manualEdtRequestsExistingRootChild = Boolean(manualRootTargetRecord);
   const moveTargetValue = text(document.getElementById('editMoveTarget')?.value);
-  let nextEdt = manualEdt || text(currentRecord.edt);
+  const explicitMoveTargetChange = Boolean(
+    moveTargetValue &&
+    moveTargetValue !== '__KEEP__' &&
+    moveTargetValue !== text(currentParentRecord && currentParentRecord.id)
+  );
+  let nextEdt = hasManualEdtOverride ? manualEdt : currentEdt;
   let nextParentEdt = text(currentRecord.parent_edt);
   let nextGroup = selectedGroup || deriveGroup(nextEdt);
   let hierarchyChanged = false;
 
-  if(moveTargetValue && moveTargetValue !== '__KEEP__'){
+  if(manualEdtRequestsExistingRootChild){
+    hierarchyChanged = true;
+    const move = reorderMovedSubtree(currentRecord, {kind:'group', groupId:manualRootTargetRecord.id});
+    nextParentEdt = move.parentEdt || '';
+    nextEdt = move.rootNewEdt || nextEdt;
+    nextGroup = deriveGroup(nextEdt);
+  }else if(explicitMoveTargetChange){
     hierarchyChanged = true;
     if(moveTargetValue.startsWith('__GROUP__:')){
       const move = reorderMovedSubtree(currentRecord, {kind:'group', groupId:moveTargetValue.replace('__GROUP__:','')});
@@ -9333,13 +9739,13 @@ function saveCurrentCase(){
       nextParentEdt = move.parentEdt || '';
       nextEdt = move.rootNewEdt || nextEdt;
       nextGroup = deriveGroup(nextEdt);
-    }else if(manualEdt){
+    }else if(hasManualEdtOverride && !manualEdtRequestsExistingRootChild){
       nextGroup = selectedGroup;
     }
-  }else if(manualEdt){
+  }else if(hasManualEdtOverride && !manualEdtRequestsExistingRootChild){
     nextGroup = deriveGroup(manualEdt);
   }
-  if(manualEdt){
+  if(hasManualEdtOverride && !manualEdtRequestsExistingRootChild){
     const derivedParentEdt = isTopLevelEdt(manualEdt) ? '' : parentEdt(manualEdt);
     if(text(currentRecord.edt) !== manualEdt || text(currentRecord.parent_edt) !== derivedParentEdt || text(currentRecord.grupo) !== deriveGroup(manualEdt)){
       hierarchyChanged = true;
@@ -9395,12 +9801,24 @@ function saveCurrentCase(){
     delete appState.edits[appState.selectedId];
   }
   const currentNoteEntry = getCaseNoteEntry(appState.selectedId);
+  const identity = getCurrentActorIdentity();
   appState.notes[appState.selectedId] = {
     ...currentNoteEntry,
+    updatedAt: new Date().toISOString(),
+    updatedBy: text(identity.actor) || 'Equipo DGPPCS',
+    updatedByEmail: text(identity.email),
     note: text(document.getElementById('localNote').value),
     action: text(document.getElementById('localAction').value)
   };
-  if(!appState.notes[appState.selectedId].note && !appState.notes[appState.selectedId].action && !normalizeCaseAttachmentList(appState.notes[appState.selectedId].attachments).length && !hasCaseAttachmentFolderMeta(appState.notes[appState.selectedId].attachmentFolder)){
+  if(
+    !appState.notes[appState.selectedId].note &&
+    !appState.notes[appState.selectedId].action &&
+    !normalizeCaseAttachmentList(appState.notes[appState.selectedId].attachments).length &&
+    !hasCaseAttachmentFolderMeta(appState.notes[appState.selectedId].attachmentFolder) &&
+    !text(appState.notes[appState.selectedId].updatedAt) &&
+    !text(appState.notes[appState.selectedId].updatedBy) &&
+    !text(appState.notes[appState.selectedId].updatedByEmail)
+  ){
     delete appState.notes[appState.selectedId];
   }
   const aliasValue = text(document.getElementById('editAlias')?.value);
@@ -9409,6 +9827,8 @@ function saveCurrentCase(){
   }else{
     delete appState.aliases[appState.selectedId];
   }
+  const reopenId = appState.selectedId;
+  const expandedSnapshot = captureExpandedState(reopenId);
   saveEdits();
   saveNotes();
   saveAliases();
@@ -9416,6 +9836,8 @@ function saveCurrentCase(){
   appendAudit('guardar_ficha', nextEdt + ' | ' + (text(document.getElementById('editAlias')?.value) || text(currentRecord.actividad)));
   ensureDailyBackup();
   hydrateData(appState.payload);
+  restoreExpandedState(expandedSnapshot);
+  expandRecordAncestors(reopenId);
   closeDrawer();
   setImportFeedback(
     'Ficha actualizada',
@@ -9425,7 +9847,7 @@ function saveCurrentCase(){
     isSharedBackendMode() ? 'info' : 'success'
   );
   refreshDerivedViews({rebuildFilters:true, reapplyFilters:true});
-  revealRecordInGantt(appState.selectedId);
+  revealRecordInGantt(reopenId, {instant:true});
   scheduleSharedSync('guardar_ficha');
 }
 
@@ -9434,11 +9856,21 @@ function clearCurrentCase(){
   if(!appState.selectedId) return;
   appendAudit('limpiar_ficha', appState.selectedId);
   const preservedNoteEntry = getCaseNoteEntry(appState.selectedId);
+  const identity = getCurrentActorIdentity();
   delete appState.edits[appState.selectedId];
   delete appState.aliases[appState.selectedId];
-  if(normalizeCaseAttachmentList(preservedNoteEntry.attachments).length || hasCaseAttachmentFolderMeta(preservedNoteEntry.attachmentFolder)){
+  if(
+    normalizeCaseAttachmentList(preservedNoteEntry.attachments).length ||
+    hasCaseAttachmentFolderMeta(preservedNoteEntry.attachmentFolder) ||
+    text(preservedNoteEntry.updatedAt) ||
+    text(preservedNoteEntry.updatedBy) ||
+    text(preservedNoteEntry.updatedByEmail)
+  ){
     appState.notes[appState.selectedId] = {
       ...preservedNoteEntry,
+      updatedAt: new Date().toISOString(),
+      updatedBy: text(identity.actor) || 'Equipo DGPPCS',
+      updatedByEmail: text(identity.email),
       note: '',
       action: ''
     };
@@ -9450,8 +9882,13 @@ function clearCurrentCase(){
   saveAliases();
   saveCurrentPayload();
   ensureDailyBackup();
+  const reopenId = appState.selectedId;
+  const expandedSnapshot = captureExpandedState(reopenId);
   hydrateData(appState.payload);
-  refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:appState.selectedId});
+  restoreExpandedState(expandedSnapshot);
+  expandRecordAncestors(reopenId);
+  refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:reopenId});
+  revealRecordInGantt(reopenId, {instant:true});
   scheduleSharedSync('limpiar_ficha');
 }
 
@@ -9888,6 +10325,10 @@ function bindEvents(){
   document.getElementById('openPendingModalBtn').addEventListener('click', openPendingModal);
   document.getElementById('filterMissingResponsibleBtn').addEventListener('click', () => applyPendingQuickFilter('missingResponsible'));
   document.getElementById('filterMissingOwnerBtn').addEventListener('click', () => applyPendingQuickFilter('missingOwner'));
+  const monitoringMissingResponsibleBtn = document.getElementById('monitoringFilterMissingResponsibleBtn');
+  const monitoringMissingOwnerBtn = document.getElementById('monitoringFilterMissingOwnerBtn');
+  if(monitoringMissingResponsibleBtn) monitoringMissingResponsibleBtn.addEventListener('click', () => applyPendingQuickFilter('missingResponsible'));
+  if(monitoringMissingOwnerBtn) monitoringMissingOwnerBtn.addEventListener('click', () => applyPendingQuickFilter('missingOwner'));
   document.getElementById('resetFiltersBtn').addEventListener('click', () => {
     clearActiveFilters();
     applyFilters();

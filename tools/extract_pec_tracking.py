@@ -19,6 +19,17 @@ SHEET_NAME = "CRONOGRAMA"
 HEADER_ROW = 7
 TODAY = date(2026, 4, 25)
 SELECTED_COLUMNS = [1, 2, 3, 4, 5, 6, 7, 8, 248, 249, 250]
+CANONICAL_ROOT_3_TITLE = "Plazo para cumplimiento de condiciones de efectividad"
+CANONICAL_ROOT_4_TITLE = "Inicio de Efectividad del Préstamo"
+CANONICAL_ETGP_TITLE = "Conformación Equipo ETGP - (DGPPCS)"
+CANONICAL_EDT_BY_ID = {
+    "case-045": "4.1",
+    "case-046": "4.1.1",
+    "case-047": "4.1.2",
+    "case-048": "4.1.3",
+    "case-078": "",
+    "case-079": "4",
+}
 
 
 def to_text(value: Any) -> str:
@@ -124,6 +135,44 @@ def derive_group(edt: str) -> str:
     return edt.split(".")[0]
 
 
+def build_summary(record: dict[str, Any]) -> str:
+    pieces = [
+        f"EDT {record['edt']}" if record.get("edt") else "",
+        to_text(record.get("responsable")),
+        to_text(record.get("seguimiento_dgppcs")),
+        to_text(record.get("estado")),
+    ]
+    return " | ".join(piece for piece in pieces if piece)
+
+
+def refresh_hierarchy_fields(record: dict[str, Any]) -> None:
+    edt = to_text(record.get("edt"))
+    record["edt"] = edt
+    record["nivel"] = derive_level(edt)
+    record["grupo"] = derive_group(edt)
+    record["resumen"] = build_summary(record)
+
+
+def apply_canonical_hierarchy_corrections(records: list[dict[str, Any]]) -> None:
+    for record in records:
+        record_id = to_text(record.get("id"))
+        actividad = to_text(record.get("actividad"))
+        edt = to_text(record.get("edt"))
+        if edt == "3" and re.search(r"otras condiciones solicitadas por el bm", actividad, re.IGNORECASE):
+            record["actividad"] = CANONICAL_ROOT_3_TITLE
+        if re.search(r"inicio de efectividad del pr[eé]stamo", actividad, re.IGNORECASE):
+            record["actividad"] = CANONICAL_ROOT_4_TITLE
+        if re.search(r"conformaci[oó]n equipo etgp.*dgppcs", actividad, re.IGNORECASE):
+            record["actividad"] = CANONICAL_ETGP_TITLE
+        if record_id in CANONICAL_EDT_BY_ID:
+            record["edt"] = CANONICAL_EDT_BY_ID[record_id]
+        if re.search(r"conformaci[oó]n equipo etgp.*dgppcs", actividad, re.IGNORECASE):
+            record["edt"] = CANONICAL_EDT_BY_ID.get(record_id, record.get("edt"))
+        if re.search(r"elaboraci[oó]n del sistema de seguimiento", actividad, re.IGNORECASE):
+            record["edt"] = ""
+        refresh_hierarchy_fields(record)
+
+
 def build_record(raw: dict[str, Any], idx: int) -> dict[str, Any]:
     edt = to_text(raw.get("EDT"))
     actividad = to_text(raw.get("Actividad"))
@@ -187,6 +236,8 @@ def main() -> None:
         if not actividad and not edt:
             continue
         records.append(build_record(row, len(records) + 1))
+
+    apply_canonical_hierarchy_corrections(records)
 
     status_counts = Counter(record["estado"] for record in records)
     alert_counts = Counter(record["alerta"] for record in records)

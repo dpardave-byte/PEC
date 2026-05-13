@@ -855,8 +855,8 @@ window.PEC_TRACKING_DATA = {
     },
     {
       "id": "case-045",
-      "edt": "2.3.3",
-      "actividad": "Conformación Equipo ETGP- (DGPPCS)",
+      "edt": "4.1",
+      "actividad": "Conformación Equipo ETGP - (DGPPCS)",
       "responsable": "",
       "inicio": "2026-03-20",
       "final": "2026-04-21",
@@ -866,15 +866,15 @@ window.PEC_TRACKING_DATA = {
       "estado": "En Proceso",
       "seguimiento_dgppcs": "",
       "contacto": "",
-      "nivel": 3,
-      "grupo": "2",
+      "nivel": 2,
+      "grupo": "4",
       "avance_estimado": 55,
       "alerta": "vencido",
-      "resumen": "EDT 2.3.3 | En Proceso"
+      "resumen": "EDT 4.1 | En Proceso"
     },
     {
       "id": "case-046",
-      "edt": "2.3.3.1",
+      "edt": "4.1.1",
       "actividad": "Propuesta de conformación equipo clave para efectividad (un especialista de seguimiento y monitoreo) se considera coordinaciones internas con el BM",
       "responsable": "DGPPCS",
       "inicio": "2026-03-20",
@@ -885,15 +885,15 @@ window.PEC_TRACKING_DATA = {
       "estado": "En Proceso",
       "seguimiento_dgppcs": "",
       "contacto": "",
-      "nivel": 4,
-      "grupo": "2",
+      "nivel": 3,
+      "grupo": "4",
       "avance_estimado": 55,
       "alerta": "vencido",
-      "resumen": "EDT 2.3.3.1 | DGPPCS | En Proceso"
+      "resumen": "EDT 4.1.1 | DGPPCS | En Proceso"
     },
     {
       "id": "case-047",
-      "edt": "2.3.3.2",
+      "edt": "4.1.2",
       "actividad": "Solicitud de no objeción del BM",
       "responsable": "DGPPCS",
       "inicio": "2026-04-11",
@@ -904,15 +904,15 @@ window.PEC_TRACKING_DATA = {
       "estado": "En Proceso",
       "seguimiento_dgppcs": "",
       "contacto": "",
-      "nivel": 4,
-      "grupo": "2",
+      "nivel": 3,
+      "grupo": "4",
       "avance_estimado": 55,
       "alerta": "vencido",
-      "resumen": "EDT 2.3.3.2 | DGPPCS | En Proceso"
+      "resumen": "EDT 4.1.2 | DGPPCS | En Proceso"
     },
     {
       "id": "case-048",
-      "edt": "2.3.3.3",
+      "edt": "4.1.3",
       "actividad": "No objeción del BM  en forma y contenido satisfactorio",
       "responsable": "BM",
       "inicio": "2026-04-17",
@@ -923,16 +923,16 @@ window.PEC_TRACKING_DATA = {
       "estado": "En Proceso",
       "seguimiento_dgppcs": "",
       "contacto": "",
-      "nivel": 4,
-      "grupo": "2",
+      "nivel": 3,
+      "grupo": "4",
       "avance_estimado": 55,
       "alerta": "vencido",
-      "resumen": "EDT 2.3.3.3 | BM | En Proceso"
+      "resumen": "EDT 4.1.3 | BM | En Proceso"
     },
     {
       "id": "case-049",
       "edt": "3",
-      "actividad": "Otras Condiciones Solicitadas por el BM",
+      "actividad": "Plazo para cumplimiento de condiciones de efectividad",
       "responsable": "",
       "inicio": "2026-03-20",
       "final": "2026-06-17",
@@ -1482,7 +1482,7 @@ window.PEC_TRACKING_DATA = {
     },
     {
       "id": "case-078",
-      "edt": "4",
+      "edt": "",
       "actividad": "Elaboración del Sistema de Seguimiento",
       "responsable": "",
       "inicio": "2026-04-06",
@@ -1493,16 +1493,16 @@ window.PEC_TRACKING_DATA = {
       "estado": "En Proceso",
       "seguimiento_dgppcs": "Alain Sanchez",
       "contacto": "",
-      "nivel": 1,
-      "grupo": "4",
+      "nivel": 0,
+      "grupo": "Sin grupo",
       "avance_estimado": 55,
       "alerta": "vencido",
-      "resumen": "EDT 4 | Alain Sanchez | En Proceso"
+      "resumen": "Alain Sanchez | En Proceso"
     },
     {
       "id": "case-079",
-      "edt": "",
-      "actividad": "INICIO DE EFECTIVIDAD DEL PRÉSTAMO",
+      "edt": "4",
+      "actividad": "Inicio de Efectividad del Préstamo",
       "responsable": "",
       "inicio": "2026-06-17",
       "final": "2026-06-17",
@@ -1512,11 +1512,11 @@ window.PEC_TRACKING_DATA = {
       "estado": "Sin estado",
       "seguimiento_dgppcs": "",
       "contacto": "",
-      "nivel": 0,
-      "grupo": "Sin grupo",
+      "nivel": 1,
+      "grupo": "4",
       "avance_estimado": 15,
       "alerta": "ok",
-      "resumen": "Sin estado"
+      "resumen": "EDT 4 | Sin estado"
     },
     {
       "id": "case-080",
@@ -1538,4 +1538,4 @@ window.PEC_TRACKING_DATA = {
       "resumen": "EDT * | Sin estado"
     }
   ]
-};
+}

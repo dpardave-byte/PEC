@@ -3,8 +3,8 @@
 Este documento resume el uso operativo del visor PEC en sus tres modos:
 
 - local standalone;
-- publicado en GitHub Pages;
-- compartido por Apps Script.
+- publicado en GitHub Pages como consulta pública;
+- compartido por Apps Script como canal de trabajo.
 
 ## 1. Apertura del visor
 
@@ -27,6 +27,10 @@ URL esperada:
 
 `https://dpardave-byte.github.io/PEC/visor_seguimiento_pec.html`
 
+Canal recomendado para consulta pública sincronizada:
+
+`https://dpardave-byte.github.io/PEC/visor_seguimiento_pec.html?channel=public`
+
 Si el navegador muestra una versión antigua, usar:
 
 `https://dpardave-byte.github.io/PEC/visor_seguimiento_pec.html?v=<commit>`
@@ -46,7 +50,7 @@ Uso recomendado:
 - trabajo compartido entre usuarios;
 - estado centralizado;
 - auditoría;
-- backup operativo.
+- snapshots y backup operativo;
 - acceso con cuenta Google autorizada cuando el despliegue redirige a Sign-In.
 
 ## 2. Carga e importación de información
@@ -81,6 +85,30 @@ Verificar después:
 - estado de fuente `ESTRUCTURA EDITABLE`;
 - mensaje `Fuente lista` o equivalente;
 - recalculo de Gantt, KPIs, analítica, filtros, catálogo y reporte.
+
+## 2.1 Carga documental múltiple por tipo
+
+En el canal de trabajo, la carga de varios archivos debe permitir asignar un tipo documental común a toda la operación.
+
+Verificar que estén disponibles como mínimo:
+
+- `Informe`
+- `Oficio`
+- `Acta`
+- `Convenio`
+- `Evidencia`
+- `Norma`
+- `Ficha técnica`
+- `Resolución Ministerial`
+- `Resolución Directoral`
+- `Decreto Supremo`
+- `Expediente técnico`
+- `Otro`
+
+Verificar también que:
+
+- variantes históricas como `RM`, `RD`, `DS`, `expediente tecnico` o `ficha tecnica` se normalicen al catálogo canónico;
+- `Sin clasificar` solo quede como fallback visible y no como categoría institucional dominante.
 
 ## 3. Exportaciones disponibles
 
@@ -199,6 +227,7 @@ Acciones esperadas:
 - exportar reporte diario;
 - exportar auditoría;
 - exportar backup;
+- restaurar último snapshot cuando exista;
 - revisar último guardado central.
 
 ## 7. Qué hacer si los datos se ven desactualizados
@@ -227,14 +256,16 @@ En Apps Script:
 
 ### GitHub Pages
 
-- sirve como visor publicado;
+- sirve como visor publicado de consulta pública;
 - puede requerir `?v=<commit>` para evitar caché;
-- no reemplaza el backend compartido de Apps Script.
+- no reemplaza el backend compartido de Apps Script;
+- con `?channel=public` debe quedar en solo lectura y sincronizar contra el mismo estado compartido.
 
 ### Apps Script compartido
 
 - usa estado centralizado;
 - soporta auditoría y backup;
+- soporta snapshots previos a mutaciones críticas;
 - soporta cierre diario por usuario desde la bitácora central;
 - puede validar admins por correo con `PEC_VISOR_ADMIN_EMAILS`;
 - usa polling de 30 segundos.
@@ -254,7 +285,9 @@ En Apps Script:
 - En Apps Script, `?view=visor` abre el visor correcto.
 - En Apps Script, si la URL redirige a Google Sign-In, la cuenta autenticada pertenece al grupo autorizado para DGPPCS.
 - En Apps Script, el panel admin muestra auditoría, cierre diario por usuario y último backup si el usuario es admin.
+- En Apps Script, el botón `Restaurar último snapshot` aparece solo para admin.
 - El reporte diario por usuario se puede exportar antes del envío a DGPPCS.
+- En GitHub Pages con `?channel=public`, no se puede editar, crear, eliminar, cargar ni retirar.
 
 ## 11. Regla operativa del cierre diario
 
@@ -354,4 +387,6 @@ Núcleo de confiabilidad que debe mantenerse:
   - consistencia final de la lista de sustentos.
 - Validar que el backup y la auditoría sigan operativos después de carga o retiro.
 - Validar exportación de reportes sin alterar datos base.
-- Validar y documentar si existe o no inventario exportable de sustentos por caso.
+- Validar exportación de inventario documental por caso y global.
+- Validar que el score documental visible en la ficha coincida con el resumen analítico backend.
+- Validar que los agregados por tipo documental, responsable, seguimiento DGPPCS y bloque raíz sean coherentes con la vista filtrada.

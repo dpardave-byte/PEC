@@ -2,11 +2,71 @@
 
 ## Resumen ejecutivo
 
-La carga de sustentos del Visor PEC ya no está abierta a cualquier actor declarado por URL. En el código actual del repositorio local, la edición compartida, la carga de sustento, la preparación de carpeta por registro y el retiro de archivos exigen correo verificado por Apps Script y pertenencia a un rol operativo o admin.
+La estrategia vigente del Visor PEC cambió de una clasificación fina por subroles operativos a un modelo de doble canal:
 
-La separación entre admin y operación quedó mejor resuelta: `?actor=` sirve para trazabilidad referencial, pero no concede privilegios sensibles. El panel admin, la auditoría detallada, el centro de control operativo, correos, triggers y backups siguen dependiendo del correo verificado y de `PEC_VISOR_ADMIN_EMAILS`.
+- una `URL de trabajo` para operación DGPPCS, con edición compartida, creación, carga documental y retiro documental;
+- una `URL pública de consulta`, estrictamente de solo lectura, sincronizada contra el mismo estado compartido.
 
-La brecha más seria ya no es la suplantación por URL, sino la concurrencia documental. Las mutaciones de sustentos no usan control de revisión equivalente al de `saveSharedTrackingState()`, por lo que cargas o retiros simultáneos sobre el mismo registro pueden perder referencias documentales en el estado compartido aunque el archivo siga existiendo en Drive.
+En este modelo, `?actor=` sigue sin conceder admin ni permisos sensibles. La URL pública no puede mutar aunque se manipule la UI. La URL de trabajo conserva auditoría y ahora debe mantener snapshots versionados previos a mutaciones críticas para permitir rollback por administrador.
+
+La separación entre admin y operación cambia así:
+
+- el trabajo diario ya no se bloquea por subroles finos PMO, operador documental o auditor dentro del canal de trabajo;
+- el administrador sigue siendo un rol especial solo para rollback, centro operativo sensible, auditoría sensible, publicación y funciones institucionales equivalentes.
+
+La brecha más seria pasa a ser asegurar que:
+
+1. la URL pública permanezca realmente en solo lectura;
+2. el canal de trabajo conserve trazabilidad completa;
+3. los snapshots y el rollback no rompan concurrencia ni auditoría.
+
+## Estado vigente del modelo auditado
+
+### Canal de trabajo
+
+- permite edición compartida;
+- permite carga y retiro documental;
+- mantiene auditoría;
+- prepara snapshots antes de mutaciones críticas;
+- no concede admin por URL.
+
+### Canal público
+
+- solo lectura;
+- mismo dataset compartido;
+- sin edición;
+- sin creación ni eliminación;
+- sin carga ni retiro documental;
+- sin centro operativo sensible;
+- sin rollback.
+
+### Tipificación documental mínima
+
+La carga múltiple debe aceptar al menos:
+
+- `Informe`
+- `Oficio`
+- `Acta`
+- `Convenio`
+- `Evidencia`
+- `Norma`
+- `Ficha técnica`
+- `Resolución Ministerial`
+- `Resolución Directoral`
+- `Decreto Supremo`
+- `Expediente técnico`
+- `Otro`
+
+### Actualización de fase analítica mínima
+
+La versión vigente ya cerró una parte de las brechas documentales que en este mismo documento aparecen como riesgos históricos:
+
+- existe inventario exportable de sustentos por archivo y por caso;
+- existe clasificación documental mínima canónica;
+- existe score de completitud documental por registro;
+- existen brechas documentales explícitas y agregados por tipo documental, responsable, seguimiento DGPPCS y bloque raíz.
+
+Por eso, los hallazgos posteriores que indiquen "no existe inventario", "falta clasificación mínima" o "falta score documental" deben interpretarse como diagnóstico previo a esta actualización.
 
 ## Alcance
 

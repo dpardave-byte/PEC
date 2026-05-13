@@ -362,8 +362,22 @@ tbody tr:hover td{background:#f8fbfe}
 .case-attachment-item{display:grid;gap:6px;padding:12px;border:1px solid #e6edf4;border-radius:12px;background:#fff}
 .case-attachment-item strong{display:block;color:var(--ink)}
 .case-attachment-meta{color:var(--muted);font-size:12px;line-height:1.45}
+.case-attachment-tags{display:flex;gap:6px;flex-wrap:wrap}
+.attachment-tag,.doc-score-pill{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:#eef4f8;color:var(--brand);font-size:11px;font-weight:700;letter-spacing:.02em}
+.attachment-tag.warn,.doc-score-pill.incompleto{background:#fff4dd;color:#8a5b12}
+.attachment-tag.alert,.doc-score-pill.critico{background:#fde9e7;color:#8f2c2c}
+.attachment-tag.good,.doc-score-pill.completo{background:#e7f6ec;color:#256742}
+.doc-score-pill.aceptable{background:#eef4f8;color:var(--brand)}
+.case-attachment-path{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-size:11px;color:#3d556b;word-break:break-all}
 .case-attachment-actions{display:flex;gap:8px;flex-wrap:wrap}
 .case-attachment-empty{color:var(--muted);font-size:13px;line-height:1.45}
+.permission-debug-card{display:grid;gap:8px;padding:12px;border:1px dashed #d7e4ef;border-radius:12px;background:#f6fbff}
+.permission-debug-card strong{display:block;color:var(--brand)}
+.permission-debug-card p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
+.permission-debug-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px}
+.permission-debug-item{display:grid;gap:2px;padding:8px 10px;border-radius:10px;border:1px solid #e6edf4;background:#fff}
+.permission-debug-item b{font-size:11px;color:var(--muted);font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+.permission-debug-item span{font-size:12px;color:var(--ink);line-height:1.45;word-break:break-word}
 .file-input-hint{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
 .summary-bullets{margin:10px 0 0;padding-left:22px;display:grid;gap:9px}
 .summary-bullets li{color:#274057;font-size:17px;line-height:1.48}
@@ -626,6 +640,10 @@ tbody tr:hover td{background:#f8fbfe}
             <button id="exportStructureXlsxBtn" class="soft">Exportar estructura XLSX</button>
             <button id="exportStructureJsonBtn" class="ghost">Exportar estructura JSON</button>
             <button id="exportBackupBtn" class="soft">Exportar backup del día</button>
+            <button id="restoreLatestSnapshotBtn" class="ghost" style="display:none">Restaurar último snapshot</button>
+            <button id="exportSupportInventoryJsonBtn" class="ghost">Inventario sustentos JSON</button>
+            <button id="exportSupportInventoryCsvBtn" class="secondary">Inventario sustentos CSV</button>
+            <button id="exportSupportInventoryHtmlBtn" class="soft">Inventario sustentos HTML</button>
           </div>
         </div>
       </details>
@@ -674,6 +692,25 @@ tbody tr:hover td{background:#f8fbfe}
             <p class="file-input-hint">Hasta 6 archivos por operación. Tamaño máximo: 5 MB por archivo y 12 MB por carga.</p>
           </div>
           <div class="field">
+            <label for="caseAttachmentDocumentType">Tipo documental de la carga</label>
+            <select id="caseAttachmentDocumentType">
+              <option value="unknown">Sin clasificar</option>
+              <option value="Informe">Informe</option>
+              <option value="Oficio">Oficio</option>
+              <option value="Acta">Acta</option>
+              <option value="Convenio">Convenio</option>
+              <option value="Evidencia">Evidencia</option>
+              <option value="Norma">Norma</option>
+              <option value="Ficha técnica">Ficha técnica</option>
+              <option value="Resolución Ministerial">Resolución Ministerial</option>
+              <option value="Resolución Directoral">Resolución Directoral</option>
+              <option value="Decreto Supremo">Decreto Supremo</option>
+              <option value="Expediente técnico">Expediente técnico</option>
+              <option value="Otro">Otro</option>
+            </select>
+            <p class="file-input-hint">La clasificación se aplica a todos los archivos de esta operación.</p>
+          </div>
+          <div class="field">
             <label>Operaciones de sustento</label>
             <div class="toolbar-actions">
               <button id="uploadCaseAttachmentsBtn" class="soft" type="button">Subir sustento(s)</button>
@@ -685,6 +722,7 @@ tbody tr:hover td{background:#f8fbfe}
           <strong>Repositorio listo</strong>
           <span>Cuando abras una actividad en la versión compartida, aquí se mostrarán los archivos de sustento asociados.</span>
         </div>
+        <div class="permission-debug-card" id="caseAttachmentPermissionDebug" style="display:none"></div>
         <div class="case-attachment-folder-card" id="caseAttachmentFolderCard"></div>
         <div class="case-attachment-list" id="caseAttachmentList"></div>
       </div>
@@ -772,6 +810,10 @@ tbody tr:hover td{background:#f8fbfe}
       <div class="panel">
         <h2>Distribución por alerta</h2>
         <div class="bar-list" id="analyticsAlerts"></div>
+      </div>
+      <div class="panel">
+        <h2>Distribución por tipo documental</h2>
+        <div class="bar-list" id="analyticsDocumentType"></div>
       </div>
       <div class="panel">
         <h2>Carga por unidad responsable</h2>
@@ -2710,6 +2752,55 @@ const DEFAULT_HERO = {
   meta3: 'Seguimiento ejecutivo',
   extras: []
 };
+const DOCUMENT_TYPE_CATALOG = [
+  'Informe',
+  'Oficio',
+  'Acta',
+  'Convenio',
+  'Evidencia',
+  'Norma',
+  'Ficha técnica',
+  'Resolución Ministerial',
+  'Resolución Directoral',
+  'Decreto Supremo',
+  'Expediente técnico',
+  'Otro'
+];
+const DOCUMENT_TYPE_ALIASES = {
+  'informe': 'Informe',
+  'informe tecnico': 'Informe',
+  'oficio': 'Oficio',
+  'acta': 'Acta',
+  'convenio': 'Convenio',
+  'convenio marco': 'Convenio',
+  'evidencia': 'Evidencia',
+  'foto': 'Evidencia',
+  'fotografia': 'Evidencia',
+  'imagen': 'Evidencia',
+  'captura': 'Evidencia',
+  'norma': 'Norma',
+  'ficha tecnica': 'Ficha técnica',
+  'ficha': 'Ficha técnica',
+  'resolucion ministerial': 'Resolución Ministerial',
+  'resol ministerial': 'Resolución Ministerial',
+  'rm': 'Resolución Ministerial',
+  'resolucion directoral': 'Resolución Directoral',
+  'resol directoral': 'Resolución Directoral',
+  'rd': 'Resolución Directoral',
+  'decreto supremo': 'Decreto Supremo',
+  'ds': 'Decreto Supremo',
+  'expediente tecnico': 'Expediente técnico',
+  'exp tecnico': 'Expediente técnico',
+  'exp. tecnico': 'Expediente técnico',
+  'otro': 'Otro',
+  'otros': 'Otro',
+  'archivo': 'Otro',
+  'adjunto': 'Otro',
+  'pdf': 'Otro',
+  'word / doc': 'Otro',
+  'excel / sheet': 'Otro',
+  'plano': 'Otro'
+};
 const appState = {
   raw: [],
   matched: [],
@@ -2753,6 +2844,7 @@ const appState = {
   adminEnabled: isAdminMode(),
   remoteRevision: 0,
   hasUnsyncedSharedChanges: false,
+  analytics: null,
   serverInfo: null
 };
 function readServerBootstrapEnvelope(){
@@ -2798,10 +2890,81 @@ let sharedSyncInFlight = false;
 let sharedAttachmentActionInFlight = false;
 let pendingSharedSyncReason = '';
 let sharedPollHandle = null;
+let publicStatePollInFlight = false;
+let publicStateRequestNonce = 0;
 
 const CASE_ATTACHMENT_MAX_FILES = 6;
 const CASE_ATTACHMENT_MAX_FILE_BYTES = 5 * 1024 * 1024;
 const CASE_ATTACHMENT_MAX_TOTAL_BYTES = 12 * 1024 * 1024;
+const WORK_ACTOR_ALIAS_STORAGE_KEY = 'pec_tracking_work_actor_alias_v1';
+const SHARED_PUBLIC_STATE_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwDO41v2ncg7p2rjvEjTCICeu8fJoAySOgSNAPe5arZnkK-gYtCH-FioX-jexhfW0k0/exec?action=visor_public_state';
+
+function normalizeDocumentTypeKey(value){
+  return text(value)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/\.+/g,'')
+    .replace(/\s+/g,' ');
+}
+
+function normalizeAnalyticalRecordSummary(value){
+  const raw = value && typeof value === 'object' ? value : {};
+  return {
+    recordId: text(raw.recordId),
+    edt: text(raw.edt),
+    actividad: text(raw.actividad),
+    responsable: text(raw.responsable),
+    seguimientoDgppcs: text(raw.seguimientoDgppcs),
+    rootBlock: text(raw.rootBlock),
+    rootBlockLabel: text(raw.rootBlockLabel),
+    scoreDocumental: Number(raw.scoreDocumental || 0),
+    clasificacionDocumental: text(raw.clasificacionDocumental) || 'critico',
+    brechasDocumentales: Array.isArray(raw.brechasDocumentales) ? raw.brechasDocumentales.map(code => text(code)).filter(Boolean) : [],
+    totalAttachments: Number(raw.totalAttachments || 0),
+    activeAttachments: Number(raw.activeAttachments || 0),
+    retiredAttachments: Number(raw.retiredAttachments || 0)
+  };
+}
+
+function normalizeSharedAnalyticsSummary(value){
+  const raw = value && typeof value === 'object' ? value : {};
+  const records = Array.isArray(raw.records) ? raw.records.map(normalizeAnalyticalRecordSummary) : [];
+  const recordsById = {};
+  records.forEach(record => {
+    if(record.recordId) recordsById[record.recordId] = record;
+  });
+  return {
+    generatedAt: text(raw.generatedAt),
+    documentTypeCatalog: Array.isArray(raw.documentTypeCatalog) ? raw.documentTypeCatalog.map(item => text(item)).filter(Boolean) : [],
+    inventorySummary: raw.inventorySummary && typeof raw.inventorySummary === 'object'
+      ? {
+          totalRows: Number(raw.inventorySummary.totalRows || 0),
+          activeRows: Number(raw.inventorySummary.activeRows || 0),
+          retiredRows: Number(raw.inventorySummary.retiredRows || 0)
+        }
+      : {totalRows:0, activeRows:0, retiredRows:0},
+    records,
+    recordsById,
+    aggregatesByDocumentType: Array.isArray(raw.aggregatesByDocumentType) ? raw.aggregatesByDocumentType : [],
+    aggregatesByResponsible: Array.isArray(raw.aggregatesByResponsible) ? raw.aggregatesByResponsible : [],
+    aggregatesBySeguimiento: Array.isArray(raw.aggregatesBySeguimiento) ? raw.aggregatesBySeguimiento : [],
+    aggregatesByRootBlock: Array.isArray(raw.aggregatesByRootBlock) ? raw.aggregatesByRootBlock : []
+  };
+}
+
+function updateAnalyticsFromEnvelope(result){
+  if(result && result.analytics){
+    appState.analytics = normalizeSharedAnalyticsSummary(result.analytics);
+  }
+  return appState.analytics;
+}
+
+function getRecordAnalyticalSummary(recordId){
+  const id = text(recordId);
+  if(!id || !appState.analytics || !appState.analytics.recordsById) return null;
+  return appState.analytics.recordsById[id] || null;
+}
 
 function normalizeCaseAttachmentMeta(value){
   const raw = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -2815,31 +2978,47 @@ function normalizeCaseAttachmentMeta(value){
     mimeType: text(raw.mimeType) || 'application/octet-stream',
     size: Number.isFinite(size) && size > 0 ? Math.round(size) : 0,
     fileId: text(raw.fileId),
+    folderId: text(raw.folderId),
+    folderUrl: text(raw.folderUrl),
     url: text(raw.url),
+    logicalPath: text(raw.logicalPath),
+    documentType: normalizeCaseAttachmentDocumentType(raw.documentType),
+    status: normalizeCaseAttachmentStatus(raw.status),
     uploadedAt: text(raw.uploadedAt),
-    uploadedBy: text(raw.uploadedBy)
+    uploadedBy: text(raw.uploadedBy),
+    uploadedByEmail: text(raw.uploadedByEmail),
+    actorSource: text(raw.actorSource),
+    actorVerified: Boolean(raw.actorVerified),
+    removedAt: text(raw.removedAt),
+    removedBy: text(raw.removedBy),
+    removedReason: text(raw.removedReason)
   };
 }
 
 function normalizeCaseAttachmentFolderMeta(value){
   const raw = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const folderId = text(raw.folderId || raw.id);
-  const url = text(raw.url);
-  const name = text(raw.name);
+  const url = text(raw.folderUrl || raw.url);
+  const name = text(raw.folderName || raw.name);
   if(!folderId && !url && !name) return null;
   return {
     folderId,
+    folderUrl: url,
     url,
+    folderName: name,
     name,
     recordId: text(raw.recordId),
     recordLabel: text(raw.recordLabel),
+    logicalPath: text(raw.logicalPath),
     createdAt: text(raw.createdAt),
+    createdBy: text(raw.createdBy),
+    createdByEmail: text(raw.createdByEmail),
     updatedAt: text(raw.updatedAt)
   };
 }
 
 function hasCaseAttachmentFolderMeta(value){
-  return Boolean(value && (text(value.folderId) || text(value.url) || text(value.name)));
+  return Boolean(value && (text(value.folderId) || text(value.folderUrl || value.url) || text(value.folderName || value.name)));
 }
 
 function normalizeCaseAttachmentList(values){
@@ -2863,6 +3042,106 @@ function normalizeCaseNoteEntry(value){
     attachmentFolder: normalizeCaseAttachmentFolderMeta(raw.attachmentFolder),
     attachments: normalizeCaseAttachmentList(raw.attachments)
   };
+}
+
+function normalizeCaseAttachmentDocumentType(value){
+  const raw = text(value);
+  if(!raw) return 'unknown';
+  const key = normalizeDocumentTypeKey(raw);
+  if(!key || key === 'unknown' || key === 'sin clasificar' || key === 'sin clasificacion' || key === 'n/a'){
+    return 'unknown';
+  }
+  if(Object.prototype.hasOwnProperty.call(DOCUMENT_TYPE_ALIASES, key)){
+    return DOCUMENT_TYPE_ALIASES[key];
+  }
+  const canonical = DOCUMENT_TYPE_CATALOG.find(item => normalizeDocumentTypeKey(item) === key);
+  return canonical || 'Otro';
+}
+
+function normalizeCaseAttachmentStatus(value){
+  return text(value).toLowerCase() === 'removed' ? 'removed' : 'active';
+}
+
+function getActiveCaseAttachments(values){
+  return normalizeCaseAttachmentList(values).filter(item => normalizeCaseAttachmentStatus(item.status) === 'active');
+}
+
+function getRemovedCaseAttachments(values){
+  return normalizeCaseAttachmentList(values).filter(item => normalizeCaseAttachmentStatus(item.status) === 'removed');
+}
+
+function buildCaseDocumentScore(record){
+  const noteEntry = getCaseNoteEntry(record && record.id);
+  const folderMeta = normalizeCaseAttachmentFolderMeta(noteEntry.attachmentFolder);
+  const analyticalSummary = getRecordAnalyticalSummary(record && record.id);
+  if(analyticalSummary){
+    return {
+      score: Number(analyticalSummary.scoreDocumental || 0),
+      classification: text(analyticalSummary.clasificacionDocumental) || 'critico',
+      missing: Array.isArray(analyticalSummary.brechasDocumentales) ? analyticalSummary.brechasDocumentales.slice() : [],
+      folderMeta,
+      totalAttachments: Number(analyticalSummary.totalAttachments || 0),
+      activeAttachments: Number(analyticalSummary.activeAttachments || 0),
+      retiredAttachments: Number(analyticalSummary.retiredAttachments || 0)
+    };
+  }
+  const attachments = normalizeCaseAttachmentList(noteEntry.attachments);
+  const activeAttachments = getActiveCaseAttachments(attachments);
+  const missing = [];
+  let score = 0;
+  if(folderMeta && folderMeta.folderId){
+    score += 20;
+  }else{
+    missing.push('sin_carpeta_drive');
+  }
+  if(activeAttachments.length){
+    score += 20;
+  }else{
+    missing.push('sin_sustento_activo');
+  }
+  if(activeAttachments.length && activeAttachments.every(item => normalizeCaseAttachmentDocumentType(item.documentType) !== 'unknown')){
+    score += 15;
+  }else{
+    missing.push('sin_tipo_documental');
+  }
+  if(activeAttachments.length && activeAttachments.every(item => text(item.uploadedBy) && text(item.uploadedByEmail))){
+    score += 15;
+  }else{
+    missing.push('sin_actor_correo');
+  }
+  if(activeAttachments.length && activeAttachments.every(item => text(item.uploadedAt))){
+    score += 10;
+  }else{
+    missing.push('sin_fecha_carga');
+  }
+  if((folderMeta && text(folderMeta.logicalPath)) || (activeAttachments.length && activeAttachments.every(item => text(item.logicalPath)))){
+    score += 10;
+  }else{
+    missing.push('sin_ruta_logica');
+  }
+  if(activeAttachments.length && activeAttachments.every(item => text(item.fileId) && text(item.url) && text(item.folderId || (folderMeta && folderMeta.folderId)) && text(item.folderUrl || (folderMeta && folderMeta.folderUrl)))){
+    score += 10;
+  }else{
+    missing.push('metadata_critica_incompleta');
+  }
+  const classification = score >= 80 ? 'completo' : score >= 60 ? 'aceptable' : score >= 40 ? 'incompleto' : 'critico';
+  return {
+    score,
+    classification,
+    missing,
+    folderMeta,
+    totalAttachments: attachments.length,
+    activeAttachments: activeAttachments.length,
+    retiredAttachments: getRemovedCaseAttachments(attachments).length
+  };
+}
+
+function describeDocumentScoreClass(value){
+  const safe = text(value).toLowerCase();
+  if(safe === 'completo') return 'Completo';
+  if(safe === 'aceptable') return 'Aceptable';
+  if(safe === 'incompleto') return 'Incompleto';
+  return 'Crítico';
 }
 
 function normalizeCaseNotesMap(value){
@@ -3049,28 +3328,55 @@ function getCurrentActorIdentity(){
   if(serverActor){
     return {
       actor: serverActor,
+      email: text(info && info.actorEmail),
       verified: typeof info.actorVerified === 'boolean' ? info.actorVerified : true,
-      source: text(info.actorSource) || 'session_email'
+      source: text(info.actorSource) || 'session_email',
+      declaredActor: text(info && info.declaredActor)
+    };
+  }
+  if(isSharedBackendMode() && !isPublicReadOnlyChannel()){
+    const fallbackActor = text(getWorkChannelActorFallback());
+    if(fallbackActor){
+      return {
+        actor: fallbackActor,
+        email: '',
+        verified: false,
+        source: 'work_alias',
+        declaredActor: fallbackActor
+      };
+    }
+    return {
+      actor: 'Equipo DGPPCS',
+      email: '',
+      verified: false,
+      source: 'work_channel',
+      declaredActor: 'Equipo DGPPCS'
     };
   }
   const declaredActor = text(getClientActorName());
   if(declaredActor){
     return {
       actor: declaredActor,
+      email: '',
       verified: false,
-      source: 'client_query'
+      source: 'client_query',
+      declaredActor: declaredActor
     };
   }
   return {
     actor: '',
+    email: '',
     verified: false,
-    source: 'missing'
+    source: 'missing',
+    declaredActor: ''
   };
 }
 
 function describeCurrentActorIdentity(identity){
   const safe = identity && typeof identity === 'object' ? identity : getCurrentActorIdentity();
   if(safe.verified) return 'Correo verificado';
+  if(safe.source === 'work_channel') return 'Canal de trabajo';
+  if(safe.source === 'work_alias') return 'Alias operativo de trabajo';
   if(safe.source === 'client_query') return 'Actor declarado por URL';
   if(safe.source === 'legacy_email') return 'Correo histórico';
   if(safe.source === 'legacy_actor') return 'Actor histórico';
@@ -3079,8 +3385,21 @@ function describeCurrentActorIdentity(identity){
 
 function getCurrentPermissionState(){
   const info = ensureServerInfo();
-  const identity = getCurrentActorIdentity();
   const role = text(info.permissionRole);
+  if(isPublicReadOnlyChannel() || info.mode === 'public_readonly' || role === 'public_viewer'){
+    return {
+      role: 'public_viewer',
+      label: 'Consulta pública',
+      detail: text(info.permissionReasonMessage) || 'Esta URL es de solo lectura. Puedes consultar el visor sincronizado, pero no modificar, crear, eliminar ni administrar sustentos.',
+      canEditShared: false,
+      canManageAttachments: false,
+      canRemoveAttachments: false,
+      canViewSensitiveAudit: false,
+      canExportSupportInventory: false,
+      canRestoreSharedState: false,
+      isAdmin: false
+    };
+  }
   if(!isSharedBackendMode()){
     return {
       role: 'local_mode',
@@ -3090,89 +3409,49 @@ function getCurrentPermissionState(){
       canManageAttachments: false,
       canRemoveAttachments: false,
       canViewSensitiveAudit: false,
+      canExportSupportInventory: false,
+      canRestoreSharedState: false,
       isAdmin: Boolean(info.admin)
     };
   }
   if(info.admin){
     return {
       role: 'admin',
-      label: 'Admin por correo o modo local',
+      label: 'Administrador del canal de trabajo',
       detail: text(info.permissionReasonMessage) || 'Correo verificado con acceso administrador al visor compartido.',
       canEditShared: true,
       canManageAttachments: true,
       canRemoveAttachments: true,
       canViewSensitiveAudit: true,
+      canExportSupportInventory: true,
+      canRestoreSharedState: Boolean(info.canRestoreSharedState),
       isAdmin: true
     };
   }
-  if(role === 'pmo' || role === 'operational'){
+  if(role === 'work_operator' || role === 'pmo' || role === 'operational' || role === 'document_operator' || role === 'auditor' || info.canEditShared || info.canManageAttachments){
     return {
-      role: 'pmo',
-      label: 'Responsable PMO verificado',
-      detail: text(info.permissionReasonMessage) || 'Tu correo verificado puede editar la ficha compartida y administrar sustentos.',
+      role: 'work_operator',
+      label: 'Canal de trabajo DGPPCS',
+      detail: text(info.permissionReasonMessage) || 'Esta URL de trabajo permite edición compartida, carga y retiro documental con auditoría y snapshots. Las funciones sensibles siguen reservadas al administrador.',
       canEditShared: true,
       canManageAttachments: true,
       canRemoveAttachments: true,
-      canViewSensitiveAudit: Boolean(info.canViewSensitiveAudit),
-      isAdmin: false
-    };
-  }
-  if(role === 'document_operator' || (!info.canEditShared && info.canManageAttachments)){
-    return {
-      role: 'document_operator',
-      label: 'Operador documental verificado',
-      detail: text(info.permissionReasonMessage) || 'Tu correo verificado puede cargar y retirar sustentos, pero no editar la ficha compartida.',
-      canEditShared: false,
-      canManageAttachments: true,
-      canRemoveAttachments: Boolean(info.canRemoveAttachments),
       canViewSensitiveAudit: false,
-      isAdmin: false
-    };
-  }
-  if(role === 'auditor' || (!info.admin && info.canViewSensitiveAudit)){
-    return {
-      role: 'auditor',
-      label: 'Auditor verificado',
-      detail: text(info.permissionReasonMessage) || 'Tu correo verificado puede revisar la auditoría compartida, pero no editar la ficha ni administrar sustentos.',
-      canEditShared: false,
-      canManageAttachments: false,
-      canRemoveAttachments: false,
-      canViewSensitiveAudit: true,
-      isAdmin: false
-    };
-  }
-  if(identity.source === 'client_query' && !identity.verified){
-    return {
-      role: 'declared_viewer',
-      label: 'Actor declarado por URL',
-      detail: 'La identidad es referencial. Puedes consultar el visor, pero la edición compartida y la carga de sustento requieren correo verificado.',
-      canEditShared: false,
-      canManageAttachments: false,
-      canRemoveAttachments: false,
-      canViewSensitiveAudit: false,
-      isAdmin: false
-    };
-  }
-  if(identity.verified){
-    return {
-      role: 'verified_viewer',
-      label: 'Usuario verificado sin permiso operativo',
-      detail: text(info.permissionReasonMessage) || 'Tu correo fue verificado, pero no está autorizado para editar ni cargar sustento en el visor compartido.',
-      canEditShared: false,
-      canManageAttachments: false,
-      canRemoveAttachments: false,
-      canViewSensitiveAudit: Boolean(info.canViewSensitiveAudit),
+      canExportSupportInventory: Boolean(info.canExportSupportInventory),
+      canRestoreSharedState: false,
       isAdmin: false
     };
   }
   return {
-    role: 'viewer',
-    label: 'Usuario estándar',
-    detail: text(info.permissionReasonMessage) || 'Puedes consultar el visor. Para editar o cargar sustento necesitas una cuenta Google autorizada.',
-    canEditShared: false,
-    canManageAttachments: false,
-    canRemoveAttachments: false,
+    role: 'work_operator',
+    label: 'Canal de trabajo DGPPCS',
+    detail: text(info.permissionReasonMessage) || 'Esta URL de trabajo permite edición compartida, carga y retiro documental con auditoría y snapshots. Las funciones sensibles siguen reservadas al administrador.',
+    canEditShared: true,
+    canManageAttachments: true,
+    canRemoveAttachments: true,
     canViewSensitiveAudit: false,
+    canExportSupportInventory: true,
+    canRestoreSharedState: false,
     isAdmin: false
   };
 }
@@ -3187,6 +3466,52 @@ function canCurrentUserManageAttachments(){
 
 function canCurrentUserRemoveAttachments(){
   return Boolean(getCurrentPermissionState().canRemoveAttachments);
+}
+
+function isPermissionDebugMode(){
+  try{
+    const params = new URLSearchParams(window.location.search);
+    const flag = text(params.get('debugPerms') || params.get('debug_perms') || params.get('debug'));
+    return flag === '1' || flag === 'true' || flag === 'perms';
+  }catch(error){}
+  return false;
+}
+
+function shouldShowPermissionDebug(permission){
+  const info = ensureServerInfo();
+  const role = text(info.permissionRole || (permission && permission.role));
+  const reasonCode = text(info.permissionReasonCode);
+  if(!isSharedBackendMode()) return false;
+  if(isPermissionDebugMode()) return true;
+  return role === 'viewer' ||
+    role === 'verified_viewer' ||
+    role === 'declared_viewer' ||
+    reasonCode === 'missing_verified_identity' ||
+    reasonCode === 'verified_not_authorized' ||
+    reasonCode === 'declared_actor_only' ||
+    reasonCode === 'backend_pending';
+}
+
+function buildPermissionDebugCard(permission){
+  const info = ensureServerInfo();
+  const identity = getCurrentActorIdentity();
+  const safePermission = permission && typeof permission === 'object' ? permission : getCurrentPermissionState();
+  const fields = [
+    ['actor', text(info.actor) || text(identity.actor) || '(vacío)'],
+    ['email', text(info.actorEmail) || text(identity.email) || '(vacío)'],
+    ['source', text(info.actorSource) || text(identity.source) || 'missing'],
+    ['verified', typeof info.actorVerified === 'boolean' ? String(info.actorVerified) : 'false'],
+    ['permissionRole', text(info.permissionRole) || text(safePermission.role) || 'viewer'],
+    ['reasonCode', text(info.permissionReasonCode) || 'sin_codigo'],
+    ['declaredActor', text(info.declaredActor) || text(identity.declaredActor) || '(vacío)']
+  ];
+  return '<strong>Diagnóstico temporal de identidad y permisos</strong>' +
+    '<p>Usa esta caja para confirmar si Apps Script está leyendo tu correo de sesión o si solo ve un actor declarado. Puedes forzarla con <code>?debugPerms=1</code>.</p>' +
+    '<div class="permission-debug-grid">' +
+      fields.map(function(entry){
+        return '<div class="permission-debug-item"><b>' + escapeHtml(entry[0]) + '</b><span>' + escapeHtml(entry[1]) + '</span></div>';
+      }).join('') +
+    '</div>';
 }
 
 function loadAuditLog(){
@@ -3486,13 +3811,48 @@ function isSharedBackendMode(){
   return Boolean(SERVER_BOOTSTRAP) && typeof google !== 'undefined' && google.script && google.script.run;
 }
 
+function normalizeChannelModeParam(value){
+  const safe = text(value).toLowerCase();
+  if(safe === 'public' || safe === 'consulta' || safe === 'readonly' || safe === 'read_only') return 'public';
+  return 'work';
+}
+
+function getRequestedChannelMode(){
+  try{
+    const params = new URLSearchParams(window.location.search);
+    return normalizeChannelModeParam(params.get('channel') || params.get('mode') || params.get('viewer'));
+  }catch(error){}
+  return 'work';
+}
+
+function isPublicReadOnlyChannel(){
+  const info = appState && appState.serverInfo && typeof appState.serverInfo === 'object' ? appState.serverInfo : null;
+  if(info && text(info.mode) === 'public_readonly') return true;
+  return getRequestedChannelMode() === 'public';
+}
+
+function getWorkChannelActorFallback(){
+  if(isPublicReadOnlyChannel()) return '';
+  try{
+    const stored = text(localStorage.getItem(WORK_ACTOR_ALIAS_STORAGE_KEY));
+    if(stored) return stored;
+    const generated = 'usuario-dgppcs-' + Math.random().toString(36).slice(2, 8);
+    localStorage.setItem(WORK_ACTOR_ALIAS_STORAGE_KEY, generated);
+    return generated;
+  }catch(error){}
+  return '';
+}
+
 function getClientActorName(){
   try{
     const params = new URLSearchParams(window.location.search);
     const explicitActor = text(params.get('actor') || params.get('user') || params.get('usuario'));
     if(explicitActor) return explicitActor;
-    if(params.get('admin') === 'darwin') return 'Darwin Pardavé';
+    if(params.get('admin') === 'darwin' && !isPublicReadOnlyChannel()) return 'Darwin Pardavé';
   }catch(error){}
+  if(isSharedBackendMode() && !isPublicReadOnlyChannel()){
+    return text(getWorkChannelActorFallback());
+  }
   return '';
 }
 
@@ -3501,32 +3861,46 @@ function getAuditActorName(){
 }
 
 function getDefaultServerInfo(){
+  const publicMode = isPublicReadOnlyChannel();
+  const sharedWorkMode = isSharedBackendMode() && !publicMode;
   return {
-    mode: isSharedBackendMode() ? 'apps_script' : 'local',
+    mode: isSharedBackendMode() ? 'apps_script' : (publicMode ? 'public_readonly' : 'local'),
+    channelMode: publicMode ? 'public' : 'work',
     actor: '',
+    actorEmail: '',
     actorVerified: false,
-    actorSource: '',
+    actorSource: sharedWorkMode ? 'work_channel' : '',
+    declaredActor: '',
     admin: false,
-    canEditShared: false,
-    canManageAttachments: false,
-    canRemoveAttachments: false,
+    canEditShared: sharedWorkMode,
+    canManageAttachments: sharedWorkMode,
+    canRemoveAttachments: sharedWorkMode,
     canViewSensitiveAudit: false,
     canViewOperationalCenter: false,
-    canExportSupportInventory: false,
-    permissionRole: isSharedBackendMode() ? 'viewer' : 'local_mode',
-    permissionReasonCode: isSharedBackendMode() ? 'backend_pending' : 'local_mode',
-    permissionReasonMessage: isSharedBackendMode()
-      ? 'El backend compartido aún no confirmó tus permisos operativos.'
-      : 'Modo local: los cambios se guardan en este navegador.',
+    canExportSupportInventory: sharedWorkMode,
+    canRestoreSharedState: false,
+    permissionRole: sharedWorkMode ? 'work_operator' : (publicMode ? 'public_viewer' : 'local_mode'),
+    permissionReasonCode: sharedWorkMode ? 'work_channel_bootstrap' : (publicMode ? 'public_readonly' : 'local_mode'),
+    permissionReasonMessage: sharedWorkMode
+      ? 'Canal de trabajo DGPPCS habilitado. Puedes editar la ficha compartida y administrar sustentos desde esta URL. Todas las acciones quedan auditadas.'
+      : (publicMode
+          ? 'Esta URL es de solo lectura. El contenido se sincroniza con el estado compartido del visor de trabajo.'
+          : 'Modo local: los cambios se guardan en este navegador.'),
     pollIntervalSeconds: 30,
     savedAt: '',
     savedBy: '',
     lastBackupAt: '',
     lastBackupFile: '',
-    syncState: isSharedBackendMode() ? 'ready' : 'local',
+    lastSnapshotAt: '',
+    lastSnapshotFile: '',
+    workViewerUrl: '',
+    publicViewerUrl: publicMode ? window.location.href : '',
+    syncState: isSharedBackendMode() ? 'ready' : (publicMode ? 'refreshing' : 'local'),
     syncMessage: isSharedBackendMode()
-      ? 'Visor compartido preparado para sincronizar con Apps Script.'
-      : 'Modo local: los cambios se guardan en este navegador.',
+      ? 'Canal de trabajo DGPPCS listo para sincronizar con Apps Script.'
+      : (publicMode
+          ? 'Consulta pública preparada para sincronizar con Apps Script.'
+          : 'Modo local: los cambios se guardan en este navegador.'),
     lastError: ''
   };
 }
@@ -3545,6 +3919,14 @@ function renderAdminAccess(){
   const quickBtn = document.getElementById('openAdminQuickBtn');
   const adminStrip = document.getElementById('adminAccessStrip');
   const adminMeta = document.getElementById('adminAccessMeta');
+  if(isPublicReadOnlyChannel()){
+    if(adminBtn) adminBtn.style.display = 'none';
+    if(quickBtn) quickBtn.style.display = 'none';
+    if(adminStrip) adminStrip.style.display = 'none';
+    if(adminMeta) adminMeta.textContent = 'La consulta pública no expone panel administrador ni centro operativo.';
+    renderSnapshotRestoreAction();
+    return;
+  }
   if(adminBtn) adminBtn.style.display = enabled ? '' : 'none';
   if(quickBtn) quickBtn.style.display = enabled ? '' : 'none';
   if(adminStrip) adminStrip.style.display = enabled ? 'flex' : 'none';
@@ -3557,10 +3939,12 @@ function renderAdminAccess(){
               : 'Abre el panel administrador de esta sesión.'))
       : 'Abre el panel administrador de esta sesión y usa ?admin=darwin para habilitarlo en la vista pública.';
   }
+  renderSnapshotRestoreAction();
 }
 
 function updateServerInfoFromEnvelope(result){
   const info = ensureServerInfo();
+  updateAnalyticsFromEnvelope(result);
   const backend = result && result.backend && typeof result.backend === 'object' ? result.backend : {};
   const permissionMessage = result && (result.permissionDenied || result.ok === false)
     ? text(result.message)
@@ -3570,9 +3954,11 @@ function updateServerInfoFromEnvelope(result){
     : (typeof backend.admin !== 'undefined' ? Boolean(backend.admin) : null);
   info.mode = text(backend.mode) || text(info.mode) || (isSharedBackendMode() ? 'apps_script' : 'local');
   info.actor = text((result && result.actor) || backend.actor || info.actor);
+  info.actorEmail = text((result && result.actorEmail) || backend.actorEmail || info.actorEmail);
   if(result && typeof result.actorVerified !== 'undefined') info.actorVerified = Boolean(result.actorVerified);
   else if(typeof backend.actorVerified !== 'undefined') info.actorVerified = Boolean(backend.actorVerified);
   info.actorSource = text((result && result.actorSource) || backend.actorSource || info.actorSource);
+  info.declaredActor = text((result && result.declaredActor) || backend.declaredActor || info.declaredActor);
   if(explicitAdmin !== null) info.admin = explicitAdmin;
   if(typeof backend.canEditShared !== 'undefined') info.canEditShared = Boolean(backend.canEditShared);
   if(typeof backend.canManageAttachments !== 'undefined') info.canManageAttachments = Boolean(backend.canManageAttachments);
@@ -3580,6 +3966,7 @@ function updateServerInfoFromEnvelope(result){
   if(typeof backend.canViewSensitiveAudit !== 'undefined') info.canViewSensitiveAudit = Boolean(backend.canViewSensitiveAudit);
   if(typeof backend.canViewOperationalCenter !== 'undefined') info.canViewOperationalCenter = Boolean(backend.canViewOperationalCenter);
   if(typeof backend.canExportSupportInventory !== 'undefined') info.canExportSupportInventory = Boolean(backend.canExportSupportInventory);
+  if(typeof backend.canRestoreSharedState !== 'undefined') info.canRestoreSharedState = Boolean(backend.canRestoreSharedState);
   info.permissionRole = text(backend.permissionRole || info.permissionRole);
   info.permissionReasonCode = text((result && result.permissionReasonCode) || backend.permissionReasonCode || info.permissionReasonCode);
   info.permissionReasonMessage = permissionMessage || text(backend.permissionReasonMessage || info.permissionReasonMessage);
@@ -3589,9 +3976,32 @@ function updateServerInfoFromEnvelope(result){
   info.revision = Number((result && result.revision) || (result && result.state && result.state.revision) || appState.remoteRevision || info.revision || 0);
   info.lastBackupAt = text(backend.lastBackupAt || info.lastBackupAt);
   info.lastBackupFile = text(backend.lastBackupFile || info.lastBackupFile);
+  info.lastSnapshotAt = text(backend.lastSnapshotAt || info.lastSnapshotAt);
+  info.lastSnapshotFile = text(backend.lastSnapshotFile || info.lastSnapshotFile);
+  info.workViewerUrl = text(backend.workViewerUrl || info.workViewerUrl);
+  info.publicViewerUrl = text(backend.publicViewerUrl || info.publicViewerUrl);
+  info.channelMode = text(backend.mode) === 'public_readonly' ? 'public' : (isPublicReadOnlyChannel() ? 'public' : 'work');
+  const sharedWorkMode = isSharedBackendMode() && !isPublicReadOnlyChannel() && text(backend.mode) !== 'public_readonly';
+  if(sharedWorkMode && !info.admin){
+    if(!text(info.actor)) info.actor = 'Equipo DGPPCS';
+    if(!text(info.declaredActor)) info.declaredActor = 'Equipo DGPPCS';
+    if(!text(info.actorSource) || text(info.actorSource) === 'missing') info.actorSource = 'work_channel';
+    info.canEditShared = true;
+    info.canManageAttachments = true;
+    info.canRemoveAttachments = true;
+    info.canExportSupportInventory = true;
+    info.permissionRole = 'work_operator';
+    if(
+      !text(info.permissionReasonCode) ||
+      ['missing_verified_identity','backend_pending','declared_viewer','viewer','verified_viewer'].includes(text(info.permissionReasonCode))
+    ){
+      info.permissionReasonCode = 'work_channel_open';
+    }
+    info.permissionReasonMessage = 'Canal de trabajo DGPPCS habilitado. Puedes editar la ficha compartida y administrar sustentos desde esta URL. Todas las acciones quedan auditadas.';
+  }
   appState.adminEnabled = info.mode === 'apps_script'
-    ? Boolean(info.admin || info.canViewSensitiveAudit)
-    : (Boolean(info.admin) || isAdminMode());
+    ? Boolean(info.admin || info.canViewSensitiveAudit || info.canRestoreSharedState)
+    : (!isPublicReadOnlyChannel() && (Boolean(info.admin) || isAdminMode()));
   renderAdminAccess();
   return info;
 }
@@ -3630,6 +4040,7 @@ function formatIsoDisplay(value){
 
 function backendModeLabel(){
   const info = ensureServerInfo();
+  if(text(info.mode) === 'public_readonly') return 'Consulta pública sincronizada';
   return info.mode === 'apps_script' ? 'Compartido Apps Script' : 'Local standalone';
 }
 
@@ -4735,8 +5146,10 @@ function applySharedStateBundle(bundle, options){
     ...currentInfo,
     mode: text(currentInfo.mode) || (isSharedBackendMode() ? 'apps_script' : 'local'),
     actor: text(currentInfo.actor),
+    actorEmail: text(currentInfo.actorEmail),
     actorVerified: typeof currentInfo.actorVerified === 'boolean' ? currentInfo.actorVerified : false,
     actorSource: text(currentInfo.actorSource),
+    declaredActor: text(currentInfo.declaredActor),
     canEditShared: Boolean(currentInfo.canEditShared),
     canManageAttachments: Boolean(currentInfo.canManageAttachments),
     canRemoveAttachments: Boolean(currentInfo.canRemoveAttachments),
@@ -4770,6 +5183,7 @@ function applySharedStateBundle(bundle, options){
 }
 
 function scheduleSharedSync(reason){
+  if(isPublicReadOnlyChannel()) return;
   if(!isSharedBackendMode()) return;
   pendingSharedSyncReason = text(reason) || pendingSharedSyncReason || 'actualizacion';
   appState.hasUnsyncedSharedChanges = true;
@@ -4787,8 +5201,8 @@ function flushSharedSync(){
   if(!identity.actor){
     sharedSyncInFlight = false;
     appState.hasUnsyncedSharedChanges = true;
-    setSharedError('No se pudo identificar al usuario actual. Inicia sesión con una cuenta Google autorizada o abre el visor con ?actor=correo@dominio como respaldo declarado.', 'error');
-    setImportFeedback('Identificación requerida', 'El visor compartido bloqueó el guardado porque no existe un actor verificable ni declarado para esta sesión.', 'warn');
+    setSharedError('No se pudo sincronizar el canal de trabajo. Recarga el visor y vuelve a intentar.', 'error');
+    setImportFeedback('Canal de trabajo no disponible', 'No se pudo sincronizar el estado compartido desde esta sesión de trabajo.', 'warn');
     renderOperationsStatus();
     return;
   }
@@ -4823,7 +5237,7 @@ function flushSharedSync(){
         const detail = text(result.message) || 'Apps Script rechazó el guardado del estado compartido.';
         setSharedError(detail, 'error');
         setImportFeedback(
-          result.permissionDenied ? 'Guardado bloqueado por permisos' : (result.missingActor ? 'Guardado bloqueado por identidad' : 'No se guardó en Apps Script'),
+          result.permissionDenied ? 'Guardado bloqueado por permisos' : (result.missingActor ? 'Guardado pendiente del canal de trabajo' : 'No se guardó en Apps Script'),
           detail + ' La copia visible quedó solo en este navegador hasta resolverlo.',
           'warn'
         );
@@ -4882,10 +5296,75 @@ function refreshSharedState(force){
 }
 
 function startSharedStatePolling(){
-  if(!isSharedBackendMode() || sharedPollHandle) return;
+  if(sharedPollHandle) return;
   const info = ensureServerInfo();
   const pollMs = Math.max(10000, Number(info.pollIntervalSeconds || 30) * 1000);
+  if(isPublicReadOnlyChannel()){
+    sharedPollHandle = setInterval(() => refreshPublicSharedState(false), pollMs);
+    return;
+  }
+  if(!isSharedBackendMode()) return;
   sharedPollHandle = setInterval(() => refreshSharedState(false), pollMs);
+}
+
+function getPublicSharedStateEndpoint(){
+  const info = ensureServerInfo();
+  return text(info.workViewerUrl)
+    ? text(info.workViewerUrl).replace(/\?.*$/,'') + '?action=visor_public_state'
+    : SHARED_PUBLIC_STATE_ENDPOINT;
+}
+
+function refreshPublicSharedState(force){
+  if(!isPublicReadOnlyChannel() || publicStatePollInFlight) return;
+  publicStatePollInFlight = true;
+  const requestId = ++publicStateRequestNonce;
+  const callbackName = '__pecPublicStateCallback_' + requestId;
+  const script = document.createElement('script');
+  const endpoint = getPublicSharedStateEndpoint();
+  const joiner = endpoint.includes('?') ? '&' : '?';
+  const url = endpoint + joiner + 'callback=' + encodeURIComponent(callbackName) + '&_=' + Date.now();
+  if(force) setSharedSyncState('refreshing', 'Cargando consulta pública sincronizada...');
+  window[callbackName] = result => {
+    publicStatePollInFlight = false;
+    try{
+      if(result && result.ok && result.state){
+        updateServerInfoFromEnvelope(result);
+        const incomingRevision = Number(result.state.revision || 0);
+        if(!force && incomingRevision <= Number(appState.remoteRevision || 0)) return;
+        const drawerOpen = document.getElementById('drawer')?.classList.contains('open');
+        const selectedId = appState.selectedId;
+        applySharedStateBundle(result.state, {skipRenderHero:true});
+        renderHero();
+        initFilters();
+        applyFilters();
+        buildExecutiveReport();
+        if(drawerOpen && selectedId) openDrawer(selectedId);
+        setSharedSyncState('synced', 'Consulta pública sincronizada con Apps Script.');
+        return;
+      }
+      setSharedError(text(result && result.message) || 'No se recibió un estado público válido desde Apps Script.', 'error');
+    }finally{
+      try{ delete window[callbackName]; }catch(error){ window[callbackName] = undefined; }
+      script.remove();
+    }
+  };
+  script.onerror = () => {
+    publicStatePollInFlight = false;
+    try{ delete window[callbackName]; }catch(error){ window[callbackName] = undefined; }
+    script.remove();
+    setSharedError('No se pudo sincronizar la consulta pública con Apps Script. Se mantiene el último estado visible.', 'error');
+  };
+  script.src = url;
+  document.head.appendChild(script);
+}
+
+function blockPublicReadOnlyMutation(actionLabel, detail){
+  if(!isPublicReadOnlyChannel()) return false;
+  const title = actionLabel || 'Solo lectura';
+  const message = detail || 'Esta URL es de solo lectura. Usa el visor de trabajo para editar, crear, eliminar o administrar sustentos.';
+  setImportFeedback(title, message, 'warn');
+  setCaseAttachmentFeedback(title, message, 'warn');
+  return true;
 }
 
 function getGroupRecords(records){
@@ -5027,13 +5506,19 @@ function getMergedRecord(record){
       source_order:Number(record.source_order || String(record.id || '').replace(/\D+/g,'')) || 0
     };
   }
+  const documentScore = buildCaseDocumentScore(record);
   const merged = {
     ...record,
     ...edit,
     local_note:text(note.note),
     local_action:text(note.action),
+    attachmentFolder: normalizeCaseAttachmentFolderMeta(note.attachmentFolder),
     attachments: normalizeCaseAttachmentList(note.attachments),
-    attachment_count: normalizeCaseAttachmentList(note.attachments).length
+    attachment_count: documentScore.activeAttachments,
+    retired_attachment_count: documentScore.retiredAttachments,
+    document_score: documentScore.score,
+    document_score_class: documentScore.classification,
+    document_score_missing: documentScore.missing
   };
   if(!text(merged.edt) && /inicio de efectividad del pr[eé]stamo/i.test(text(merged.actividad))){
     merged.edt = '4';
@@ -6664,7 +7149,52 @@ function exportLatestBackup(){
   downloadBlob('backup_visor_pec_' + today + '.json', 'application/json;charset=utf-8', backup);
 }
 
+function renderSnapshotRestoreAction(){
+  const btn = document.getElementById('restoreLatestSnapshotBtn');
+  if(!btn) return;
+  const info = ensureServerInfo();
+  const canRestore = Boolean(isSharedBackendMode() && info.admin && info.canRestoreSharedState && !isPublicReadOnlyChannel());
+  btn.style.display = canRestore ? '' : 'none';
+  btn.disabled = !canRestore;
+  if(canRestore){
+    btn.title = info.lastSnapshotAt
+      ? ('Último snapshot: ' + formatIsoDisplay(info.lastSnapshotAt) + (info.lastSnapshotFile ? ' | ' + info.lastSnapshotFile : ''))
+      : 'Restaurar el último snapshot disponible del estado compartido.';
+  }else{
+    btn.removeAttribute('title');
+  }
+}
+
+function restoreLatestSharedSnapshot(){
+  const info = ensureServerInfo();
+  if(!isSharedBackendMode() || !info.admin || !info.canRestoreSharedState){
+    setImportFeedback('Rollback no disponible', 'Solo un administrador del canal de trabajo puede restaurar snapshots del estado compartido.', 'warn');
+    return;
+  }
+  const reason = window.prompt('Motivo de restauración del snapshot', 'Restauración operativa desde el visor compartido');
+  if(reason === null) return;
+  setImportFeedback('Restaurando snapshot', 'Apps Script está restaurando el último snapshot del estado compartido.', 'info');
+  google.script.run
+    .withSuccessHandler(result => {
+      updateServerInfoFromEnvelope(result || {});
+      if(result && result.ok && result.state){
+        const selectedId = appState.selectedId;
+        applySharedStateBundle(result.state, {skipRenderHero:true});
+        refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:selectedId});
+        setImportFeedback('Snapshot restaurado', text(result.message) || 'Se restauró el último snapshot del estado compartido.', 'success');
+        return;
+      }
+      setImportFeedback('No se restauró el snapshot', text(result && result.message) || 'Apps Script no pudo restaurar el snapshot solicitado.', 'warn');
+    })
+    .withFailureHandler(error => {
+      console.error('No se pudo restaurar el último snapshot.', error);
+      setImportFeedback('No se restauró el snapshot', 'Apps Script no pudo restaurar el último snapshot del estado compartido.', 'warn');
+    })
+    .restoreSharedTrackingLatestSnapshot(getAuditActorName(), text(reason));
+}
+
 async function loadStructureFromInput(){
+  if(blockPublicReadOnlyMutation('Carga bloqueada', 'La URL pública no puede cargar estructuras ni alterar el estado visible. Usa el visor de trabajo para estas operaciones.')) return;
   const input = document.getElementById('structureInput');
   const file = input.files && input.files[0];
   if(!file){
@@ -6807,6 +7337,7 @@ async function loadExcelFromInput(){
 }
 
 function useEmbeddedData(){
+  if(blockPublicReadOnlyMutation('Cambio bloqueado', 'La URL pública no puede sustituir la fuente sincronizada por una base embebida local.')) return;
   appState.payload = window.PEC_TRACKING_DATA || {meta:{},summary:{},records:[]};
   appState.sourceMode = 'embedded';
   clearSavedPayload();
@@ -7221,6 +7752,38 @@ function topGroupEntry(groups){
   return groups.length ? groups[0] : {label:'Sin dato', count:0};
 }
 
+function summarizeVisibleDocumentTypes(records){
+  const map = new Map();
+  (Array.isArray(records) ? records : []).forEach(record => {
+    normalizeCaseAttachmentList(record && record.attachments).forEach(item => {
+      const label = describeAttachmentDocumentType(item && item.documentType);
+      if(!map.has(label)){
+        map.set(label, {
+          label,
+          totalAttachments: 0,
+          activeAttachments: 0,
+          retiredAttachments: 0,
+          records: new Set()
+        });
+      }
+      const bucket = map.get(label);
+      bucket.totalAttachments += 1;
+      if(normalizeCaseAttachmentStatus(item && item.status) === 'removed') bucket.retiredAttachments += 1;
+      else bucket.activeAttachments += 1;
+      if(record && record.id) bucket.records.add(record.id);
+    });
+  });
+  return Array.from(map.values())
+    .map(item => ({
+      label: item.label,
+      totalAttachments: item.totalAttachments,
+      activeAttachments: item.activeAttachments,
+      retiredAttachments: item.retiredAttachments,
+      recordCount: item.records.size
+    }))
+    .sort((a,b) => b.activeAttachments - a.activeAttachments || b.totalAttachments - a.totalAttachments || a.label.localeCompare(b.label,'es'));
+}
+
 function buildVisibleMetrics(records){
   const total = records.length;
   const completed = records.filter(r => r.estado === 'Completado').length;
@@ -7232,6 +7795,13 @@ function buildVisibleMetrics(records){
   const notesCount = records.filter(r => r.local_note || r.local_action).length;
   const withoutResponsible = records.filter(r => !splitEntities(r.responsable).length).length;
   const withoutOwner = records.filter(r => !hasSeguimientoAssigned(r)).length;
+  const withoutSupport = records.filter(r => !(Number(r.attachment_count || 0) > 0)).length;
+  const documentCritical = records.filter(r => text(r.document_score_class) === 'critico').length;
+  const documentGapRecords = records.filter(r => Array.isArray(r.document_score_missing) && r.document_score_missing.length).length;
+  const avgDocumentScore = records.length
+    ? Math.round(records.reduce((sum, record) => sum + Number(record.document_score || 0), 0) / records.length)
+    : 0;
+  const documentTypes = summarizeVisibleDocumentTypes(records);
   const byBlock = summarizeBlocks(records);
   const byOwner = groupCount(expandOwnerAssignments(records), 'owner');
   const byResponsible = groupCount(expandResponsibleAssignments(records), 'owner');
@@ -7249,13 +7819,19 @@ function buildVisibleMetrics(records){
     notesCount,
     withoutResponsible,
     withoutOwner,
+    withoutSupport,
+    documentCritical,
+    documentGapRecords,
+    avgDocumentScore,
+    documentTypes,
     avgProgress: averageProgress(records),
     byBlock,
     byOwner,
     byResponsible,
     priorityBlock,
     topOwner: topGroupEntry(byOwner),
-    topResponsible: topGroupEntry(byResponsible)
+    topResponsible: topGroupEntry(byResponsible),
+    topDocumentType: documentTypes.length ? documentTypes[0] : {label:'Sin clasificar', activeAttachments:0, totalAttachments:0, recordCount:0}
   };
 }
 
@@ -7269,6 +7845,10 @@ function renderKpis(){
     metricCard('Pendientes', metrics.pending, pctText(metrics.pending, metrics.total), 'neutral'),
     metricCard('Atrasados', metrics.overdue, metrics.overdue ? 'Casos vencidos abiertos' : 'Sin atrasos abiertos', metrics.overdue ? 'alert' : 'good'),
     metricCard('Próximos vencimientos', metrics.upcoming.length, metrics.upcoming.length ? 'Vence <= 15 días' : 'Sin presión inmediata', metrics.upcoming.length ? 'alert' : 'good'),
+    metricCard('Sin sustento', metrics.withoutSupport, metrics.withoutSupport ? 'Registros sin sustento activo' : 'Todos tienen sustento activo', metrics.withoutSupport ? 'alert' : 'good'),
+    metricCard('Score documental promedio', metrics.avgDocumentScore + '/100', metrics.avgDocumentScore >= 80 ? 'Completo' : metrics.avgDocumentScore >= 60 ? 'Aceptable' : metrics.avgDocumentScore >= 40 ? 'Incompleto' : 'Crítico', metrics.avgDocumentScore >= 80 ? 'good' : metrics.avgDocumentScore >= 60 ? '' : 'alert'),
+    metricCard('Registros documentales críticos', metrics.documentCritical, metrics.documentCritical ? 'Con score documental crítico' : 'Sin criticidad documental visible', metrics.documentCritical ? 'alert' : 'good'),
+    metricCard('Tipo documental dominante', metrics.topDocumentType.label, metrics.topDocumentType.activeAttachments ? (metrics.topDocumentType.activeAttachments + ' sustentos activos') : 'Sin sustentos tipificados', {compact:true}),
     metricCard('Bloque bajo mayor presión', metrics.priorityBlock ? metrics.priorityBlock.label : '—', metrics.priorityBlock ? blockSummaryLine(metrics.priorityBlock) : 'Sin bloques visibles', {compact:true})
   ].join('');
   document.getElementById('kpiGrid').innerHTML = html;
@@ -7759,6 +8339,7 @@ function renderTable(){
           '<div class="activity-meta">' +
             (r.local_note ? '<span class="small">Con informacion local</span>' : '') +
             (Number(r.attachment_count || 0) ? '<span class="small">Con ' + escapeHtml(String(r.attachment_count)) + ' sustento(s)</span>' : '') +
+            '<span class="small">Score documental ' + escapeHtml(String(Number(r.document_score || 0))) + '/100</span>' +
             (hasChildren ? '<span class="child-count">' + kids.length + ' subactividad(es)</span>' : '') +
           '</div></div></td>' +
         '<td>' + escapeHtml(r.responsable || '-') + '</td>' +
@@ -7778,12 +8359,14 @@ function openDrawer(recordId){
   closeMonitoringModal();
   const {childrenMap} = buildHierarchyMaps(appState.raw);
   const groupOptions = getGroupOptionList(appState.raw);
+  const documentScore = buildCaseDocumentScore(record);
   appState.selectedId = record.id;
   document.getElementById('drawerTitle').textContent = displayTitle(record);
   document.getElementById('drawerSubtitle').innerHTML =
     '<div><b>Estado:</b> ' + escapeHtml(record.estado) + '</div>' +
     '<div><b>Alerta:</b> ' + escapeHtml(alertLabel(record.alerta)) + '</div>' +
-    '<div><b>Fechas:</b> ' + escapeHtml(fmtDate(record.inicio) + ' - ' + fmtDate(record.final)) + '</div>';
+    '<div><b>Fechas:</b> ' + escapeHtml(fmtDate(record.inicio) + ' - ' + fmtDate(record.final)) + '</div>' +
+    '<div><b>Score documental:</b> <span class="doc-score-pill ' + escapeHtml(documentScore.classification) + '">' + escapeHtml(String(documentScore.score)) + '/100 · ' + escapeHtml(describeDocumentScoreClass(documentScore.classification)) + '</span></div>';
   document.getElementById('detailGrid').innerHTML = [
     assignmentBox('Responsable','responsable', record.responsable, {
       mode:'entity',
@@ -7809,6 +8392,7 @@ function openDrawer(recordId){
     selectBox('Grupo EDT / categoria','editGrupo',record.grupo || deriveGroup(record.edt), groupOptions),
     editableBox('Titulo visible','editAlias','text',text(appState.aliases[record.id] || ''),'Renombrar este EDT en el visor'),
     editableBox('Resumen','editResumen','textarea',record.resumen,'Sintesis ejecutiva del caso'),
+    readonlyBox('Completitud documental', documentScore.score + '/100 | ' + describeDocumentScoreClass(documentScore.classification)),
     readonlyBox('Dias restantes', record.dias_restantes != null ? String(record.dias_restantes) : '-'),
     readonlyBox('Ubicacion actual', [record.parent_edt || 'Raiz', record.grupo || '-'].join(' | ')),
     readonlyBox('Alerta calculada', alertLabel(record.alerta))
@@ -7886,7 +8470,7 @@ function closeDrawer(){
 }
 
 function supportsSharedCaseAttachments(){
-  return Boolean(isSharedBackendMode() && window.google && google.script && google.script.run);
+  return Boolean(!isPublicReadOnlyChannel() && isSharedBackendMode() && window.google && google.script && google.script.run);
 }
 
 function canMutateCaseAttachments(){
@@ -7896,11 +8480,13 @@ function canMutateCaseAttachments(){
 function describeCurrentAttachmentPermissionSummary(permission){
   const safe = permission || getCurrentPermissionState();
   return [
-    'Rol actual: ' + text(safe.label || 'Usuario estándar'),
+    'Rol actual: ' + text(safe.label || 'Canal de trabajo DGPPCS'),
     'Editar ficha: ' + (safe.canEditShared ? 'Sí' : 'No'),
     'Cargar sustento: ' + (safe.canManageAttachments ? 'Sí' : 'No'),
     'Retirar sustento: ' + (safe.canRemoveAttachments ? 'Sí' : 'No'),
-    'Auditoría: ' + (safe.canViewSensitiveAudit ? 'Sí' : 'No')
+    'Auditoría: ' + (safe.canViewSensitiveAudit ? 'Sí' : 'No'),
+    'Inventario: ' + (safe.canExportSupportInventory ? 'Sí' : 'No'),
+    'Rollback admin: ' + (safe.canRestoreSharedState ? 'Sí' : 'No')
   ].join(' | ');
 }
 
@@ -7910,6 +8496,103 @@ function formatFileSize(bytes){
   if(size < 1024) return size + ' B';
   if(size < 1024 * 1024) return (size / 1024).toFixed(1).replace(/\.0$/,'') + ' KB';
   return (size / (1024 * 1024)).toFixed(1).replace(/\.0$/,'') + ' MB';
+}
+
+function describeAttachmentDocumentType(value){
+  const safe = normalizeCaseAttachmentDocumentType(value);
+  return safe === 'unknown' ? 'Sin clasificar' : safe;
+}
+
+function describeAttachmentStatus(value){
+  return normalizeCaseAttachmentStatus(value) === 'removed' ? 'Sustento retirado' : 'Sustento activo';
+}
+
+function formatDocumentScoreMissing(missing){
+  return (Array.isArray(missing) ? missing : []).map(code => {
+    if(code === 'sin_carpeta_drive') return 'Sin carpeta Drive';
+    if(code === 'sin_sustento_activo') return 'Sin sustento';
+    if(code === 'sin_tipo_documental') return 'Sustento incompleto';
+    if(code === 'sin_actor_correo') return 'Sin actor/correo';
+    if(code === 'sin_fecha_carga') return 'Sin fecha de carga';
+    if(code === 'sin_ruta_logica') return 'Sin ruta lógica';
+    if(code === 'metadata_critica_incompleta') return 'Metadata crítica faltante';
+    return code;
+  });
+}
+
+function copyTextToClipboard(value){
+  const safe = text(value);
+  if(!safe) return Promise.reject(new Error('No hay texto disponible para copiar.'));
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    return navigator.clipboard.writeText(safe);
+  }
+  const input = document.createElement('textarea');
+  input.value = safe;
+  document.body.appendChild(input);
+  input.select();
+  try{
+    document.execCommand('copy');
+    input.remove();
+    return Promise.resolve();
+  }catch(error){
+    input.remove();
+    return Promise.reject(error);
+  }
+}
+
+function copyCurrentCaseAttachmentPath(){
+  const record = appState.raw.find(item => item.id === appState.selectedId);
+  const noteEntry = getCaseNoteEntry(record && record.id);
+  const folderMeta = normalizeCaseAttachmentFolderMeta(noteEntry.attachmentFolder);
+  const logicalPath = text(folderMeta && folderMeta.logicalPath);
+  if(!logicalPath){
+    setCaseAttachmentFeedback('Ruta no disponible', 'Este registro todavía no tiene una ruta lógica persistida para la carpeta de sustento.', 'warn');
+    return;
+  }
+  copyTextToClipboard(logicalPath)
+    .then(() => setCaseAttachmentFeedback('Ruta copiada', 'La ruta lógica del repositorio del caso quedó copiada en el portapapeles.', 'success'))
+    .catch(() => setCaseAttachmentFeedback('No se copió la ruta', 'El navegador no permitió copiar la ruta lógica del repositorio.', 'warn'));
+}
+
+function exportSupportInventory(format, recordId){
+  if(!supportsSharedCaseAttachments()){
+    setImportFeedback('Inventario no disponible', 'La exportación documental requiere abrir la versión compartida de Apps Script.', 'warn');
+    if(recordId) setCaseAttachmentFeedback('Inventario no disponible', 'La exportación del inventario documental requiere abrir la versión compartida de Apps Script.', 'warn');
+    return;
+  }
+  const permission = getCurrentPermissionState();
+  if(!permission.canExportSupportInventory){
+    const detail = permission.detail || 'Tu perfil no puede exportar el inventario documental.';
+    setImportFeedback(permission.label, detail, 'warn');
+    if(recordId) setCaseAttachmentFeedback(permission.label, detail, 'warn');
+    return;
+  }
+  const safeFormat = text(format).toLowerCase() || 'json';
+  const targetRecordId = text(recordId);
+  const loadingMessage = targetRecordId
+    ? 'Apps Script está preparando el inventario documental de este caso.'
+    : 'Apps Script está preparando el inventario documental global.';
+  setImportFeedback('Preparando inventario', loadingMessage, 'info');
+  if(targetRecordId) setCaseAttachmentFeedback('Preparando inventario', loadingMessage, 'info');
+  google.script.run
+    .withSuccessHandler(result => {
+      updateServerInfoFromEnvelope(result || {});
+      if(result && result.ok && text(result.content) && text(result.fileName)){
+        downloadBlob(text(result.fileName), text(result.mimeType) || 'application/octet-stream', text(result.content));
+        setImportFeedback('Inventario exportado', 'Se descargó el inventario documental en formato ' + safeFormat.toUpperCase() + '.', 'success');
+        if(targetRecordId) setCaseAttachmentFeedback('Inventario exportado', 'Se descargó el inventario documental de este caso.', 'success');
+        return;
+      }
+      const detail = text(result && result.message) || 'Apps Script no pudo generar el inventario documental solicitado.';
+      setImportFeedback('No se exportó el inventario', detail, 'warn');
+      if(targetRecordId) setCaseAttachmentFeedback('No se exportó el inventario', detail, 'warn');
+    })
+    .withFailureHandler(error => {
+      console.error('No se pudo exportar el inventario documental.', error);
+      setImportFeedback('No se exportó el inventario', 'Apps Script no pudo generar el inventario documental solicitado.', 'warn');
+      if(targetRecordId) setCaseAttachmentFeedback('No se exportó el inventario', 'Apps Script no pudo generar el inventario documental de este caso.', 'warn');
+    })
+    .exportSharedTrackingSupportInventory(safeFormat, targetRecordId);
 }
 
 function setCaseAttachmentFeedback(title, detail, tone){
@@ -7922,15 +8605,18 @@ function setCaseAttachmentFeedback(title, detail, tone){
 
 function renderCaseAttachments(record){
   const hintHost = document.getElementById('caseAttachmentHint');
+  const debugHost = document.getElementById('caseAttachmentPermissionDebug');
   const folderHost = document.getElementById('caseAttachmentFolderCard');
   const listHost = document.getElementById('caseAttachmentList');
   const input = document.getElementById('caseAttachmentInput');
   const uploadBtn = document.getElementById('uploadCaseAttachmentsBtn');
   const refreshBtn = document.getElementById('refreshCaseAttachmentsBtn');
-  if(!hintHost || !folderHost || !listHost || !input || !uploadBtn || !refreshBtn) return;
+  if(!hintHost || !debugHost || !folderHost || !listHost || !input || !uploadBtn || !refreshBtn) return;
   const noteEntry = getCaseNoteEntry(record && record.id);
   const folderMeta = normalizeCaseAttachmentFolderMeta(noteEntry.attachmentFolder);
   const attachments = normalizeCaseAttachmentList(noteEntry.attachments);
+  const activeAttachments = getActiveCaseAttachments(attachments);
+  const documentScore = buildCaseDocumentScore(record);
   const permission = getCurrentPermissionState();
   const sharedReady = supportsSharedCaseAttachments();
   const canRefresh = Boolean(sharedReady && !appState.hasUnsyncedSharedChanges && !sharedSyncInFlight && !sharedAttachmentActionInFlight);
@@ -7941,6 +8627,13 @@ function renderCaseAttachments(record){
         ? 'Sube uno o varios archivos de sustento para este bloque o subactividad. Se guardarán en el backend compartido del visor.'
         : permission.detail))
     : (permissionSummary + ' | La carga operativa de sustento está disponible en la versión compartida de Apps Script. Aquí solo puedes consultar la lista sincronizada.');
+  if(shouldShowPermissionDebug(permission)){
+    debugHost.style.display = 'grid';
+    debugHost.innerHTML = buildPermissionDebugCard(permission);
+  }else{
+    debugHost.style.display = 'none';
+    debugHost.innerHTML = '';
+  }
   input.disabled = !sharedReady || !permission.canManageAttachments || sharedAttachmentActionInFlight;
   uploadBtn.disabled = !sharedReady || !canMutate;
   refreshBtn.disabled = !canRefresh;
@@ -7951,15 +8644,29 @@ function renderCaseAttachments(record){
         '<strong>Carpeta visible por registro</strong>' +
         '<span>' + escapeHtml(folderMeta.name || 'Carpeta de sustento del registro') + '</span>' +
         '<span>' + escapeHtml(folderMeta.recordLabel || 'Repositorio de sustento preparado para esta actividad.') + '</span>' +
+        '<span class="case-attachment-path">' + escapeHtml(folderMeta.logicalPath || 'Ruta lógica pendiente') + '</span>' +
+        '<div class="case-attachment-tags">' +
+          '<span class="doc-score-pill ' + escapeHtml(documentScore.classification) + '">' + escapeHtml(String(documentScore.score)) + '/100 · ' + escapeHtml(describeDocumentScoreClass(documentScore.classification)) + '</span>' +
+          (activeAttachments.length ? '<span class="attachment-tag good">Con sustento activo</span>' : '<span class="attachment-tag alert">Sin sustento</span>') +
+          (documentScore.missing.length ? '<span class="attachment-tag warn">Sustento incompleto</span>' : '') +
+        '</div>' +
         '<div class="case-attachment-actions">' +
           '<button type="button" class="secondary" data-attachment-folder-open="' + escapeHtml(folderMeta.url) + '">Abrir carpeta</button>' +
+          '<button type="button" class="ghost" id="copyCaseAttachmentPathBtn">Copiar ruta</button>' +
+          (permission.canExportSupportInventory ? '<button type="button" class="soft" id="exportCaseSupportInventoryBtn">Exportar inventario del caso</button>' : '') +
         '</div>';
     }else{
       folderHost.innerHTML =
         '<strong>Carpeta visible por registro</strong>' +
         '<span>Este registro aún no tiene una carpeta de sustento preparada en Drive.</span>' +
+        '<div class="case-attachment-tags">' +
+          '<span class="doc-score-pill ' + escapeHtml(documentScore.classification) + '">' + escapeHtml(String(documentScore.score)) + '/100 · ' + escapeHtml(describeDocumentScoreClass(documentScore.classification)) + '</span>' +
+          '<span class="attachment-tag alert">Sin carpeta Drive</span>' +
+          (!activeAttachments.length ? '<span class="attachment-tag alert">Sin sustento</span>' : '') +
+        '</div>' +
         '<div class="case-attachment-actions">' +
           '<button type="button" class="soft" id="prepareCaseAttachmentFolderBtn"' + (canMutate ? '' : ' disabled') + '>Preparar carpeta del registro</button>' +
+          (permission.canExportSupportInventory ? '<button type="button" class="ghost" id="exportCaseSupportInventoryBtn">Exportar inventario del caso</button>' : '') +
         '</div>';
     }
   }else{
@@ -7973,15 +8680,30 @@ function renderCaseAttachments(record){
     listHost.innerHTML = attachments.map(item => (
       '<div class="case-attachment-item">' +
         '<strong>' + escapeHtml(item.name) + '</strong>' +
+        '<div class="case-attachment-tags">' +
+          '<span class="attachment-tag ' + (normalizeCaseAttachmentStatus(item.status) === 'removed' ? 'alert' : 'good') + '">' + escapeHtml(describeAttachmentStatus(item.status)) + '</span>' +
+          '<span class="attachment-tag ' + (normalizeCaseAttachmentDocumentType(item.documentType) === 'unknown' ? 'warn' : '') + '">' + escapeHtml(describeAttachmentDocumentType(item.documentType)) + '</span>' +
+          (!text(item.folderId) ? '<span class="attachment-tag warn">Sin folderId</span>' : '') +
+          (!text(item.logicalPath) ? '<span class="attachment-tag warn">Sin ruta lógica</span>' : '') +
+        '</div>' +
         '<span class="case-attachment-meta">' + escapeHtml([
           formatFileSize(item.size),
           item.mimeType || 'Tipo no identificado',
           formatIsoDisplay(item.uploadedAt) || 'Sin fecha',
-          item.uploadedBy ? ('Subido por ' + item.uploadedBy) : 'Sin actor'
+          item.uploadedBy ? ('Subido por ' + item.uploadedBy) : 'Sin actor',
+          item.uploadedByEmail ? ('Correo ' + item.uploadedByEmail) : 'Sin correo verificado'
         ].filter(Boolean).join(' | ')) + '</span>' +
+        (text(item.logicalPath) ? '<span class="case-attachment-path">' + escapeHtml(item.logicalPath) + '</span>' : '') +
+        (normalizeCaseAttachmentStatus(item.status) === 'removed'
+          ? '<span class="case-attachment-meta">' + escapeHtml([
+              item.removedAt ? ('Retirado el ' + formatIsoDisplay(item.removedAt)) : 'Retirado',
+              item.removedBy ? ('por ' + item.removedBy) : '',
+              item.removedReason ? ('Motivo: ' + item.removedReason) : ''
+            ].filter(Boolean).join(' | ')) + '</span>'
+          : '') +
         '<div class="case-attachment-actions">' +
           (item.url ? '<button type="button" class="secondary" data-attachment-open="' + escapeHtml(item.url) + '">Abrir sustento</button>' : '') +
-          '<button type="button" class="ghost" data-attachment-delete="' + escapeHtml(item.id) + '"' + (permission.canRemoveAttachments && !appState.hasUnsyncedSharedChanges && !sharedSyncInFlight && !sharedAttachmentActionInFlight ? '' : ' disabled') + '>Retirar sustento</button>' +
+          '<button type="button" class="ghost" data-attachment-delete="' + escapeHtml(item.id) + '"' + (normalizeCaseAttachmentStatus(item.status) === 'active' && permission.canRemoveAttachments && !appState.hasUnsyncedSharedChanges && !sharedSyncInFlight && !sharedAttachmentActionInFlight ? '' : ' disabled') + '>Retirar sustento</button>' +
         '</div>' +
       '</div>'
     )).join('');
@@ -7990,10 +8712,10 @@ function renderCaseAttachments(record){
     if(permission.canManageAttachments){
       setCaseAttachmentFeedback(
         'Repositorio operativo',
-        attachments.length
-          ? ('Esta actividad tiene ' + attachments.length + ' archivo(s) de sustento disponibles en el backend compartido.')
-          : 'Esta actividad aún no tiene archivos de sustento registrados en el backend compartido.',
-        attachments.length ? 'success' : 'info'
+        activeAttachments.length
+          ? ('Esta actividad tiene ' + activeAttachments.length + ' archivo(s) de sustento activo(s) y score documental ' + documentScore.score + '/100.')
+          : 'Esta actividad aún no tiene archivos de sustento activos registrados en el backend compartido.',
+        activeAttachments.length ? 'success' : 'info'
       );
     }else{
       setCaseAttachmentFeedback(
@@ -8016,6 +8738,10 @@ function renderCaseAttachments(record){
   }
   const prepareBtn = document.getElementById('prepareCaseAttachmentFolderBtn');
   if(prepareBtn) prepareBtn.addEventListener('click', ensureCaseAttachmentFolder);
+  const exportCaseInventoryBtn = document.getElementById('exportCaseSupportInventoryBtn');
+  if(exportCaseInventoryBtn) exportCaseInventoryBtn.addEventListener('click', () => exportSupportInventory('json', text(record && record.id)));
+  const copyPathBtn = document.getElementById('copyCaseAttachmentPathBtn');
+  if(copyPathBtn) copyPathBtn.addEventListener('click', copyCurrentCaseAttachmentPath);
 }
 
 function readFileAsUploadPayload(file){
@@ -8041,6 +8767,7 @@ function readFileAsUploadPayload(file){
 }
 
 async function uploadCaseAttachments(){
+  if(blockPublicReadOnlyMutation('Carga bloqueada', 'La URL pública no puede cargar sustentos. Usa el visor de trabajo para registrar archivos documentales.')) return;
   if(!appState.selectedId) return;
   if(!supportsSharedCaseAttachments()){
     setCaseAttachmentFeedback('Carga no disponible', 'La carga de sustento solo está disponible en la versión compartida de Apps Script.', 'warn');
@@ -8080,6 +8807,7 @@ async function uploadCaseAttachments(){
   setCaseAttachmentFeedback('Subiendo sustento', 'Apps Script está cargando ' + files.length + ' archivo(s) de sustento para esta actividad.', 'info');
   try{
     const payload = await Promise.all(files.map(readFileAsUploadPayload));
+    const documentType = normalizeCaseAttachmentDocumentType(document.getElementById('caseAttachmentDocumentType')?.value);
     const selectedId = appState.selectedId;
     const identity = getCurrentActorIdentity();
     google.script.run
@@ -8104,7 +8832,7 @@ async function uploadCaseAttachments(){
         setImportFeedback('No se cargó el sustento', 'Apps Script no pudo registrar los archivos de sustento para esta actividad.', 'warn');
         setCaseAttachmentFeedback('No se cargó el sustento', 'Apps Script no pudo registrar los archivos de sustento para esta actividad.', 'warn');
       })
-      .uploadSharedTrackingAttachments(selectedId, payload, identity.actor);
+      .uploadSharedTrackingAttachments(selectedId, payload.map(item => ({...item, documentType})), identity.actor);
   }catch(error){
     sharedAttachmentActionInFlight = false;
     console.error('No se pudieron preparar los archivos de sustento.', error);
@@ -8143,6 +8871,7 @@ function refreshCurrentCaseAttachments(){
 }
 
 function ensureCaseAttachmentFolder(){
+  if(blockPublicReadOnlyMutation('Operación bloqueada', 'La URL pública no puede crear ni preparar carpetas documentales. Usa el visor de trabajo para esa tarea.')) return;
   if(!appState.selectedId) return;
   if(!supportsSharedCaseAttachments()){
     setCaseAttachmentFeedback('Carpeta no disponible', 'La carpeta de sustento por registro solo puede prepararse desde la versión compartida de Apps Script.', 'warn');
@@ -8188,6 +8917,7 @@ function ensureCaseAttachmentFolder(){
 }
 
 function removeCaseAttachment(attachmentId){
+  if(blockPublicReadOnlyMutation('Retiro bloqueado', 'La URL pública no puede retirar sustentos. Usa el visor de trabajo para administrar el repositorio documental.')) return;
   if(!appState.selectedId || !attachmentId) return;
   if(!supportsSharedCaseAttachments()){
     setCaseAttachmentFeedback('Retiro no disponible', 'Retirar sustento solo está disponible en la versión compartida de Apps Script.', 'warn');
@@ -8207,6 +8937,8 @@ function removeCaseAttachment(attachmentId){
   const target = attachments.find(item => item.id === attachmentId);
   if(!target) return;
   if(!window.confirm('¿Deseas retirar el sustento "' + target.name + '" de esta actividad?')) return;
+  const removedReason = window.prompt('Motivo de retiro del sustento', 'Retirado desde el visor compartido');
+  if(removedReason === null) return;
   sharedAttachmentActionInFlight = true;
   renderCaseAttachments(record || {id:appState.selectedId});
   setCaseAttachmentFeedback('Retirando sustento', 'Apps Script está retirando el archivo seleccionado del repositorio compartido.', 'info');
@@ -8234,7 +8966,7 @@ function removeCaseAttachment(attachmentId){
       setImportFeedback('No se retiró el sustento', 'Apps Script no pudo retirar el archivo de sustento de esta actividad.', 'warn');
       setCaseAttachmentFeedback('No se retiró el sustento', 'Apps Script no pudo retirar el archivo de sustento de esta actividad.', 'warn');
     })
-    .deleteSharedTrackingAttachment(selectedId, attachmentId, identity.actor);
+    .deleteSharedTrackingAttachment(selectedId, attachmentId, identity.actor, text(removedReason));
 }
 
 function handleCaseAttachmentListClick(event){
@@ -8340,6 +9072,7 @@ function collectSubtreeRecords(rootId){
 }
 
 function saveHeroModal(){
+  if(blockPublicReadOnlyMutation('Edición bloqueada', 'La URL pública no puede modificar la portada ejecutiva. Usa el visor de trabajo para editar y guardar cambios.')) return;
   const extras = text(document.getElementById('heroEditMetaExtra').value)
     .split('|')
     .map(value => value.trim())
@@ -8362,6 +9095,7 @@ function saveHeroModal(){
 }
 
 function resetHeroModal(){
+  if(blockPublicReadOnlyMutation('Restablecimiento bloqueado', 'La URL pública no puede restablecer la portada ni alterar el estado compartido.')) return;
   appState.hero = {...DEFAULT_HERO};
   saveHeroConfig();
   openHeroModal();
@@ -8371,6 +9105,7 @@ function resetHeroModal(){
 }
 
 function addLocalChildRecord(){
+  if(blockPublicReadOnlyMutation('Creación bloqueada', 'La URL pública no puede crear subactividades. Usa el visor de trabajo para operar la estructura.')) return;
   const activeFilters = getCurrentFilterSnapshot();
   hydrateData(appState.payload);
   const parentId = text(document.getElementById('addChildBtn')?.dataset.parentId) || appState.selectedId;
@@ -8491,6 +9226,7 @@ function addLocalChildRecord(){
 }
 
 function deleteCurrentSubactivity(){
+  if(blockPublicReadOnlyMutation('Eliminación bloqueada', 'La URL pública no puede eliminar subactividades ni modificar la jerarquía del visor.')) return;
   if(!appState.selectedId) return;
   const record = appState.raw.find(item => item.id === appState.selectedId);
   if(!record){
@@ -8545,6 +9281,7 @@ function deleteCurrentSubactivity(){
 }
 
 function saveCurrentCase(){
+  if(blockPublicReadOnlyMutation('Edición bloqueada', 'La URL pública no puede guardar cambios de ficha. Usa el visor de trabajo para editar y sincronizar el estado compartido.')) return;
   if(!appState.selectedId) return;
   const currentRecord = appState.raw.find(r => r.id === appState.selectedId);
   if(!currentRecord) return;
@@ -8693,6 +9430,7 @@ function saveCurrentCase(){
 }
 
 function clearCurrentCase(){
+  if(blockPublicReadOnlyMutation('Limpieza bloqueada', 'La URL pública no puede limpiar fichas ni alterar notas de seguimiento.')) return;
   if(!appState.selectedId) return;
   appendAudit('limpiar_ficha', appState.selectedId);
   const preservedNoteEntry = getCaseNoteEntry(appState.selectedId);
@@ -8719,6 +9457,7 @@ function clearCurrentCase(){
 
 function buildExecutiveReport(){
   const records = appState.matched.slice();
+  const metrics = buildVisibleMetrics(records);
   const total = records.length;
   const hero = appState.hero || DEFAULT_HERO;
   const q = text(document.getElementById('searchInput')?.value);
@@ -8783,6 +9522,9 @@ function buildExecutiveReport(){
   lines.push('- Criticos (vence <= 7 dias): ' + critical.length);
   lines.push('- Sin responsable: ' + withoutResponsible);
   lines.push('- Sin seguimiento DGPPCS: ' + withoutOwner);
+  lines.push('- Sin sustento activo: ' + metrics.withoutSupport);
+  lines.push('- Score documental promedio: ' + metrics.avgDocumentScore + '/100');
+  lines.push('- Registros documentales críticos: ' + metrics.documentCritical);
   lines.push('');
   lines.push('2. Lectura ejecutiva');
   if(!total){
@@ -8791,6 +9533,7 @@ function buildExecutiveReport(){
     lines.push('- El portafolio visible concentra ' + inProgress + ' frentes activos y ' + overdue.length + ' atrasos que requieren destrabe.');
     lines.push('- El riesgo principal se ubica en hitos con fecha proxima o vencida, especialmente cuando no hay responsable operativo claro.');
     lines.push('- El seguimiento local registrado cubre ' + records.filter(r => r.local_note || r.local_action).length + ' casos, lo que ayuda a sostener trazabilidad operativa y continuidad de gestión.');
+    lines.push('- La brecha documental visible afecta ' + metrics.documentGapRecords + ' registros, con un score promedio de ' + metrics.avgDocumentScore + '/100 y predominio de ' + metrics.topDocumentType.label + '.');
   }
   lines.push('');
   lines.push('3. Casos vencidos');
@@ -8852,6 +9595,9 @@ function buildExecutiveReport(){
       <li>Criticos (vence &lt;= 7 dias): ${critical.length}</li>
       <li>Sin responsable: ${withoutResponsible}</li>
       <li>Sin seguimiento DGPPCS: ${withoutOwner}</li>
+      <li>Sin sustento activo: ${metrics.withoutSupport}</li>
+      <li>Score documental promedio: ${metrics.avgDocumentScore}/100</li>
+      <li>Registros documentales críticos: ${metrics.documentCritical}</li>
     </ul>
     <h2>2. Casos vencidos</h2>
     ${overdue.length ? '<ul>' + overdue.slice(0,10).map(r => '<li>' + escapeHtml([displayTitle(r), fmtDate(r.final), r.seguimiento_dgppcs || r.responsable || 'Sin responsable'].filter(Boolean).join(' | ')) + '</li>').join('') + '</ul>' : '<p>No hay casos vencidos en la vista actual.</p>'}
@@ -8980,7 +9726,9 @@ function renderAnalytics(){
     ['Atrasados abiertos', metrics.overdue, metrics.overdue ? 'Requieren destrabe' : 'Sin atraso abierto'],
     ['Próximos vencimientos', metrics.upcoming.length, metrics.upcoming.length ? 'Vence <= 15 días' : 'Sin presión inmediata'],
     ['Sin responsable', metrics.withoutResponsible, metrics.withoutResponsible ? 'Pendiente de asignar' : 'Cobertura completa'],
-    ['Sin seguimiento', metrics.withoutOwner, metrics.withoutOwner ? 'Pendiente de seguimiento' : 'Cobertura completa']
+    ['Sin seguimiento', metrics.withoutOwner, metrics.withoutOwner ? 'Pendiente de seguimiento' : 'Cobertura completa'],
+    ['Score documental', metrics.avgDocumentScore + '/100', metrics.avgDocumentScore >= 80 ? 'Completitud sólida' : 'Completitud por reforzar'],
+    ['Críticos documentales', metrics.documentCritical, metrics.documentCritical ? 'Requieren completar sustento o metadata' : 'Sin criticidad visible']
   ].map(item =>
     '<article class="analytics-card"><span>' + escapeHtml(item[0]) + '</span><b>' + escapeHtml(item[1]) + '</b><small>' + escapeHtml(item[2]) + '</small></article>'
   ).join('');
@@ -8998,6 +9746,11 @@ function renderAnalytics(){
     kicker:'Carga',
     title:'Unidad con mayor concentración visible',
     body:metrics.topResponsible.label + ' | ' + metrics.topResponsible.count + ' casos'
+  });
+  narrative.push({
+    kicker:'Documentos',
+    title:'Tipo documental predominante',
+    body:metrics.topDocumentType.label + ' | ' + metrics.topDocumentType.activeAttachments + ' sustentos activos'
   });
   narrative.push({
     kicker:'Seguimiento',
@@ -9031,6 +9784,12 @@ function renderAnalytics(){
   }));
   const stateRows = groupCount(records, 'estado').map(item => ({label:item.label, value:item.count}));
   const alertRows = groupCount(records, 'alerta').map(item => ({label:alertLabel(item.label), value:item.count}));
+  const documentTypeRows = metrics.documentTypes.map(item => ({
+    label:item.label,
+    value:item.activeAttachments,
+    display:item.activeAttachments + ' activos / ' + item.totalAttachments + ' total',
+    preserve:true
+  }));
   const responsibleRows = metrics.byResponsible.map(item => ({label:item.label, value:item.count}));
   const ownerRows = metrics.byOwner.map(item => ({label:item.label, value:item.count}));
   const upcomingRows = records
@@ -9049,6 +9808,7 @@ function renderAnalytics(){
   renderBarHost('analyticsRisk', riskRows, Math.max(1, ...riskRows.map(item => item.value)), item => item.value ? 'red' : 'green');
   renderBarHost('analyticsState', stateRows, Math.max(1, ...stateRows.map(item => item.value)), item => statusBarClass(item.label));
   renderBarHost('analyticsAlerts', alertRows, Math.max(1, ...alertRows.map(item => item.value)), item => item.label.includes('Vencido') || item.label.includes('7') ? 'red' : item.label.includes('15') ? 'amber' : item.label.includes('Sin fecha') ? 'gray' : 'green');
+  renderBarHost('analyticsDocumentType', documentTypeRows, Math.max(1, ...documentTypeRows.map(item => item.value)), '');
   renderBarHost('analyticsResponsible', responsibleRows, Math.max(1, ...responsibleRows.map(item => item.value)), '');
   renderBarHost('analyticsOwner', ownerRows, Math.max(1, ...ownerRows.map(item => item.value)), '');
   renderBarHost('analyticsUpcoming', upcomingRows, 3, item => item.alert === 'vencido' || item.alert === 'critico' ? 'red' : 'amber');
@@ -9160,6 +9920,10 @@ function bindEvents(){
   document.getElementById('deleteAdminNightlySummaryTriggerBtn').addEventListener('click', deleteAdminNightlySummaryTrigger);
   document.getElementById('exportAuditBtn').addEventListener('click', exportAuditLog);
   document.getElementById('exportBackupBtn').addEventListener('click', exportLatestBackup);
+  document.getElementById('restoreLatestSnapshotBtn').addEventListener('click', restoreLatestSharedSnapshot);
+  document.getElementById('exportSupportInventoryJsonBtn').addEventListener('click', () => exportSupportInventory('json', ''));
+  document.getElementById('exportSupportInventoryCsvBtn').addEventListener('click', () => exportSupportInventory('csv', ''));
+  document.getElementById('exportSupportInventoryHtmlBtn').addEventListener('click', () => exportSupportInventory('html', ''));
   document.getElementById('addChildBtn').addEventListener('click', addLocalChildRecord);
   document.getElementById('deleteNodeBtn').addEventListener('click', deleteCurrentSubactivity);
   document.getElementById('saveCaseNoteBtn').addEventListener('click', saveCurrentCase);
@@ -9285,6 +10049,21 @@ function initFilters(){
 }
 
 function init(){
+  if(isPublicReadOnlyChannel()){
+    ensureServerInfo();
+    hydrateData();
+    renderHero();
+    initFilters();
+    ensureOperationsPanelPlacement();
+    setOperationsPanelCollapsed(loadOperationsPanelCollapsed());
+    restoreOperationsSectionState();
+    bindEvents();
+    applyFilters();
+    buildExecutiveReport();
+    startSharedStatePolling();
+    refreshPublicSharedState(true);
+    return;
+  }
   const fallbackMessage = resolveBootstrapFallbackMessage(SERVER_BOOTSTRAP_RESULT, SERVER_BOOTSTRAP);
   if(hasValidSharedBootstrapState(SERVER_BOOTSTRAP)){
     applySharedStateBundle(SERVER_BOOTSTRAP.state, {skipRenderHero:true});

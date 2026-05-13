@@ -13,6 +13,88 @@ Documentar el estado actual de permisos del visor según el código local del re
 - `Depende de Drive`: requiere permisos reales sobre archivos o carpetas.
 - `No verificable`: no hay evidencia suficiente en esta fase.
 
+## Modelo operativo vigente del doble canal
+
+Desde la estrategia vigente del visor, la operación ya no se organiza primero por subroles finos PMO, operador documental o auditor para el trabajo diario. Se organiza por canal:
+
+- `Canal de trabajo DGPPCS`:
+  - edición compartida;
+  - creación y eliminación operativa;
+  - carga y retiro documental;
+  - auditoría de cambios;
+  - snapshots versionados antes de mutaciones críticas;
+  - rollback reservado al administrador.
+- `Canal público de consulta`:
+  - solo lectura;
+  - mismo estado compartido;
+  - sin edición;
+  - sin creación ni eliminación;
+  - sin carga ni retiro documental;
+  - sin centro operativo sensible ni acciones admin.
+
+La administración sigue siendo una capacidad separada y no se concede por URL. El administrador conserva:
+
+- restauración de snapshots;
+- acceso a auditoría sensible;
+- centro operativo;
+- funciones de publicación, triggers y correos si siguen habilitadas en Apps Script.
+
+## Matriz vigente por canal
+
+| Acción | URL de trabajo DGPPCS | URL pública de consulta | Admin del trabajo | Notas |
+|---|---|---|---|---|
+| Ver visor y navegar casos | Permitido | Permitido | Permitido | Ambos canales leen el mismo estado compartido. |
+| Editar ficha | Permitido | Bloqueado | Permitido | La URL pública no debe mutar ni por UI ni por backend. |
+| Crear subactividad o cambios estructurales | Permitido | Bloqueado | Permitido | La separación depende del backend y del modo de canal. |
+| Eliminar subactividad | Permitido | Bloqueado | Permitido | La URL pública queda en solo lectura. |
+| Cargar varios sustentos | Permitido | Bloqueado | Permitido | La carga múltiple admite tipo documental común por operación. |
+| Retirar sustento | Permitido | Bloqueado | Permitido | El retiro sigue auditado y deja metadata histórica. |
+| Ver lista sincronizada de sustentos | Permitido | Permitido | Permitido | En público se muestra sin exponer mutaciones ni metadata sensible. |
+| Abrir archivo o carpeta sensible | Parcial | Bloqueado o redacted | Parcial | Depende de políticas Drive y de la redacción pública aplicada. |
+| Ver auditoría sensible | Bloqueado | Bloqueado | Permitido | Solo admin del canal de trabajo. |
+| Restaurar último snapshot | Bloqueado | Bloqueado | Permitido | Acción admin-only. |
+| Ver centro operativo | Bloqueado | Bloqueado | Permitido | Admin-only. |
+| Exportar reportes ejecutivos generales | Permitido | Permitido | Permitido | No implica mutación. |
+| Exportar inventario documental | Permitido | Bloqueado | Permitido | Se mantiene como salida del canal de trabajo. |
+
+## Tipos documentales mínimos vigentes
+
+La carga múltiple debe poder aplicar un tipo documental común a todos los archivos de una operación, incluyendo como mínimo:
+
+- `Informe`
+- `Oficio`
+- `Acta`
+- `Convenio`
+- `Evidencia`
+- `Norma`
+- `Ficha técnica`
+- `Resolución Ministerial`
+- `Resolución Directoral`
+- `Decreto Supremo`
+- `Expediente técnico`
+- `Otro`
+
+## Actualización de fase analítica mínima
+
+La versión actual del visor ya incorpora una capa analítica documental mínima sobre el doble canal:
+
+- catálogo canónico de tipos documentales;
+- inventario documental único por archivo;
+- resumen analítico por registro con:
+  - `scoreDocumental`;
+  - `clasificacionDocumental`;
+  - `brechasDocumentales`;
+  - `totalAttachments`;
+  - `activeAttachments`;
+  - `retiredAttachments`;
+- agregados por:
+  - tipo documental;
+  - responsable;
+  - seguimiento DGPPCS;
+  - bloque raíz.
+
+Las referencias posteriores del documento a "brecha vigente" sobre inventario exportable, clasificación mínima o score documental deben leerse como hallazgos históricos previos a esta implementación.
+
 ## Matriz actual
 
 | Acción | Local standalone | Usuario estándar sin sesión verificada | Actor declarado por URL | Correo verificado sin permiso operativo | Usuario operativo autorizado no admin | Admin por `PEC_VISOR_ADMIN_EMAILS` | Usuario con permisos Drive pero no admin del visor | Notas |

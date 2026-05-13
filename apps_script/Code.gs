@@ -95,7 +95,57 @@ const OPERATIONAL_DEFAULTS = {
 const SHARED_VISOR_CANONICAL_WEBAPP_BASE = 'https://script.google.com/macros/s/AKfycbwDO41v2ncg7p2rjvEjTCICeu8fJoAySOgSNAPe5arZnkK-gYtCH-FioX-jexhfW0k0/exec';
 const PANEL_PUBLIC_URL = 'https://dpardave-byte.github.io/PEC/';
 const PANEL_PUBLIC_VISOR_URL = 'https://dpardave-byte.github.io/PEC/visor_seguimiento_pec.html';
+const PANEL_PUBLIC_SHARED_VIEW_URL = 'https://dpardave-byte.github.io/PEC/visor_seguimiento_pec.html?channel=public';
 const PANEL_PUBLIC_VISOR_GUIDE_URL = 'https://dpardave-byte.github.io/PEC/guia-rapida-visor-pec-dgppcs.html';
+const SHARED_TRACKING_DOCUMENT_TYPE_CATALOG = [
+  'Informe',
+  'Oficio',
+  'Acta',
+  'Convenio',
+  'Evidencia',
+  'Norma',
+  'Ficha técnica',
+  'Resolución Ministerial',
+  'Resolución Directoral',
+  'Decreto Supremo',
+  'Expediente técnico',
+  'Otro'
+];
+const SHARED_TRACKING_DOCUMENT_TYPE_ALIASES = {
+  'informe': 'Informe',
+  'informe tecnico': 'Informe',
+  'oficio': 'Oficio',
+  'acta': 'Acta',
+  'convenio': 'Convenio',
+  'convenio marco': 'Convenio',
+  'evidencia': 'Evidencia',
+  'foto': 'Evidencia',
+  'fotografia': 'Evidencia',
+  'imagen': 'Evidencia',
+  'captura': 'Evidencia',
+  'norma': 'Norma',
+  'ficha tecnica': 'Ficha técnica',
+  'ficha': 'Ficha técnica',
+  'resolucion ministerial': 'Resolución Ministerial',
+  'resol ministerial': 'Resolución Ministerial',
+  'rm': 'Resolución Ministerial',
+  'resolucion directoral': 'Resolución Directoral',
+  'resol directoral': 'Resolución Directoral',
+  'rd': 'Resolución Directoral',
+  'decreto supremo': 'Decreto Supremo',
+  'ds': 'Decreto Supremo',
+  'expediente tecnico': 'Expediente técnico',
+  'exp tecnico': 'Expediente técnico',
+  'exp. tecnico': 'Expediente técnico',
+  'otro': 'Otro',
+  'otros': 'Otro',
+  'archivo': 'Otro',
+  'adjunto': 'Otro',
+  'pdf': 'Otro',
+  'word / doc': 'Otro',
+  'excel / sheet': 'Otro',
+  'plano': 'Otro'
+};
 
 function doGet(e) {
   const params = e && e.parameter ? e.parameter : {};
@@ -112,6 +162,12 @@ function doGet(e) {
   }
   if (params.action === 'visor_state') {
     return outputPayload_(getSharedTrackingState(), params);
+  }
+  if (params.action === 'visor_analytics') {
+    return outputPayload_(getSharedTrackingAnalyticalSummary(params.recordId), params);
+  }
+  if (params.action === 'visor_public_state') {
+    return outputPayload_(getSharedTrackingPublicState(), params);
   }
   if (params.action === 'visor_audit') {
     return outputPayload_(getSharedTrackingAudit(params.limit), params);
@@ -1291,6 +1347,19 @@ function getSharedTrackingState() {
   return buildSharedTrackingEnvelope_(state);
 }
 
+function getSharedTrackingPublicState() {
+  const state = loadSharedTrackingState_();
+  const safeState = buildSharedTrackingPublicState_(state);
+  return buildSharedTrackingEnvelope_(safeState, {
+    actor: '',
+    actorVerified: false,
+    actorSource: 'public_view',
+    declaredActor: '',
+    analytics: buildSharedTrackingAnalyticalSummary_(state, {}),
+    backend: buildSharedTrackingPublicBackendMeta_()
+  });
+}
+
 function saveSharedTrackingState(bundle, actorName, action) {
   const previous = loadSharedTrackingState_();
   const actorInfo = resolveSharedTrackingPermissionContext_(actorName);
@@ -1338,6 +1407,7 @@ function saveSharedTrackingState(bundle, actorName, action) {
       backend: getSharedTrackingBackendMeta_(actorInfo)
     });
   }
+  writeSharedTrackingSnapshot_(previous, actorInfo, String(action || 'guardar_estado_compartido'), 'before_save');
   const next = normalizeSharedTrackingStateBundle_(bundle, previous);
   next.revision = Number(previous.revision || 0) + 1;
   next.savedAt = new Date().toISOString();
@@ -1503,10 +1573,11 @@ function uploadSharedTrackingAttachments(recordId, uploads, actorName) {
   }
   return withSharedTrackingAttachmentMutationLock_(previous, actorInfo, 'cargar_sustento', function() {
     const latest = loadSharedTrackingState_();
+    writeSharedTrackingSnapshot_(latest, actorInfo, 'cargar_sustento', 'before_mutation');
     const recordMeta = getSharedTrackingRecordMetaForState_(latest, safeRecordId);
     const noteEntry = normalizeSharedTrackingNoteEntry_(latest.notes && latest.notes[safeRecordId]);
     const folder = getOrCreateBackendRecordAttachmentFolder_(recordMeta);
-    const folderMeta = buildSharedTrackingAttachmentFolderMeta_(folder, recordMeta);
+    const folderMeta = buildSharedTrackingAttachmentFolderMeta_(folder, recordMeta, actorInfo, noteEntry.attachmentFolder);
     const uploadedAt = new Date().toISOString();
     const uploaded = safeUploads.map(function(upload) {
       const storedName = buildSharedTrackingStoredAttachmentName_(upload.name);
@@ -1526,9 +1597,20 @@ function uploadSharedTrackingAttachments(recordId, uploads, actorName) {
         mimeType: String(file.getMimeType() || upload.mimeType || 'application/octet-stream'),
         size: Number(upload.size || file.getSize() || 0),
         fileId: file.getId(),
+        folderId: folderMeta && folderMeta.folderId ? folderMeta.folderId : '',
+        folderUrl: folderMeta && folderMeta.folderUrl ? folderMeta.folderUrl : '',
         url: file.getUrl(),
+        logicalPath: buildSharedTrackingLogicalPath_(folderMeta && folderMeta.folderName ? folderMeta.folderName : '', storedName),
+        documentType: normalizeSharedTrackingDocumentType_(upload.documentType),
+        status: 'active',
         uploadedAt: uploadedAt,
-        uploadedBy: actorInfo.actor
+        uploadedBy: actorInfo.actor,
+        uploadedByEmail: String(actorInfo.email || '').trim(),
+        actorSource: String(actorInfo.source || '').trim(),
+        actorVerified: Boolean(actorInfo.verified),
+        removedAt: '',
+        removedBy: '',
+        removedReason: ''
       };
     });
     const nextNotes = Object.assign({}, latest.notes || {});
@@ -1587,10 +1669,11 @@ function ensureSharedTrackingAttachmentFolder(recordId, actorName) {
   }
   return withSharedTrackingAttachmentMutationLock_(previous, actorInfo, 'preparar_carpeta_sustento', function() {
     const latest = loadSharedTrackingState_();
+    writeSharedTrackingSnapshot_(latest, actorInfo, 'preparar_carpeta_sustento', 'before_mutation');
     const recordMeta = getSharedTrackingRecordMetaForState_(latest, safeRecordId);
     const noteEntry = normalizeSharedTrackingNoteEntry_(latest.notes && latest.notes[safeRecordId]);
     const folder = getOrCreateBackendRecordAttachmentFolder_(recordMeta);
-    const folderMeta = buildSharedTrackingAttachmentFolderMeta_(folder, recordMeta);
+    const folderMeta = buildSharedTrackingAttachmentFolderMeta_(folder, recordMeta, actorInfo, noteEntry.attachmentFolder);
     const currentFolderId = String(noteEntry.attachmentFolder && noteEntry.attachmentFolder.folderId || '').trim();
     if (currentFolderId === folderMeta.folderId) {
       return buildSharedTrackingEnvelope_(latest, {
@@ -1624,7 +1707,7 @@ function ensureSharedTrackingAttachmentFolder(recordId, actorName) {
   });
 }
 
-function deleteSharedTrackingAttachment(recordId, attachmentId, actorName) {
+function deleteSharedTrackingAttachment(recordId, attachmentId, actorName, removedReason) {
   const previous = loadSharedTrackingState_();
   const actorInfo = resolveSharedTrackingPermissionContext_(actorName);
   if (!actorInfo.canRemoveAttachments) {
@@ -1655,6 +1738,7 @@ function deleteSharedTrackingAttachment(recordId, attachmentId, actorName) {
   }
   return withSharedTrackingAttachmentMutationLock_(previous, actorInfo, 'retirar_sustento', function() {
     const latest = loadSharedTrackingState_();
+    writeSharedTrackingSnapshot_(latest, actorInfo, 'retirar_sustento', 'before_mutation');
     const noteEntry = normalizeSharedTrackingNoteEntry_(latest.notes && latest.notes[safeRecordId]);
     const attachments = Array.isArray(noteEntry.attachments) ? noteEntry.attachments.slice() : [];
     const targetIndex = attachments.findIndex(function(item) {
@@ -1671,8 +1755,27 @@ function deleteSharedTrackingAttachment(recordId, attachmentId, actorName) {
         backend: getSharedTrackingBackendMeta_(actorInfo)
       });
     }
-    const removed = attachments[targetIndex];
-    attachments.splice(targetIndex, 1);
+    const currentRemoved = normalizeSharedTrackingAttachmentMeta_(attachments[targetIndex]);
+    if (currentRemoved && currentRemoved.status === 'removed') {
+      return buildSharedTrackingEnvelope_(latest, {
+        ok: false,
+        message: 'El sustento solicitado ya fue retirado previamente de esta ficha.',
+        actor: actorInfo.actor,
+        actorVerified: actorInfo.verified,
+        actorSource: actorInfo.source,
+        declaredActor: actorInfo.declaredActor,
+        backend: getSharedTrackingBackendMeta_(actorInfo)
+      });
+    }
+    const removalStamp = new Date().toISOString();
+    const safeRemovedReason = String(removedReason || '').trim() || 'Retirado desde el visor compartido';
+    const removed = Object.assign({}, currentRemoved || {}, {
+      status: 'removed',
+      removedAt: removalStamp,
+      removedBy: String(actorInfo.actor || '').trim(),
+      removedReason: safeRemovedReason
+    });
+    attachments[targetIndex] = removed;
     const nextNotes = Object.assign({}, latest.notes || {});
     if (attachments.length || String(noteEntry.note || '').trim() || String(noteEntry.action || '').trim() || hasSharedTrackingAttachmentFolderMeta_(noteEntry.attachmentFolder)) {
       nextNotes[safeRecordId] = Object.assign({}, noteEntry, {
@@ -1683,7 +1786,7 @@ function deleteSharedTrackingAttachment(recordId, attachmentId, actorName) {
     }
     const next = normalizeSharedTrackingStateBundle_(Object.assign({}, latest, { notes: nextNotes }), latest);
     next.revision = Number(latest.revision || 0) + 1;
-    next.savedAt = new Date().toISOString();
+    next.savedAt = removalStamp;
     next.savedBy = actorInfo.actor;
     const recordMeta = getSharedTrackingRecordMetaForState_(latest, safeRecordId);
     writeSharedTrackingState_(next);
@@ -1996,6 +2099,473 @@ function buildSharedTrackingAuditRecordLabelMeta_(id, record, alias, deleted) {
   };
 }
 
+function getSharedTrackingEffectiveRecordsForState_(state) {
+  const safeState = state && typeof state === 'object' ? state : buildDefaultSharedTrackingState_();
+  const payload = safeState.payload && Array.isArray(safeState.payload.records) ? safeState.payload.records : [];
+  const customRecords = Array.isArray(safeState.customRecords) ? safeState.customRecords : [];
+  const edits = safeState.edits && typeof safeState.edits === 'object' ? safeState.edits : {};
+  const aliases = safeState.aliases && typeof safeState.aliases === 'object' ? safeState.aliases : {};
+  const notes = safeState.notes && typeof safeState.notes === 'object' ? safeState.notes : {};
+  const sourceById = {};
+  payload.concat(customRecords).forEach(function(record) {
+    const id = String(record && record.id || '').trim();
+    if (!id) return;
+    sourceById[id] = record;
+  });
+  const ids = {};
+  Object.keys(sourceById).forEach(function(id) { ids[id] = true; });
+  Object.keys(edits).forEach(function(id) { ids[id] = true; });
+  Object.keys(aliases).forEach(function(id) { ids[id] = true; });
+  Object.keys(notes).forEach(function(id) { ids[id] = true; });
+  return Object.keys(ids).map(function(id) {
+    const source = sourceById[id] && typeof sourceById[id] === 'object' ? sourceById[id] : {};
+    const edit = edits[id] && typeof edits[id] === 'object' ? edits[id] : {};
+    const noteEntry = normalizeSharedTrackingNoteEntry_(notes[id]);
+    const recordMeta = buildSharedTrackingAuditRecordLabelMeta_(id, Object.assign({}, source, edit), aliases[id], Boolean(edit.__deleted));
+    if (edit.__deleted && !(noteEntry.attachments && noteEntry.attachments.length) && !hasSharedTrackingAttachmentFolderMeta_(noteEntry.attachmentFolder)) {
+      return null;
+    }
+    return {
+      id: id,
+      edt: String(recordMeta.edt || '').trim(),
+      actividad: String(recordMeta.activity || source.actividad || source.resumen || '').trim(),
+      tituloVisible: String(recordMeta.label || '').trim(),
+      parentEdt: String(edit.parent_edt || source.parent_edt || '').trim(),
+      group: String(edit.grupo || source.grupo || '').trim(),
+      seguimientoDgppcs: String(edit.seguimiento_dgppcs || source.seguimiento_dgppcs || '').trim(),
+      territorio: String(edit.territorio || source.territorio || '').trim(),
+      responsable: String(edit.responsable || source.responsable || '').trim(),
+      estado: String(edit.estado || source.estado || '').trim(),
+      deleted: Boolean(edit.__deleted),
+      attachmentFolder: normalizeSharedTrackingAttachmentFolderMeta_(noteEntry.attachmentFolder),
+      attachments: normalizeSharedTrackingAttachmentList_(noteEntry.attachments)
+    };
+  }).filter(Boolean);
+}
+
+function buildSharedTrackingSupportInventoryRows_(state, recordId) {
+  const safeRecordId = String(recordId || '').trim();
+  const rows = [];
+  getSharedTrackingEffectiveRecordsForState_(state).forEach(function(record) {
+    if (safeRecordId && record.id !== safeRecordId) return;
+    const scoreMeta = computeSharedTrackingDocumentScore_(record);
+    const attachments = Array.isArray(record.attachments) ? record.attachments : [];
+    const rootBlock = getSharedTrackingRootBlock_(record.edt);
+    const rootBlockLabel = buildSharedTrackingRootBlockLabel_(rootBlock, record);
+    attachments.forEach(function(item) {
+      rows.push({
+        recordId: String(record.id || '').trim(),
+        EDT: String(record.edt || '').trim(),
+        rootBlock: rootBlock,
+        rootBlockLabel: rootBlockLabel,
+        actividad: String(record.actividad || '').trim(),
+        territorio: String(record.territorio || '').trim(),
+        responsable: String(record.responsable || '').trim(),
+        seguimientoDgppcs: String(record.seguimientoDgppcs || '').trim(),
+        estadoRegistro: String(record.estado || '').trim(),
+        scoreDocumental: Number(scoreMeta.score || 0),
+        clasificacionDocumental: String(scoreMeta.classification || '').trim(),
+        brechasDocumentales: (Array.isArray(scoreMeta.missing) ? scoreMeta.missing : []).join('; '),
+        fileName: String(item.name || '').trim(),
+        documentType: String(item.documentType || 'unknown').trim(),
+        documentTypeLabel: describeSharedTrackingDocumentType_(item.documentType),
+        status: String(item.status || 'active').trim(),
+        fileUrl: String(item.url || '').trim(),
+        folderUrl: String(item.folderUrl || (record.attachmentFolder && record.attachmentFolder.folderUrl) || '').trim(),
+        logicalPath: String(item.logicalPath || (record.attachmentFolder && record.attachmentFolder.logicalPath) || '').trim(),
+        uploadedAt: String(item.uploadedAt || '').trim(),
+        uploadedBy: String(item.uploadedBy || '').trim(),
+        uploadedByEmail: String(item.uploadedByEmail || '').trim(),
+        removedAt: String(item.removedAt || '').trim(),
+        removedBy: String(item.removedBy || '').trim(),
+        removedReason: String(item.removedReason || '').trim()
+      });
+    });
+  });
+  return rows;
+}
+
+function computeSharedTrackingDocumentScore_(record) {
+  const safeRecord = record && typeof record === 'object' ? record : {};
+  const folderMeta = normalizeSharedTrackingAttachmentFolderMeta_(safeRecord.attachmentFolder);
+  const attachments = normalizeSharedTrackingAttachmentList_(safeRecord.attachments);
+  const activeAttachments = attachments.filter(function(item) {
+    return normalizeSharedTrackingAttachmentStatus_(item && item.status) === 'active';
+  });
+  const missing = [];
+  let score = 0;
+  if (folderMeta && folderMeta.folderId) {
+    score += 20;
+  } else {
+    missing.push('sin_carpeta_drive');
+  }
+  if (activeAttachments.length) {
+    score += 20;
+  } else {
+    missing.push('sin_sustento_activo');
+  }
+  if (activeAttachments.length && activeAttachments.every(function(item) { return normalizeSharedTrackingDocumentType_(item.documentType) !== 'unknown'; })) {
+    score += 15;
+  } else {
+    missing.push('sin_tipo_documental');
+  }
+  if (activeAttachments.length && activeAttachments.every(function(item) { return String(item.uploadedBy || '').trim() && String(item.uploadedByEmail || '').trim(); })) {
+    score += 15;
+  } else {
+    missing.push('sin_actor_correo');
+  }
+  if (activeAttachments.length && activeAttachments.every(function(item) { return String(item.uploadedAt || '').trim(); })) {
+    score += 10;
+  } else {
+    missing.push('sin_fecha_carga');
+  }
+  if ((folderMeta && String(folderMeta.logicalPath || '').trim()) || (activeAttachments.length && activeAttachments.every(function(item) { return String(item.logicalPath || '').trim(); }))) {
+    score += 10;
+  } else {
+    missing.push('sin_ruta_logica');
+  }
+  if (activeAttachments.length && activeAttachments.every(function(item) {
+    return String(item.fileId || '').trim() &&
+      String(item.url || '').trim() &&
+      String(item.folderId || (folderMeta && folderMeta.folderId) || '').trim() &&
+      String(item.folderUrl || (folderMeta && folderMeta.folderUrl) || '').trim();
+  })) {
+    score += 10;
+  } else {
+    missing.push('metadata_critica_incompleta');
+  }
+  let classification = 'critico';
+  if (score >= 80) {
+    classification = 'completo';
+  } else if (score >= 60) {
+    classification = 'aceptable';
+  } else if (score >= 40) {
+    classification = 'incompleto';
+  }
+  return {
+    score: score,
+    classification: classification,
+    missing: missing,
+    activeAttachments: activeAttachments.length,
+    retiredAttachments: attachments.filter(function(item) {
+      return normalizeSharedTrackingAttachmentStatus_(item && item.status) === 'removed';
+    }).length,
+    totalAttachments: attachments.length,
+    hasFolder: Boolean(folderMeta && folderMeta.folderId)
+  };
+}
+
+function getSharedTrackingDocumentScores() {
+  const state = loadSharedTrackingState_();
+  const permission = resolveSharedTrackingPermissionContext_('');
+  const analytics = buildSharedTrackingAnalyticalSummary_(state, {});
+  return buildSharedTrackingEnvelope_(state, {
+    records: analytics.records,
+    actor: permission.actor,
+    actorVerified: permission.verified,
+    actorSource: permission.source,
+    declaredActor: permission.declaredActor,
+    analytics: analytics,
+    backend: getSharedTrackingBackendMeta_(permission)
+  });
+}
+
+function getSharedTrackingAnalyticalSummary(recordId) {
+  const state = loadSharedTrackingState_();
+  const permission = resolveSharedTrackingPermissionContext_('');
+  const analytics = buildSharedTrackingAnalyticalSummary_(state, { recordId: recordId });
+  return {
+    ok: true,
+    mode: 'apps_script',
+    actor: permission.actor,
+    actorVerified: permission.verified,
+    actorSource: permission.source,
+    declaredActor: permission.declaredActor,
+    analytics: analytics,
+    backend: getSharedTrackingBackendMeta_(permission)
+  };
+}
+
+function getSharedTrackingSupportInventory(recordId) {
+  const state = loadSharedTrackingState_();
+  const permission = resolveSharedTrackingPermissionContext_('');
+  if (!permission.canExportSupportInventory) {
+    return buildSharedTrackingPermissionDeniedEnvelope_(
+      state,
+      permission,
+      'El inventario de sustentos solo está disponible para administradores, PMO o auditoría verificada.',
+      {
+        action: 'intento_exportar_inventario_sustentos_bloqueado',
+        origin: 'inventario_sustentos'
+      }
+    );
+  }
+  const rows = buildSharedTrackingSupportInventoryRows_(state, recordId);
+  appendSharedTrackingAudit_({
+    at: new Date().toISOString(),
+    actor: String(permission.actor || '').trim(),
+    actorEmail: String(permission.email || '').trim(),
+    actorSource: String(permission.source || 'missing').trim() || 'missing',
+    actorVerified: Boolean(permission.verified),
+    declaredActor: String(permission.declaredActor || '').trim(),
+    action: 'exportar_inventario_sustentos',
+    origin: 'inventario_sustentos',
+    permissionRole: String(permission.permissionRole || 'viewer').trim() || 'viewer',
+    message: 'Se generó el inventario de sustentos ' + (recordId ? ('para ' + String(recordId)) : 'global') + '.',
+    summary: { total: rows.length, bySection: { attachments: rows.length } }
+  });
+  return buildSharedTrackingEnvelope_(state, {
+    rows: rows,
+    actor: permission.actor,
+    actorVerified: permission.verified,
+    actorSource: permission.source,
+    declaredActor: permission.declaredActor,
+    backend: getSharedTrackingBackendMeta_(permission)
+  });
+}
+
+function exportSharedTrackingSupportInventory(format, recordId) {
+  const response = getSharedTrackingSupportInventory(recordId);
+  if (!response || response.ok === false) return response;
+  const rows = Array.isArray(response.rows) ? response.rows : [];
+  const safeFormat = String(format || 'json').trim().toLowerCase();
+  const scope = String(recordId || '').trim() ? ('caso_' + String(recordId || '').trim()) : 'global';
+  const stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd_HHmmss');
+  let content = '';
+  let mimeType = 'application/json;charset=utf-8';
+  let extension = 'json';
+  if (safeFormat === 'csv') {
+    mimeType = 'text/csv;charset=utf-8';
+    extension = 'csv';
+    content = buildSharedTrackingSupportInventoryCsv_(rows);
+  } else if (safeFormat === 'html') {
+    mimeType = 'text/html;charset=utf-8';
+    extension = 'html';
+    content = buildSharedTrackingSupportInventoryHtml_(rows, scope);
+  } else {
+    content = JSON.stringify(rows, null, 2);
+  }
+  return {
+    ok: true,
+    content: content,
+    mimeType: mimeType,
+    fileName: 'inventario_sustentos_pec_' + scope + '_' + stamp + '.' + extension,
+    rows: rows,
+    backend: response.backend
+  };
+}
+
+function buildSharedTrackingSupportInventoryCsv_(rows) {
+  const headers = [
+    'recordId', 'EDT', 'rootBlock', 'rootBlockLabel', 'actividad', 'territorio', 'responsable', 'seguimientoDgppcs', 'estadoRegistro',
+    'scoreDocumental', 'clasificacionDocumental', 'brechasDocumentales', 'fileName', 'documentType', 'documentTypeLabel', 'status',
+    'fileUrl', 'folderUrl', 'logicalPath', 'uploadedAt', 'uploadedBy', 'uploadedByEmail',
+    'removedAt', 'removedBy', 'removedReason'
+  ];
+  return [headers.join(',')].concat((Array.isArray(rows) ? rows : []).map(function(row) {
+    return headers.map(function(key) {
+      const value = row && Object.prototype.hasOwnProperty.call(row, key) ? row[key] : '';
+      const text = String(value == null ? '' : value).replace(/"/g, '""');
+      return '"' + text + '"';
+    }).join(',');
+  })).join('\n');
+}
+
+function buildSharedTrackingSupportInventoryHtml_(rows, scope) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const heading = String(scope || 'global').trim() === 'global'
+    ? 'Inventario global de sustentos PEC'
+    : 'Inventario de sustentos por caso PEC';
+  const tableRows = safeRows.map(function(row) {
+    return '<tr>' + [
+      'recordId', 'EDT', 'rootBlock', 'rootBlockLabel', 'actividad', 'territorio', 'responsable', 'seguimientoDgppcs', 'estadoRegistro',
+      'scoreDocumental', 'clasificacionDocumental', 'brechasDocumentales', 'fileName', 'documentTypeLabel', 'status',
+      'logicalPath', 'uploadedAt', 'uploadedBy', 'uploadedByEmail', 'removedAt', 'removedBy', 'removedReason'
+    ].map(function(key) {
+      return '<td>' + escapeHtmlEmail_(row && row[key] != null ? row[key] : '') + '</td>';
+    }).join('') + '</tr>';
+  }).join('');
+  return '<!doctype html><html><head><meta charset="utf-8"><title>' + escapeHtmlEmail_(heading) + '</title>' +
+    '<style>body{font-family:Arial,Helvetica,sans-serif;padding:24px;color:#102132}table{border-collapse:collapse;width:100%}th,td{border:1px solid #d9e2ec;padding:8px;font-size:12px;text-align:left;vertical-align:top}th{background:#eef4f8}</style>' +
+    '</head><body><h1>' + escapeHtmlEmail_(heading) + '</h1><p>Total de filas: ' + safeRows.length + '</p><table><thead><tr>' +
+    ['Record ID', 'EDT', 'Bloque raíz', 'Etiqueta bloque raíz', 'Actividad', 'Territorio', 'Responsable', 'Seguimiento DGPPCS', 'Estado registro', 'Score', 'Clasificación', 'Brechas documentales', 'Archivo', 'Tipo documental', 'Estado', 'Ruta lógica', 'Subido el', 'Subido por', 'Correo verificado', 'Retirado el', 'Retirado por', 'Motivo retiro']
+      .map(function(label) { return '<th>' + escapeHtmlEmail_(label) + '</th>'; }).join('') +
+    '</tr></thead><tbody>' + tableRows + '</tbody></table></body></html>';
+}
+
+function buildSharedTrackingAnalyticalSummary_(state, options) {
+  const safeState = normalizeSharedTrackingStateBundle_(state, buildDefaultSharedTrackingState_());
+  const settings = options && typeof options === 'object' ? options : {};
+  const safeRecordId = String(settings.recordId || '').trim();
+  const records = getSharedTrackingEffectiveRecordsForState_(safeState)
+    .filter(function(record) { return !safeRecordId || String(record.id || '').trim() === safeRecordId; });
+  const rootLabelMap = buildSharedTrackingRootBlockLabelMap_(records);
+  const recordSummaries = records.map(function(record) {
+    return buildSharedTrackingRecordAnalyticalSummary_(record, rootLabelMap);
+  });
+  const inventoryRows = buildSharedTrackingSupportInventoryRows_(safeState, safeRecordId);
+  return {
+    generatedAt: new Date().toISOString(),
+    documentTypeCatalog: getSharedTrackingDocumentTypeCatalog_().concat(['Sin clasificar']),
+    inventorySummary: {
+      totalRows: inventoryRows.length,
+      activeRows: inventoryRows.filter(function(row) { return String(row.status || 'active').trim() === 'active'; }).length,
+      retiredRows: inventoryRows.filter(function(row) { return String(row.status || 'active').trim() === 'removed'; }).length
+    },
+    records: recordSummaries,
+    aggregatesByDocumentType: aggregateSharedTrackingByDocumentType_(inventoryRows),
+    aggregatesByResponsible: aggregateSharedTrackingByAssignment_(recordSummaries, 'responsable', splitTrackingEntities_, 'Sin responsable'),
+    aggregatesBySeguimiento: aggregateSharedTrackingByAssignment_(recordSummaries, 'seguimientoDgppcs', splitTrackingPeople_, 'Sin seguimiento DGPPCS'),
+    aggregatesByRootBlock: aggregateSharedTrackingByRootBlock_(recordSummaries, rootLabelMap)
+  };
+}
+
+function buildSharedTrackingRecordAnalyticalSummary_(record, rootLabelMap) {
+  const safeRecord = record && typeof record === 'object' ? record : {};
+  const scoreMeta = computeSharedTrackingDocumentScore_(safeRecord);
+  const rootBlock = getSharedTrackingRootBlock_(safeRecord.edt);
+  return {
+    recordId: String(safeRecord.id || '').trim(),
+    edt: String(safeRecord.edt || '').trim(),
+    actividad: String(safeRecord.actividad || safeRecord.tituloVisible || '').trim(),
+    responsable: String(safeRecord.responsable || '').trim(),
+    seguimientoDgppcs: String(safeRecord.seguimientoDgppcs || '').trim(),
+    rootBlock: rootBlock,
+    rootBlockLabel: String((rootLabelMap && rootLabelMap[rootBlock]) || buildSharedTrackingRootBlockLabel_(rootBlock, safeRecord)).trim(),
+    scoreDocumental: Number(scoreMeta.score || 0),
+    clasificacionDocumental: String(scoreMeta.classification || '').trim() || 'critico',
+    brechasDocumentales: Array.isArray(scoreMeta.missing) ? scoreMeta.missing.slice() : [],
+    totalAttachments: Number(scoreMeta.totalAttachments || 0),
+    activeAttachments: Number(scoreMeta.activeAttachments || 0),
+    retiredAttachments: Number(scoreMeta.retiredAttachments || 0)
+  };
+}
+
+function aggregateSharedTrackingByDocumentType_(rows) {
+  const map = {};
+  (Array.isArray(rows) ? rows : []).forEach(function(row) {
+    const label = describeSharedTrackingDocumentType_(row && row.documentType);
+    if (!map[label]) {
+      map[label] = {
+        label: label,
+        totalAttachments: 0,
+        activeAttachments: 0,
+        retiredAttachments: 0,
+        recordIds: {}
+      };
+    }
+    const bucket = map[label];
+    bucket.totalAttachments += 1;
+    if (String(row && row.status || 'active').trim() === 'removed') {
+      bucket.retiredAttachments += 1;
+    } else {
+      bucket.activeAttachments += 1;
+    }
+    const recordId = String(row && row.recordId || '').trim();
+    if (recordId) bucket.recordIds[recordId] = true;
+  });
+  return Object.keys(map).map(function(label) {
+    const bucket = map[label];
+    return {
+      label: label,
+      totalAttachments: bucket.totalAttachments,
+      activeAttachments: bucket.activeAttachments,
+      retiredAttachments: bucket.retiredAttachments,
+      recordCount: Object.keys(bucket.recordIds).length
+    };
+  }).sort(function(left, right) {
+    return right.activeAttachments - left.activeAttachments ||
+      right.totalAttachments - left.totalAttachments ||
+      String(left.label || '').localeCompare(String(right.label || ''), 'es');
+  });
+}
+
+function aggregateSharedTrackingByAssignment_(records, key, splitter, fallbackLabel) {
+  const map = {};
+  (Array.isArray(records) ? records : []).forEach(function(record) {
+    const items = typeof splitter === 'function'
+      ? splitter(record && record[key])
+      : [String(record && record[key] || '').trim()].filter(Boolean);
+    const safeItems = items.length ? items : [String(fallbackLabel || 'Sin dato').trim() || 'Sin dato'];
+    safeItems.forEach(function(label) {
+      const safeLabel = String(label || '').trim() || String(fallbackLabel || 'Sin dato').trim() || 'Sin dato';
+      map[safeLabel] = (map[safeLabel] || 0) + 1;
+    });
+  });
+  return Object.keys(map).map(function(label) {
+    return { label: label, count: map[label] };
+  }).sort(function(left, right) {
+    return right.count - left.count || String(left.label || '').localeCompare(String(right.label || ''), 'es');
+  });
+}
+
+function aggregateSharedTrackingByRootBlock_(records, rootLabelMap) {
+  const map = {};
+  (Array.isArray(records) ? records : []).forEach(function(record) {
+    const rootBlock = String(record && record.rootBlock || '').trim();
+    if (!rootBlock) return;
+    if (!map[rootBlock]) {
+      map[rootBlock] = {
+        rootBlock: rootBlock,
+        label: String((rootLabelMap && rootLabelMap[rootBlock]) || buildSharedTrackingRootBlockLabel_(rootBlock, record)).trim(),
+        count: 0,
+        scoreTotal: 0,
+        criticalCount: 0,
+        withoutSupportCount: 0,
+        withoutFolderCount: 0
+      };
+    }
+    const bucket = map[rootBlock];
+    bucket.count += 1;
+    bucket.scoreTotal += Number(record && record.scoreDocumental || 0);
+    if (String(record && record.clasificacionDocumental || '').trim() === 'critico') bucket.criticalCount += 1;
+    if (!(Number(record && record.activeAttachments || 0) > 0)) bucket.withoutSupportCount += 1;
+    if (Array.isArray(record && record.brechasDocumentales) && record.brechasDocumentales.indexOf('sin_carpeta_drive') >= 0) {
+      bucket.withoutFolderCount += 1;
+    }
+  });
+  return Object.keys(map).map(function(rootBlock) {
+    const bucket = map[rootBlock];
+    return {
+      rootBlock: bucket.rootBlock,
+      label: bucket.label,
+      count: bucket.count,
+      avgScoreDocumental: bucket.count ? Math.round(bucket.scoreTotal / bucket.count) : 0,
+      criticalCount: bucket.criticalCount,
+      withoutSupportCount: bucket.withoutSupportCount,
+      withoutFolderCount: bucket.withoutFolderCount
+    };
+  }).sort(function(left, right) {
+    return Number(left.rootBlock || 0) - Number(right.rootBlock || 0) ||
+      String(left.rootBlock || '').localeCompare(String(right.rootBlock || ''), 'es');
+  });
+}
+
+function buildSharedTrackingRootBlockLabelMap_(records) {
+  const map = {};
+  (Array.isArray(records) ? records : []).forEach(function(record) {
+    const edt = String(record && record.edt || '').trim();
+    const rootBlock = getSharedTrackingRootBlock_(edt);
+    if (!rootBlock || map[rootBlock]) return;
+    if (edt === rootBlock) {
+      map[rootBlock] = buildSharedTrackingRootBlockLabel_(rootBlock, record);
+    }
+  });
+  return map;
+}
+
+function buildSharedTrackingRootBlockLabel_(rootBlock, record) {
+  const safeRoot = String(rootBlock || '').trim();
+  if (!safeRoot) return '';
+  const safeRecord = record && typeof record === 'object' ? record : {};
+  const activity = String(safeRecord.actividad || safeRecord.tituloVisible || '').trim().replace(/^\d+(?:\.\d+)*\s*-\s*/, '');
+  return activity ? (safeRoot + ' - ' + activity) : ('Bloque ' + safeRoot);
+}
+
+function getSharedTrackingRootBlock_(edt) {
+  return String(edt || '').trim().split('.')[0] || '';
+}
+
 function buildAuditItemRecordHintMap_(item) {
   const hints = {};
   (Array.isArray(item && item.changes) ? item.changes : []).forEach(function(change) {
@@ -2247,6 +2817,76 @@ function getSharedTrackingLatestBackup() {
     backup: backup,
     backend: getSharedTrackingBackendMeta_()
   };
+}
+
+function restoreSharedTrackingLatestSnapshot(actorName, restoreReason) {
+  const actorInfo = resolveSharedTrackingPermissionContext_(actorName);
+  if (!actorInfo.isAdmin) {
+    return buildSharedTrackingPermissionDeniedEnvelope_(
+      loadSharedTrackingState_(),
+      actorInfo,
+      'No se pudo autorizar la restauración del último snapshot compartido.',
+      {
+        action: 'intento_restaurar_snapshot_bloqueado',
+        origin: 'restaurar_snapshot'
+      }
+    );
+  }
+  const latestSnapshot = getLatestSharedTrackingSnapshotMeta_();
+  if (!latestSnapshot || !latestSnapshot.fileId) {
+    return buildSharedTrackingEnvelope_(loadSharedTrackingState_(), {
+      ok: false,
+      actor: actorInfo.actor,
+      actorVerified: actorInfo.verified,
+      actorSource: actorInfo.source,
+      declaredActor: actorInfo.declaredActor,
+      message: 'No existe un snapshot versionado disponible para restaurar.',
+      backend: getSharedTrackingBackendMeta_(actorInfo)
+    });
+  }
+  const snapshotState = readSharedTrackingSnapshotStateById_(latestSnapshot.fileId);
+  if (!snapshotState) {
+    return buildSharedTrackingEnvelope_(loadSharedTrackingState_(), {
+      ok: false,
+      actor: actorInfo.actor,
+      actorVerified: actorInfo.verified,
+      actorSource: actorInfo.source,
+      declaredActor: actorInfo.declaredActor,
+      message: 'No se pudo leer el último snapshot compartido para restaurar el visor.',
+      backend: getSharedTrackingBackendMeta_(actorInfo)
+    });
+  }
+  const previous = loadSharedTrackingState_();
+  writeSharedTrackingSnapshot_(previous, actorInfo, 'restaurar_snapshot', 'before_restore');
+  const next = normalizeSharedTrackingStateBundle_(snapshotState, previous);
+  next.revision = Number(previous.revision || 0) + 1;
+  next.savedAt = new Date().toISOString();
+  next.savedBy = actorInfo.actor;
+  writeSharedTrackingState_(next);
+  appendSharedTrackingAudit_({
+    at: next.savedAt,
+    actor: String(actorInfo.actor || '').trim(),
+    actorEmail: String(actorInfo.email || '').trim(),
+    actorSource: String(actorInfo.source || 'missing').trim() || 'missing',
+    actorVerified: Boolean(actorInfo.verified),
+    declaredActor: String(actorInfo.declaredActor || '').trim(),
+    action: 'restaurar_snapshot',
+    origin: 'restaurar_snapshot',
+    revision: Number(next.revision || 0),
+    snapshotFile: String(latestSnapshot.fileName || '').trim(),
+    snapshotUpdatedAt: String(latestSnapshot.updatedAt || '').trim(),
+    message: String(restoreReason || 'Se restauró el último snapshot compartido del visor.').trim()
+  });
+  writeSharedTrackingBackup_(next);
+  writeSharedTrackingSnapshot_(next, actorInfo, 'restaurar_snapshot', 'after_restore');
+  return buildSharedTrackingEnvelope_(next, {
+    actor: actorInfo.actor,
+    actorVerified: actorInfo.verified,
+    actorSource: actorInfo.source,
+    declaredActor: actorInfo.declaredActor,
+    message: 'Se restauró el último snapshot compartido del visor.',
+    backend: getSharedTrackingBackendMeta_(actorInfo)
+  });
 }
 
 function getSharedTrackingDailyReportDeliveryStatus() {
@@ -4791,6 +5431,21 @@ function splitTrackingPeople_(value) {
     });
 }
 
+function splitTrackingEntities_(value) {
+  var seen = {};
+  return String(value == null ? '' : value)
+    .replace(/\s+y\s+/gi, '/')
+    .split(/[\/,;|]+/)
+    .map(function(item) { return String(item || '').trim().replace(/\s+/g, ' '); })
+    .filter(Boolean)
+    .filter(function(item) {
+      var key = normalizeNotificationKey_(item);
+      if (!key || seen[key]) return false;
+      seen[key] = true;
+      return true;
+    });
+}
+
 function normalizeNotificationKey_(value) {
   return String(value == null ? '' : value)
     .trim()
@@ -4857,9 +5512,48 @@ function buildSharedTrackingEnvelope_(state, extra) {
     savedAt: safeState.savedAt || '',
     revision: Number(safeState.revision || 0),
     state: safeState,
+    analytics: typeof overrides.analytics !== 'undefined'
+      ? overrides.analytics
+      : buildSharedTrackingAnalyticalSummary_(safeState, {}),
     backend: meta
   };
-  return Object.assign(payload, overrides, { backend: meta });
+  return Object.assign(payload, overrides, { backend: meta, analytics: payload.analytics });
+}
+
+function buildSharedTrackingPublicBackendMeta_() {
+  const latestBackup = getLatestSharedTrackingBackupMeta_() || {};
+  const latestSnapshot = getLatestSharedTrackingSnapshotMeta_() || {};
+  return {
+    mode: 'public_readonly',
+    storage: 'drive_json',
+    actor: '',
+    actorEmail: '',
+    actorVerified: false,
+    actorSource: 'public_view',
+    declaredActor: '',
+    admin: false,
+    canEditShared: false,
+    canManageAttachments: false,
+    canRemoveAttachments: false,
+    canViewSensitiveAudit: false,
+    canViewOperationalCenter: false,
+    canExportSupportInventory: false,
+    canRestoreSharedState: false,
+    permissionRole: 'public_viewer',
+    permissionReasonCode: 'public_readonly',
+    permissionReasonMessage: 'Esta URL es de solo lectura. Usa el visor de trabajo para editar, crear o administrar sustentos.',
+    pollIntervalSeconds: 30,
+    backendFolder: '_VisorSeguimientoPEC',
+    backupFolder: 'backups',
+    snapshotFolder: 'snapshots',
+    lastBackupAt: String(latestBackup.updatedAt || ''),
+    lastBackupFile: String(latestBackup.fileName || ''),
+    lastBackupId: '',
+    lastSnapshotAt: String(latestSnapshot.updatedAt || ''),
+    lastSnapshotFile: String(latestSnapshot.fileName || ''),
+    workViewerUrl: ensureSharedVisorViewUrl_(SHARED_VISOR_CANONICAL_WEBAPP_BASE),
+    publicViewerUrl: PANEL_PUBLIC_SHARED_VIEW_URL
+  };
 }
 
 function normalizeSharedTrackingStateBundle_(bundle, fallback) {
@@ -4907,22 +5601,46 @@ function normalizeSharedTrackingNoteEntry_(value) {
 function normalizeSharedTrackingAttachmentFolderMeta_(value) {
   const raw = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const folderId = String(raw.folderId || raw.id || '').trim();
-  const url = String(raw.url || '').trim();
-  const name = String(raw.name || '').trim();
+  const url = String(raw.folderUrl || raw.url || '').trim();
+  const name = String(raw.folderName || raw.name || '').trim();
   if (!folderId && !url && !name) return null;
   return {
     folderId: folderId,
+    folderUrl: url,
     url: url,
+    folderName: name,
     name: name,
     recordId: String(raw.recordId || '').trim(),
     recordLabel: String(raw.recordLabel || '').trim(),
+    logicalPath: String(raw.logicalPath || '').trim(),
     createdAt: String(raw.createdAt || '').trim(),
+    createdBy: String(raw.createdBy || '').trim(),
+    createdByEmail: String(raw.createdByEmail || '').trim(),
     updatedAt: String(raw.updatedAt || '').trim()
   };
 }
 
+function redactSharedTrackingAttachmentFolderMetaForPublic_(value) {
+  const safe = normalizeSharedTrackingAttachmentFolderMeta_(value);
+  if (!safe) return null;
+  return {
+    folderId: '',
+    folderUrl: '',
+    url: '',
+    folderName: String(safe.folderName || safe.name || '').trim(),
+    name: String(safe.name || safe.folderName || '').trim(),
+    recordId: String(safe.recordId || '').trim(),
+    recordLabel: String(safe.recordLabel || '').trim(),
+    logicalPath: '',
+    createdAt: String(safe.createdAt || '').trim(),
+    createdBy: '',
+    createdByEmail: '',
+    updatedAt: ''
+  };
+}
+
 function hasSharedTrackingAttachmentFolderMeta_(value) {
-  return Boolean(value && typeof value === 'object' && (String(value.folderId || '').trim() || String(value.url || '').trim() || String(value.name || '').trim()));
+  return Boolean(value && typeof value === 'object' && (String(value.folderId || '').trim() || String(value.folderUrl || value.url || '').trim() || String(value.folderName || value.name || '').trim()));
 }
 
 function normalizeSharedTrackingAttachmentList_(values) {
@@ -4937,6 +5655,37 @@ function normalizeSharedTrackingAttachmentList_(values) {
   return out;
 }
 
+function redactSharedTrackingAttachmentForPublic_(value) {
+  const safe = normalizeSharedTrackingAttachmentMeta_(value);
+  if (!safe) return null;
+  return Object.assign({}, safe, {
+    fileId: '',
+    folderId: '',
+    folderUrl: '',
+    url: '',
+    logicalPath: '',
+    uploadedByEmail: '',
+    removedBy: ''
+  });
+}
+
+function buildSharedTrackingPublicState_(state) {
+  const safeState = normalizeSharedTrackingStateBundle_(state, buildDefaultSharedTrackingState_());
+  const nextNotes = {};
+  Object.keys(safeState.notes || {}).forEach(function(recordId) {
+    const entry = normalizeSharedTrackingNoteEntry_(safeState.notes[recordId]);
+    nextNotes[recordId] = {
+      note: String(entry.note || ''),
+      action: String(entry.action || ''),
+      attachmentFolder: redactSharedTrackingAttachmentFolderMetaForPublic_(entry.attachmentFolder),
+      attachments: (Array.isArray(entry.attachments) ? entry.attachments : [])
+        .map(redactSharedTrackingAttachmentForPublic_)
+        .filter(Boolean)
+    };
+  });
+  return Object.assign({}, safeState, { notes: nextNotes });
+}
+
 function normalizeSharedTrackingAttachmentMeta_(value) {
   const raw = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const id = String(raw.id || raw.fileId || raw.url || raw.name || '').trim();
@@ -4949,9 +5698,20 @@ function normalizeSharedTrackingAttachmentMeta_(value) {
     mimeType: String(raw.mimeType || 'application/octet-stream').trim() || 'application/octet-stream',
     size: isFinite(size) && size > 0 ? Math.round(size) : 0,
     fileId: String(raw.fileId || '').trim(),
+    folderId: String(raw.folderId || '').trim(),
+    folderUrl: String(raw.folderUrl || '').trim(),
     url: String(raw.url || '').trim(),
+    logicalPath: String(raw.logicalPath || '').trim(),
+    documentType: normalizeSharedTrackingDocumentType_(raw.documentType),
+    status: normalizeSharedTrackingAttachmentStatus_(raw.status),
     uploadedAt: String(raw.uploadedAt || '').trim(),
-    uploadedBy: String(raw.uploadedBy || '').trim()
+    uploadedBy: String(raw.uploadedBy || '').trim(),
+    uploadedByEmail: String(raw.uploadedByEmail || '').trim(),
+    actorSource: String(raw.actorSource || '').trim(),
+    actorVerified: Boolean(raw.actorVerified),
+    removedAt: String(raw.removedAt || '').trim(),
+    removedBy: String(raw.removedBy || '').trim(),
+    removedReason: String(raw.removedReason || '').trim()
   };
 }
 
@@ -4966,9 +5726,49 @@ function normalizeSharedTrackingUploadPayload_(uploads) {
       name: name,
       mimeType: String(raw.mimeType || 'application/octet-stream').trim() || 'application/octet-stream',
       size: isFinite(size) && size > 0 ? Math.round(size) : 0,
+      documentType: normalizeSharedTrackingDocumentType_(raw.documentType),
       contentBase64: contentBase64
     };
   }).filter(Boolean);
+}
+
+function normalizeSharedTrackingDocumentType_(value) {
+  const raw = String(value == null ? '' : value).trim();
+  if (!raw) return 'unknown';
+  const key = normalizeNotificationKey_(raw).replace(/\.+/g, '').replace(/\s+/g, ' ');
+  if (!key || key === 'unknown' || key === 'sin clasificar' || key === 'sin clasificacion' || key === 'n/a') {
+    return 'unknown';
+  }
+  if (Object.prototype.hasOwnProperty.call(SHARED_TRACKING_DOCUMENT_TYPE_ALIASES, key)) {
+    return SHARED_TRACKING_DOCUMENT_TYPE_ALIASES[key];
+  }
+  const canonical = SHARED_TRACKING_DOCUMENT_TYPE_CATALOG.find(function(item) {
+    return normalizeNotificationKey_(item) === key;
+  });
+  return canonical || 'Otro';
+}
+
+function describeSharedTrackingDocumentType_(value) {
+  const safe = normalizeSharedTrackingDocumentType_(value);
+  return safe === 'unknown' ? 'Sin clasificar' : safe;
+}
+
+function getSharedTrackingDocumentTypeCatalog_() {
+  return SHARED_TRACKING_DOCUMENT_TYPE_CATALOG.slice();
+}
+
+function normalizeSharedTrackingAttachmentStatus_(value) {
+  const raw = String(value == null ? '' : value).trim().toLowerCase();
+  return raw === 'removed' ? 'removed' : 'active';
+}
+
+function buildSharedTrackingLogicalPath_(folderName, fileName) {
+  const parts = ['_VisorSeguimientoPEC', 'adjuntos'];
+  const safeFolder = String(folderName || '').trim();
+  const safeFile = String(fileName || '').trim();
+  if (safeFolder) parts.push(safeFolder);
+  if (safeFile) parts.push(safeFile);
+  return parts.join('/');
 }
 
 function sanitizeSharedTrackingAttachmentName_(value) {
@@ -5088,6 +5888,101 @@ function writeSharedTrackingBackup_(state) {
   };
 }
 
+function sanitizeSharedTrackingSnapshotSegment_(value, fallback) {
+  const safe = String(value == null ? '' : value)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return safe || String(fallback || 'snapshot');
+}
+
+function getOrCreateBackendSnapshotFolder_() {
+  const props = PropertiesService.getScriptProperties();
+  const cachedId = props.getProperty('PEC_VISOR_SNAPSHOT_FOLDER_ID');
+  if (cachedId) {
+    try {
+      return DriveApp.getFolderById(cachedId);
+    } catch (error) {}
+  }
+  const backupRoot = getOrCreateBackendBackupFolder_();
+  const folders = backupRoot.getFoldersByName('snapshots');
+  const folder = folders.hasNext() ? folders.next() : backupRoot.createFolder('snapshots');
+  props.setProperty('PEC_VISOR_SNAPSHOT_FOLDER_ID', folder.getId());
+  return folder;
+}
+
+function writeSharedTrackingSnapshot_(state, actorInfo, action, phase) {
+  const folder = getOrCreateBackendSnapshotFolder_();
+  const safeState = normalizeSharedTrackingStateBundle_(state, buildDefaultSharedTrackingState_());
+  const actorMeta = buildAuditActorMeta_(actorInfo);
+  const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd_HHmmss');
+  const revision = Number(safeState.revision || 0);
+  const fileName = [
+    'shared_tracking_snapshot',
+    String(revision).padStart(5, '0'),
+    sanitizeSharedTrackingSnapshotSegment_(action, 'accion'),
+    sanitizeSharedTrackingSnapshotSegment_(phase, 'before'),
+    timestamp
+  ].join('__') + '.json';
+  const content = JSON.stringify({
+    meta: {
+      capturedAt: new Date().toISOString(),
+      revision: revision,
+      action: String(action || '').trim(),
+      phase: String(phase || '').trim(),
+      actor: actorMeta.actor,
+      actorEmail: actorMeta.actorEmail,
+      actorSource: actorMeta.actorSource,
+      actorVerified: actorMeta.actorVerified,
+      declaredActor: actorMeta.declaredActor
+    },
+    state: safeState
+  }, null, 2);
+  const file = folder.createFile(fileName, content, MimeType.PLAIN_TEXT);
+  return {
+    fileId: file.getId(),
+    fileName: file.getName(),
+    updatedAt: file.getLastUpdated().toISOString()
+  };
+}
+
+function getLatestSharedTrackingSnapshotMeta_() {
+  const folder = getOrCreateBackendSnapshotFolder_();
+  const files = folder.getFiles();
+  let latest = null;
+  while (files.hasNext()) {
+    const file = files.next();
+    const updatedAt = file.getLastUpdated();
+    if (!latest || updatedAt.getTime() > latest._date.getTime()) {
+      latest = {
+        fileId: file.getId(),
+        fileName: file.getName(),
+        updatedAt: updatedAt.toISOString(),
+        _date: updatedAt
+      };
+    }
+  }
+  if (!latest) return null;
+  delete latest._date;
+  return latest;
+}
+
+function readSharedTrackingSnapshotStateById_(fileId) {
+  if (!fileId) return null;
+  try {
+    const file = DriveApp.getFileById(String(fileId));
+    const parsed = readJsonFile_(file, null);
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (parsed.state && typeof parsed.state === 'object') {
+      return normalizeSharedTrackingStateBundle_(parsed.state, buildDefaultSharedTrackingState_());
+    }
+    return normalizeSharedTrackingStateBundle_(parsed, buildDefaultSharedTrackingState_());
+  } catch (error) {
+    return null;
+  }
+}
+
 function getOrCreateBackendAttachmentsFolder_() {
   const props = PropertiesService.getScriptProperties();
   const cachedId = props.getProperty('PEC_VISOR_ATTACHMENTS_FOLDER_ID');
@@ -5110,21 +6005,34 @@ function getOrCreateBackendRecordAttachmentFolder_(recordMeta) {
   return folders.hasNext() ? folders.next() : root.createFolder(folderName);
 }
 
-function buildSharedTrackingAttachmentFolderMeta_(folder, recordMeta) {
+function buildSharedTrackingAttachmentFolderMeta_(folder, recordMeta, actorInfo, previousMeta) {
   const safeFolder = folder || null;
   const meta = recordMeta && typeof recordMeta === 'object' ? recordMeta : {};
+  const actor = actorInfo && typeof actorInfo === 'object' ? actorInfo : {};
+  const previous = normalizeSharedTrackingAttachmentFolderMeta_(previousMeta);
   if (!safeFolder) return null;
   var createdAt = '';
   try {
     createdAt = safeFolder.getDateCreated ? safeFolder.getDateCreated().toISOString() : '';
   } catch (error) {}
+  const folderName = String(safeFolder.getName() || '').trim();
+  const folderUrl = String(safeFolder.getUrl() || '').trim();
+  const folderId = String(safeFolder.getId() || '').trim();
+  const finalCreatedAt = String(previous && previous.createdAt || createdAt || '').trim();
+  const finalCreatedBy = String(previous && previous.createdBy || actor.actor || '').trim();
+  const finalCreatedByEmail = String(previous && previous.createdByEmail || actor.email || '').trim();
   return {
-    folderId: String(safeFolder.getId() || '').trim(),
-    url: String(safeFolder.getUrl() || '').trim(),
-    name: String(safeFolder.getName() || '').trim(),
+    folderId: folderId,
+    folderUrl: folderUrl,
+    url: folderUrl,
+    folderName: folderName,
+    name: folderName,
     recordId: String(meta.id || '').trim(),
     recordLabel: String(meta.label || '').trim(),
-    createdAt: createdAt,
+    logicalPath: buildSharedTrackingLogicalPath_(folderName, ''),
+    createdAt: finalCreatedAt,
+    createdBy: finalCreatedBy,
+    createdByEmail: finalCreatedByEmail,
     updatedAt: ''
   };
 }
@@ -5272,68 +6180,34 @@ function resolveSharedTrackingPermissionContext_(clientActorName) {
   const adminEmails = getSharedTrackingAdminEmailList_()
     .map(function(item) { return String(item || '').trim().toLowerCase(); })
     .filter(Boolean);
-  const legacyOperationalEmails = getSharedTrackingLegacyOperationalEmailList_()
-    .map(function(item) { return String(item || '').trim().toLowerCase(); })
-    .filter(Boolean);
-  const documentOperatorEmails = getSharedTrackingDocumentOperatorEmailList_()
-    .map(function(item) { return String(item || '').trim().toLowerCase(); })
-    .filter(Boolean);
-  const pmoEmails = getSharedTrackingPmoEmailList_()
-    .map(function(item) { return String(item || '').trim().toLowerCase(); })
-    .filter(Boolean);
-  const auditorEmails = getSharedTrackingAuditorEmailList_()
-    .map(function(item) { return String(item || '').trim().toLowerCase(); })
-    .filter(Boolean);
   const isAdmin = Boolean(verified && adminEmails.indexOf(email) >= 0);
-  const isLegacyOperational = Boolean(verified && legacyOperationalEmails.indexOf(email) >= 0);
-  const isPmo = Boolean(verified && (pmoEmails.indexOf(email) >= 0 || isLegacyOperational));
-  const isDocumentOperator = Boolean(verified && !isPmo && documentOperatorEmails.indexOf(email) >= 0);
-  const isAuditor = Boolean(verified && !isAdmin && !isPmo && !isDocumentOperator && auditorEmails.indexOf(email) >= 0);
-  const isOperational = Boolean(isPmo || isDocumentOperator || isLegacyOperational);
-  let permissionRole = 'viewer';
-  let reasonCode = 'missing_verified_identity';
-  let reasonMessage = 'No se pudo verificar tu identidad. Inicia sesión con una cuenta Google autorizada para editar o cargar sustento.';
+  const safeActor = String(actorInfo.actor || '').trim() || String(actorInfo.declaredActor || '').trim() || 'Usuario de trabajo';
+  let permissionRole = 'work_operator';
+  let reasonCode = verified ? 'work_channel_verified' : 'work_channel_open';
+  let reasonMessage = verified
+    ? 'Canal de trabajo DGPPCS habilitado. Tu correo fue reconocido y puedes editar la ficha compartida y administrar sustentos.'
+    : 'Canal de trabajo DGPPCS habilitado. Puedes editar la ficha compartida y administrar sustentos desde esta URL. Todas las acciones quedan auditadas.';
   if (isAdmin) {
     permissionRole = 'admin';
     reasonCode = 'admin_verified';
     reasonMessage = 'Correo verificado con acceso administrador al visor compartido.';
-  } else if (isPmo) {
-    permissionRole = 'pmo';
-    reasonCode = isLegacyOperational ? 'pmo_verified_legacy' : 'pmo_verified';
-    reasonMessage = isLegacyOperational
-      ? 'Tu correo verificado mantiene compatibilidad con la lista operativa heredada y puede editar fichas y administrar sustentos.'
-      : 'Correo verificado con acceso PMO para editar fichas y administrar sustentos.';
-  } else if (isDocumentOperator) {
-    permissionRole = 'document_operator';
-    reasonCode = 'document_operator_verified';
-    reasonMessage = 'Correo verificado con acceso documental para cargar y retirar sustentos, sin editar la ficha compartida.';
-  } else if (isAuditor) {
-    permissionRole = 'auditor';
-    reasonCode = 'auditor_verified';
-    reasonMessage = 'Correo verificado con acceso de auditoría. Puedes revisar la trazabilidad, pero no editar fichas ni administrar sustentos.';
-  } else if (verified) {
-    permissionRole = 'verified_viewer';
-    reasonCode = 'verified_not_authorized';
-    reasonMessage = 'Tu correo fue verificado, pero aún no está autorizado para editar ni cargar sustento en el visor compartido.';
-  } else if (actorInfo.source === 'client_query' && actorInfo.actor) {
-    permissionRole = 'declared_viewer';
-    reasonCode = 'declared_actor_only';
-    reasonMessage = 'El actor fue declarado por URL. Puedes consultar el visor, pero la edición compartida y la carga de sustento requieren correo verificado.';
   }
   return Object.assign({}, actorInfo, {
+    actor: safeActor,
     email: email,
     verified: verified,
     isAdmin: isAdmin,
-    isPmo: isPmo,
-    isDocumentOperator: isDocumentOperator,
-    isAuditor: isAuditor,
-    isOperational: isOperational,
-    canEditShared: Boolean(isAdmin || isPmo),
-    canManageAttachments: Boolean(isAdmin || isPmo || isDocumentOperator),
-    canRemoveAttachments: Boolean(isAdmin || isPmo || isDocumentOperator),
-    canViewSensitiveAudit: Boolean(isAdmin || isAuditor),
+    isPmo: false,
+    isDocumentOperator: false,
+    isAuditor: false,
+    isOperational: true,
+    canEditShared: true,
+    canManageAttachments: true,
+    canRemoveAttachments: true,
+    canViewSensitiveAudit: Boolean(isAdmin),
     canViewOperationalCenter: Boolean(isAdmin),
-    canExportSupportInventory: Boolean(isAdmin || isPmo || isAuditor),
+    canExportSupportInventory: true,
+    canRestoreSharedState: Boolean(isAdmin),
     permissionRole: permissionRole,
     reasonCode: reasonCode,
     reasonMessage: reasonMessage
@@ -5405,6 +6279,7 @@ function isSharedTrackingAdmin_() {
 
 function getSharedTrackingBackendMeta_(actorInfo) {
   const latestBackup = getLatestSharedTrackingBackupMeta_() || {};
+  const latestSnapshot = getLatestSharedTrackingSnapshotMeta_() || {};
   const identity = actorInfo && typeof actorInfo === 'object' ? actorInfo : null;
   const permission = identity && typeof identity.canEditShared !== 'undefined'
     ? identity
@@ -5424,15 +6299,21 @@ function getSharedTrackingBackendMeta_(actorInfo) {
     canViewSensitiveAudit: Boolean(permission.canViewSensitiveAudit),
     canViewOperationalCenter: Boolean(permission.canViewOperationalCenter),
     canExportSupportInventory: Boolean(permission.canExportSupportInventory),
+    canRestoreSharedState: Boolean(permission.canRestoreSharedState),
     permissionRole: String(permission.permissionRole || 'viewer').trim() || 'viewer',
     permissionReasonCode: String(permission.reasonCode || '').trim(),
     permissionReasonMessage: String(permission.reasonMessage || '').trim(),
     pollIntervalSeconds: 30,
     backendFolder: '_VisorSeguimientoPEC',
     backupFolder: 'backups',
+    snapshotFolder: 'snapshots',
     lastBackupAt: String(latestBackup.updatedAt || ''),
     lastBackupFile: String(latestBackup.fileName || ''),
-    lastBackupId: String(latestBackup.fileId || '')
+    lastBackupId: String(latestBackup.fileId || ''),
+    lastSnapshotAt: String(latestSnapshot.updatedAt || ''),
+    lastSnapshotFile: String(latestSnapshot.fileName || ''),
+    workViewerUrl: ensureSharedVisorViewUrl_(SHARED_VISOR_CANONICAL_WEBAPP_BASE),
+    publicViewerUrl: PANEL_PUBLIC_SHARED_VIEW_URL
   };
 }
 

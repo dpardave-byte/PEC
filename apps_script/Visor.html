@@ -8940,8 +8940,12 @@ function getSubtreeIdSet(rootRecord){
   return new Set([rootRecord.id].concat(collectSubtreeRecords(rootRecord.id, childrenMap).map(item => item.id)));
 }
 
-function findEdtConflict(targetEdt, ignoredIds){
-  const normalized = normalizeProgramEdt(targetEdt, '', rootRecord && rootRecord.id);
+function findEdtConflict(targetEdt, ignoredIds, sourceRecord){
+  const normalized = normalizeProgramEdt(
+    targetEdt,
+    sourceRecord && sourceRecord.actividad,
+    sourceRecord && sourceRecord.id
+  );
   if(!normalized) return null;
   return appState.raw.find(record => !ignoredIds.has(record.id) && text(record.edt) === normalized) || null;
 }
@@ -8951,7 +8955,7 @@ function validateEditedHierarchyTarget(rootRecord, nextEdt, nextParentEdt, ignor
   if(!normalizedEdt) return 'El EDT visible no puede quedar vacío.';
   if(!/^\d+(?:\.\d+)*$/.test(normalizedEdt)) return 'El EDT visible debe usar un formato numérico válido, por ejemplo 2.3 o 3.1.4.';
   if(!isTopLevelEdt(normalizedEdt) && !text(nextParentEdt)) return 'El EDT visible requiere un EDT padre válido para mantener la jerarquía.';
-  const conflict = findEdtConflict(normalizedEdt, ignoredIds);
+  const conflict = findEdtConflict(normalizedEdt, ignoredIds, rootRecord);
   if(conflict){
     return 'El EDT ' + normalizedEdt + ' ya existe en "' + displayTitle(conflict) + '". Usa otro EDT o cambia primero la ubicación del registro actual.';
   }

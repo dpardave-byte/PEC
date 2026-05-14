@@ -3057,6 +3057,12 @@ let sharedSyncInFlight = false;
 let sharedAttachmentActionInFlight = false;
 let pendingSharedSyncReason = '';
 let pendingDrawerCloseAfterSharedSave = null;
+let sharedSyncWatchdogTimer = null;
+let sharedSyncMeta = {
+  startedAt: '',
+  reason: '',
+  recordId: ''
+};
 let sharedPollHandle = null;
 let publicStatePollInFlight = false;
 let publicStateRequestNonce = 0;
@@ -6281,6 +6287,49 @@ function applySharedStateBundle(bundle, options){
   if(!(options && options.skipRenderHero)) renderHero();
 }
 
+function clearSharedSyncWatchdog(){
+  if(sharedSyncWatchdogTimer){
+    clearTimeout(sharedSyncWatchdogTimer);
+    sharedSyncWatchdogTimer = null;
+  }
+}
+
+function armSharedSyncWatchdog(reason, recordId){
+  clearSharedSyncWatchdog();
+  sharedSyncMeta = {
+    startedAt: new Date().toISOString(),
+    reason: text(reason),
+    recordId: text(recordId || appState.selectedId)
+  };
+  sharedSyncWatchdogTimer = setTimeout(() => {
+    if(!sharedSyncInFlight) return;
+    const blockedRecordId = text(sharedSyncMeta.recordId || appState.selectedId);
+    sharedSyncInFlight = false;
+    pendingSharedSyncReason = '';
+    appState.hasUnsyncedSharedChanges = true;
+    if(pendingDrawerCloseAfterSharedSave && text(pendingDrawerCloseAfterSharedSave.recordId)){
+      pendingDrawerCloseAfterSharedSave = null;
+      refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:blockedRecordId});
+    }
+    setSharedError('La sincronización compartida tardó demasiado y se liberó para evitar un bloqueo permanente. Reintenta el guardado.', 'error');
+    setImportFeedback('Sincronización liberada por tiempo de espera', 'Apps Script tardó demasiado en responder. La ficha sigue abierta y puedes volver a intentar el guardado compartido.', 'warn');
+    if(blockedRecordId){
+      setCaseAttachmentFeedback('Sincronización liberada', 'Se liberó el bloqueo del canal compartido para esta ficha. Revisa los cambios y vuelve a intentar el guardado si corresponde.', 'warn');
+    }
+    renderOperationsStatus();
+    renderCaseDrawerActionState(blockedRecordId);
+  }, 30000);
+}
+
+function clearSharedSyncMeta(){
+  clearSharedSyncWatchdog();
+  sharedSyncMeta = {
+    startedAt: '',
+    reason: '',
+    recordId: ''
+  };
+}
+
 function scheduleSharedSync(reason){
   if(isPublicReadOnlyChannel()) return;
   if(!isSharedBackendMode()) return;
@@ -6299,6 +6348,7 @@ function flushSharedSync(){
   const permission = getCurrentPermissionState();
   if(!identity.actor){
     sharedSyncInFlight = false;
+    clearSharedSyncMeta();
     appState.hasUnsyncedSharedChanges = true;
     if(pendingDrawerCloseAfterSharedSave && text(pendingDrawerCloseAfterSharedSave.recordId)){
       const failedRecordId = text(pendingDrawerCloseAfterSharedSave.recordId);
@@ -6313,6 +6363,7 @@ function flushSharedSync(){
   }
   if(!permission.canEditShared){
     sharedSyncInFlight = false;
+    clearSharedSyncMeta();
     appState.hasUnsyncedSharedChanges = true;
     if(pendingDrawerCloseAfterSharedSave && text(pendingDrawerCloseAfterSharedSave.recordId)){
       const blockedRecordId = text(pendingDrawerCloseAfterSharedSave.recordId);
@@ -6330,10 +6381,12 @@ function flushSharedSync(){
   setSharedSyncState('syncing', 'Guardando cambios en el estado compartido...');
   const drawerOpen = document.getElementById('drawer')?.classList.contains('open');
   const selectedId = appState.selectedId;
+  armSharedSyncWatchdog(reason, selectedId);
   renderCaseDrawerActionState(selectedId);
   google.script.run
     .withSuccessHandler(result => {
       sharedSyncInFlight = false;
+      clearSharedSyncMeta();
       updateServerInfoFromEnvelope(result || {});
       const pendingDrawerSave = pendingDrawerCloseAfterSharedSave && typeof pendingDrawerCloseAfterSharedSave === 'object'
         ? pendingDrawerCloseAfterSharedSave
@@ -6395,6 +6448,7 @@ function flushSharedSync(){
     })
     .withFailureHandler(error => {
       sharedSyncInFlight = false;
+      clearSharedSyncMeta();
       appState.hasUnsyncedSharedChanges = true;
       console.error('No se pudo sincronizar el estado compartido.', error);
       setSharedError('No se pudo sincronizar con Apps Script. Se mantiene la copia local.', 'error');
@@ -9828,17 +9882,20 @@ function renderCaseDrawerActionState(recordId){
   const clearBtn = document.getElementById('clearCaseNoteBtn');
   const deleteBtn = document.getElementById('deleteNodeBtn');
   if(saveBtn){
-    saveBtn.textContent = saving ? 'Guardando...' : 'Guardar y cerrar';
+    saveBtn.textContent = saving ? 'Guardando...' : (syncBlocked ? 'Sincronizando...' : 'Guardar y cerrar');
     saveBtn.disabled = Boolean(saving || syncBlocked || publicBlocked || sharedEditBlocked);
     saveBtn.title = disabledReason;
+    saveBtn.dataset.disabledReason = disabledReason;
   }
   if(addBtn){
     addBtn.disabled = Boolean(saving || syncBlocked || publicBlocked || sharedEditBlocked);
     addBtn.title = disabledReason;
+    addBtn.dataset.disabledReason = disabledReason;
   }
   if(clearBtn){
     clearBtn.disabled = Boolean(saving || syncBlocked || publicBlocked || sharedEditBlocked);
     clearBtn.title = disabledReason;
+    clearBtn.dataset.disabledReason = disabledReason;
   }
   if(deleteBtn){
     const protectedRoot = deleteBtn.dataset.protectedRoot === '1';
@@ -9846,8 +9903,96 @@ function renderCaseDrawerActionState(recordId){
     deleteBtn.title = protectedRoot
       ? 'No se permite eliminar las raíces principales 1, 2, 3 o 4.'
       : disabledReason;
+    deleteBtn.dataset.disabledReason = protectedRoot
+      ? 'No se permite eliminar las raíces principales 1, 2, 3 o 4.'
+      : disabledReason;
   }
 }
+
+function getDrawerActionDiagnostics(){
+  const info = ensureServerInfo();
+  const permission = getCurrentPermissionState();
+  const identity = getCurrentActorIdentity();
+  const publicBlocked = isPublicReadOnlyChannel();
+  const sharedEditBlocked = isSharedBackendMode() && !publicBlocked && !permission.canEditShared;
+  const saveBtn = document.getElementById('saveCaseNoteBtn');
+  const style = saveBtn ? window.getComputedStyle(saveBtn) : null;
+  const rect = saveBtn ? saveBtn.getBoundingClientRect() : null;
+  const centerX = rect ? Math.floor(rect.left + rect.width / 2) : 0;
+  const centerY = rect ? Math.floor(rect.top + rect.height / 2) : 0;
+  const hit = saveBtn && rect ? document.elementFromPoint(centerX, centerY) : null;
+  let probableCause = 'No verificable';
+  if(!saveBtn) probableCause = 'E. no existe el botón en DOM';
+  else if(publicBlocked) probableCause = 'A. deshabilitado por canal público';
+  else if(sharedEditBlocked) probableCause = 'A. deshabilitado por permisos';
+  else if(hasPendingDrawerSharedSave()) probableCause = 'B. deshabilitado por guardado compartido en curso';
+  else if(sharedSyncInFlight) probableCause = 'B. deshabilitado por sincronización en curso';
+  else if(saveBtn.disabled) probableCause = 'C. deshabilitado por estado local/UI';
+  else if(hit && hit !== saveBtn && !saveBtn.contains(hit)) probableCause = 'D. cubierto por otro elemento';
+  else probableCause = 'OK o no bloqueado';
+  return {
+    actor: text(identity.actor),
+    actorEmail: text(identity.email),
+    actorVerified: Boolean(identity.verified),
+    actorSource: text(identity.source),
+    declaredActor: text(identity.declaredActor),
+    permissionRole: text(info.permissionRole),
+    permissionReasonCode: text(info.permissionReasonCode),
+    permissionReasonMessage: text(info.permissionReasonMessage),
+    canEditShared: Boolean(permission.canEditShared),
+    canManageAttachments: Boolean(permission.canManageAttachments),
+    canRemoveAttachments: Boolean(permission.canRemoveAttachments),
+    canViewSensitiveAudit: Boolean(permission.canViewSensitiveAudit),
+    canViewOperationalCenter: Boolean(info.canViewOperationalCenter),
+    adminEnabled: Boolean(appState.adminEnabled),
+    selectedId: text(appState.selectedId),
+    hasUnsyncedSharedChanges: Boolean(appState.hasUnsyncedSharedChanges),
+    sharedSyncInFlight: Boolean(sharedSyncInFlight),
+    sharedAttachmentActionInFlight: Boolean(sharedAttachmentActionInFlight),
+    pendingDrawerCloseAfterSharedSave: pendingDrawerCloseAfterSharedSave
+      ? {
+          recordId: text(pendingDrawerCloseAfterSharedSave.recordId),
+          hasExpandedSnapshot: Boolean(pendingDrawerCloseAfterSharedSave.expandedSnapshot)
+        }
+      : null,
+    sharedSyncMeta: {
+      startedAt: text(sharedSyncMeta.startedAt),
+      reason: text(sharedSyncMeta.reason),
+      recordId: text(sharedSyncMeta.recordId)
+    },
+    saveButton: saveBtn ? {
+      id: saveBtn.id,
+      text: text(saveBtn.innerText || saveBtn.textContent),
+      disabled: Boolean(saveBtn.disabled),
+      title: text(saveBtn.title),
+      disabledReason: text(saveBtn.dataset.disabledReason),
+      className: text(saveBtn.className),
+      ariaDisabled: saveBtn.getAttribute('aria-disabled'),
+      style: {
+        display: style ? style.display : '',
+        visibility: style ? style.visibility : '',
+        opacity: style ? style.opacity : '',
+        pointerEvents: style ? style.pointerEvents : '',
+        zIndex: style ? style.zIndex : '',
+        position: style ? style.position : ''
+      },
+      rect: rect ? {
+        left: Math.round(rect.left),
+        top: Math.round(rect.top),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height)
+      } : null,
+      hitTest: hit ? {
+        tagName: text(hit.tagName),
+        id: text(hit.id),
+        className: text(hit.className)
+      } : null
+    } : null,
+    probableCause
+  };
+}
+
+window.__pecDebugDrawerState = getDrawerActionDiagnostics;
 
 function closeDrawer(force){
   if(!force && hasPendingDrawerSharedSave()){

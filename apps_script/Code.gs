@@ -1937,6 +1937,49 @@ function getAuditItemDetailText_(item, recordLabels) {
   return parts.join(' | ') || 'Sin detalle.';
 }
 
+function sanitizeAuditEntryChanges_(changes, limit) {
+  return (Array.isArray(changes) ? changes : [])
+    .slice(0, Math.max(1, Number(limit || 80)))
+    .map(function(change) {
+      return {
+        section: String(change && change.section || '').trim(),
+        id: String(change && change.id || '').trim(),
+        field: String(change && change.field || '').trim(),
+        before: normalizeAuditValue_(change && change.before),
+        after: normalizeAuditValue_(change && change.after)
+      };
+    })
+    .filter(function(change) {
+      return change.section || change.field || change.id || change.before || change.after;
+    });
+}
+
+function sanitizeAuditEntryArtifacts_(artifacts, limit) {
+  return (Array.isArray(artifacts) ? artifacts : [])
+    .slice(0, Math.max(1, Number(limit || 24)))
+    .map(function(item) {
+      return {
+        type: String(item && item.type || '').trim(),
+        recordId: String(item && item.recordId || '').trim(),
+        recordLabel: String(item && item.recordLabel || '').trim(),
+        attachmentId: String(item && item.attachmentId || '').trim(),
+        attachmentName: String(item && item.attachmentName || item && item.name || '').trim(),
+        documentType: normalizeSharedTrackingDocumentType_(item && item.documentType),
+        fileId: String(item && item.fileId || '').trim(),
+        folderId: String(item && item.folderId || '').trim(),
+        folderName: String(item && item.folderName || '').trim(),
+        folderUrl: String(item && item.folderUrl || '').trim(),
+        logicalPath: String(item && item.logicalPath || item && item.folderLogicalPath || '').trim(),
+        status: String(item && item.status || '').trim(),
+        removedAt: String(item && item.removedAt || '').trim(),
+        removedReason: String(item && item.removedReason || '').trim()
+      };
+    })
+    .filter(function(item) {
+      return item.recordId || item.attachmentId || item.attachmentName || item.folderId || item.logicalPath;
+    });
+}
+
 function humanizeAuditAction_(action) {
   switch (String(action == null ? '' : action).trim()) {
     case 'cargar_sustento': return 'Cargar sustento';
@@ -2753,7 +2796,9 @@ function buildAuditDailyReportFromItems_(items, reportDate, timezone, options) {
       changeCount: changeTotal,
       touchedRecordIds: records,
       touchedRecords: recordLabels,
-      sections: sections
+      sections: sections,
+      changes: sanitizeAuditEntryChanges_(item && item.changes, 80),
+      artifacts: sanitizeAuditEntryArtifacts_(item && item.artifacts, 24)
     });
   });
 
@@ -6339,6 +6384,69 @@ function buildSharedTrackingAuditEntry_(previous, next, actor, action, requested
   };
 }
 
+function buildSharedTrackingAttachmentAuditArtifacts_(recordMeta, attachments, folderMeta) {
+  const safeRecordMeta = recordMeta && typeof recordMeta === 'object'
+    ? recordMeta
+    : buildSharedTrackingAuditRecordLabelMeta_('', {}, '', false);
+  const safeAttachments = normalizeSharedTrackingAttachmentList_(attachments);
+  const safeFolder = normalizeSharedTrackingAttachmentFolderMeta_(folderMeta) || {};
+  return safeAttachments.slice(0, 12).map(function(item) {
+    const safeAttachment = normalizeSharedTrackingAttachmentMeta_(item) || {};
+    return {
+      type: 'attachment',
+      recordId: String(safeRecordMeta.id || '').trim(),
+      recordLabel: String(safeRecordMeta.label || '').trim(),
+      attachmentId: String(safeAttachment.id || '').trim(),
+      attachmentName: String(safeAttachment.name || '').trim(),
+      documentType: normalizeSharedTrackingDocumentType_(safeAttachment.documentType),
+      fileId: String(safeAttachment.fileId || '').trim(),
+      folderId: String(safeAttachment.folderId || safeFolder.folderId || '').trim(),
+      folderName: String(safeFolder.folderName || '').trim(),
+      folderUrl: String(safeAttachment.folderUrl || safeFolder.folderUrl || '').trim(),
+      logicalPath: String(safeAttachment.logicalPath || safeFolder.logicalPath || '').trim(),
+      status: String(safeAttachment.status || '').trim(),
+      removedAt: String(safeAttachment.removedAt || '').trim(),
+      removedReason: String(safeAttachment.removedReason || '').trim()
+    };
+  });
+}
+
+function buildSharedTrackingAttachmentAuditChanges_(action, recordMeta, attachments, folderMeta) {
+  const safeRecordMeta = recordMeta && typeof recordMeta === 'object'
+    ? recordMeta
+    : buildSharedTrackingAuditRecordLabelMeta_('', {}, '', false);
+  const safeRecordId = String(safeRecordMeta.id || '').trim();
+  const safeAttachments = normalizeSharedTrackingAttachmentList_(attachments);
+  const safeFolder = normalizeSharedTrackingAttachmentFolderMeta_(folderMeta) || {};
+  const changes = [];
+  safeAttachments.slice(0, 12).forEach(function(item) {
+    const safeAttachment = normalizeSharedTrackingAttachmentMeta_(item) || {};
+    const safeDocumentType = normalizeSharedTrackingDocumentType_(safeAttachment.documentType);
+    const safeFolderId = String(safeAttachment.folderId || safeFolder.folderId || '').trim();
+    const safeLogicalPath = String(safeAttachment.logicalPath || safeFolder.logicalPath || '').trim();
+    const safeStatus = String(safeAttachment.status || (action === 'retirar_sustento' ? 'removed' : 'active')).trim();
+    if (action === 'cargar_sustento') {
+      changes.push(
+        { section: 'attachments', id: safeRecordId, field: 'attachment_name', before: '', after: String(safeAttachment.name || '').trim() },
+        { section: 'attachments', id: safeRecordId, field: 'documentType', before: '', after: safeDocumentType },
+        { section: 'attachments', id: safeRecordId, field: 'fileId', before: '', after: String(safeAttachment.fileId || '').trim() },
+        { section: 'attachments', id: safeRecordId, field: 'folderId', before: '', after: safeFolderId },
+        { section: 'attachments', id: safeRecordId, field: 'logicalPath', before: '', after: safeLogicalPath },
+        { section: 'attachments', id: safeRecordId, field: 'status', before: '', after: safeStatus }
+      );
+      return;
+    }
+    changes.push(
+      { section: 'attachments', id: safeRecordId, field: 'status', before: 'active', after: safeStatus },
+      { section: 'attachments', id: safeRecordId, field: 'removedReason', before: '', after: String(safeAttachment.removedReason || '').trim() },
+      { section: 'attachments', id: safeRecordId, field: 'removedAt', before: '', after: String(safeAttachment.removedAt || '').trim() }
+    );
+  });
+  return changes.filter(function(change) {
+    return normalizeAuditValue_(change.before) !== normalizeAuditValue_(change.after);
+  });
+}
+
 function buildSharedTrackingAttachmentAuditEntry_(actorInfo, action, recordMeta, attachments, state) {
   const actorMeta = buildAuditActorMeta_(actorInfo);
   const safeRecordMeta = recordMeta && typeof recordMeta === 'object'
@@ -6352,6 +6460,8 @@ function buildSharedTrackingAttachmentAuditEntry_(actorInfo, action, recordMeta,
     .map(function(item) { return String(item && item.name || '').trim(); })
     .filter(Boolean)
     .slice(0, 8);
+  const artifacts = buildSharedTrackingAttachmentAuditArtifacts_(safeRecordMeta, safeAttachments, folderMeta);
+  const changes = buildSharedTrackingAttachmentAuditChanges_(action, safeRecordMeta, safeAttachments, folderMeta);
   return {
     at: String(safeState.savedAt || new Date().toISOString()),
     actor: actorMeta.actor,
@@ -6366,7 +6476,7 @@ function buildSharedTrackingAttachmentAuditEntry_(actorInfo, action, recordMeta,
     requestedRevision: Number(safeState.revision || 0),
     sourceMode: String(safeState.sourceMode || 'embedded'),
     records: safeState.payload && Array.isArray(safeState.payload.records) ? safeState.payload.records.length : 0,
-    changeCount: safeAttachments.length,
+    changeCount: changes.length || safeAttachments.length,
     detail: [
       'Registro: ' + (safeRecordMeta.label || safeRecordMeta.id || 'Sin registro'),
       attachmentNames.length
@@ -6381,19 +6491,12 @@ function buildSharedTrackingAttachmentAuditEntry_(actorInfo, action, recordMeta,
           : 'Se procesaron ' + safeAttachments.length + ' sustento(s) para ' + (safeRecordMeta.label || safeRecordMeta.id || 'el registro.'))
       : 'No se registraron sustento(s) nuevos.',
     summary: {
-      total: safeAttachments.length,
-      bySection: { attachments: safeAttachments.length },
+      total: changes.length || safeAttachments.length,
+      bySection: { attachments: changes.length || safeAttachments.length },
       touchedRecords: safeRecordMeta.id ? [safeRecordMeta.id] : []
     },
-    changes: safeAttachments.map(function(item) {
-      return {
-        section: 'attachments',
-        id: String(safeRecordMeta.id || ''),
-        field: String(action || 'cargar_sustento'),
-        before: action === 'retirar_sustento' ? String(item.name || '') : '',
-        after: action === 'retirar_sustento' ? '' : String(item.name || '')
-      };
-    }).slice(0, 40)
+    changes: changes.slice(0, 80),
+    artifacts: artifacts
   };
 }
 
@@ -6404,6 +6507,31 @@ function buildSharedTrackingAttachmentFolderAuditEntry_(actorInfo, recordMeta, f
     : buildSharedTrackingAuditRecordLabelMeta_('', {}, '', false);
   const safeFolder = normalizeSharedTrackingAttachmentFolderMeta_(folderMeta) || {};
   const safeState = state && typeof state === 'object' ? state : {};
+  const changes = [
+    {
+      section: 'attachmentFolder',
+      id: String(safeRecordMeta.id || ''),
+      field: 'folderId',
+      before: '',
+      after: String(safeFolder.folderId || '')
+    },
+    {
+      section: 'attachmentFolder',
+      id: String(safeRecordMeta.id || ''),
+      field: 'folderName',
+      before: '',
+      after: String(safeFolder.folderName || '')
+    },
+    {
+      section: 'attachmentFolder',
+      id: String(safeRecordMeta.id || ''),
+      field: 'logicalPath',
+      before: '',
+      after: String(safeFolder.logicalPath || '')
+    }
+  ].filter(function(change) {
+    return normalizeAuditValue_(change.before) !== normalizeAuditValue_(change.after);
+  });
   return {
     at: String(safeState.savedAt || new Date().toISOString()),
     actor: actorMeta.actor,
@@ -6418,7 +6546,7 @@ function buildSharedTrackingAttachmentFolderAuditEntry_(actorInfo, recordMeta, f
     requestedRevision: Number(safeState.revision || 0),
     sourceMode: String(safeState.sourceMode || 'embedded'),
     records: safeState.payload && Array.isArray(safeState.payload.records) ? safeState.payload.records.length : 0,
-    changeCount: 1,
+    changeCount: changes.length || 1,
     detail: [
       'Registro: ' + (safeRecordMeta.label || safeRecordMeta.id || 'Sin registro'),
       safeFolder.folderName ? 'Carpeta: ' + safeFolder.folderName : '',
@@ -6427,16 +6555,20 @@ function buildSharedTrackingAttachmentFolderAuditEntry_(actorInfo, recordMeta, f
     ].filter(Boolean).join(' | '),
     message: 'Se preparó la carpeta de sustento para ' + (safeRecordMeta.label || safeRecordMeta.id || 'el registro.'),
     summary: {
-      total: 1,
-      bySection: { attachmentFolder: 1 },
+      total: changes.length || 1,
+      bySection: { attachmentFolder: changes.length || 1 },
       touchedRecords: safeRecordMeta.id ? [safeRecordMeta.id] : []
     },
-    changes: [{
-      section: 'attachmentFolder',
-      id: String(safeRecordMeta.id || ''),
-      field: 'folderId',
-      before: '',
-      after: String(safeFolder.folderId || '')
+    changes: changes,
+    artifacts: [{
+      type: 'attachmentFolder',
+      recordId: String(safeRecordMeta.id || '').trim(),
+      recordLabel: String(safeRecordMeta.label || '').trim(),
+      folderId: String(safeFolder.folderId || '').trim(),
+      folderName: String(safeFolder.folderName || '').trim(),
+      folderUrl: String(safeFolder.folderUrl || '').trim(),
+      logicalPath: String(safeFolder.logicalPath || '').trim(),
+      status: 'active'
     }]
   };
 }

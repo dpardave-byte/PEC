@@ -47,9 +47,6 @@ body{min-height:100vh}
 .hero-meta > div{display:inline-flex;gap:8px;align-items:center;padding:10px 14px;border-radius:999px;background:rgba(255,255,255,.14);backdrop-filter:blur(5px)}
 .hero-meta b{color:var(--ink)}
 .hero-copy .hero-meta b{color:#fff}
-.report-box figure{margin:0;border-radius:12px;overflow:hidden;border:1px solid var(--line)}
-.report-box figure img{width:100%;height:188px;object-fit:cover;display:block}
-.report-box figcaption{padding:12px 14px;font-size:15px;color:#446079;background:#fbfdff;line-height:1.45}
 .report-box{padding:24px;display:grid;gap:18px;background:linear-gradient(180deg,#ffffff 0,#f9fbfe 100%)}
 .report-box h2,.panel h2,.operations-panel-head h2,.field label{
   color:var(--brand);font-weight:800;letter-spacing:.08em
@@ -80,19 +77,32 @@ button{
   border:0;border-radius:12px;background:var(--blue);color:#fff;font-weight:700;cursor:pointer;
   min-height:42px;padding:0 15px;box-shadow:0 10px 24px rgba(22,99,199,.18)
 }
-button.action-save{background:#0d7a5f;color:#fff;box-shadow:0 12px 24px rgba(13,122,95,.22)}
-button.action-save:hover{background:#0b6a53}
+button.action-save{background:linear-gradient(135deg,#0c8a69 0%,#0b6a53 100%);color:#fff;box-shadow:0 14px 30px rgba(11,106,83,.26)}
+button.action-save:hover{background:linear-gradient(135deg,#0c7f63 0%,#095a46 100%)}
+button.action-send{background:linear-gradient(135deg,#215f93 0%,#123f67 100%);color:#fff;box-shadow:0 14px 30px rgba(18,63,103,.24)}
+button.action-send:hover{background:linear-gradient(135deg,#1b547f 0%,#103958 100%)}
 button.secondary{background:#41586f}
 button.secondary.is-active,button.ghost.is-active{background:#103958;color:#fff;box-shadow:none}
 button.ghost{background:#edf4ff;color:var(--blue)}
 button.soft{background:#e8f5f1;color:#0e615a}
 button.danger{background:#fff1f2;color:#9f2232;box-shadow:none;border:1px solid #efc6cc}
+button:disabled{opacity:.56;cursor:not-allowed;box-shadow:none}
 .toolbar-actions{gap:8px}
 .toolbar-actions button{
   min-height:38px;padding:0 14px;border:1px solid var(--line);box-shadow:none;
   background:#fff;color:var(--brand)
 }
 .toolbar-actions button.secondary,.toolbar-actions button.ghost{background:#fff;color:var(--brand)}
+.toolbar-actions button.action-save,
+.toolbar-actions button.action-send,
+.toolbar-actions button.soft,
+.toolbar-actions button.danger{
+  color:#fff;border-color:transparent
+}
+.toolbar-actions button.action-save{background:linear-gradient(135deg,#0c8a69 0%,#0b6a53 100%)}
+.toolbar-actions button.action-send{background:linear-gradient(135deg,#215f93 0%,#123f67 100%)}
+.toolbar-actions button.soft{background:linear-gradient(135deg,#1f8e7e 0%,#15695f 100%)}
+.toolbar-actions button.danger{background:linear-gradient(135deg,#c55466 0%,#99364a 100%)}
 .toolbar-actions button.is-active{background:#edf4fb;border-color:#c8d9eb;color:var(--brand)}
 .toolbar-actions button:hover{background:#f6f9fc}
 .layout{display:grid;grid-template-columns:1.6fr .9fr;gap:16px;align-items:start}
@@ -419,6 +429,37 @@ tbody tr:hover td{background:#f8fbfe}
 .admin-audit-section{display:grid;gap:12px}
 .admin-audit-section h4{margin:0;color:var(--brand)}
 .admin-audit-section p{margin:0;color:var(--muted);font-size:13px;line-height:1.4}
+.admin-ops-intro{border:1px solid #d7e5f5;border-radius:18px;padding:16px 18px;background:linear-gradient(135deg,#f9fbff 0%,#eef5fd 100%);box-shadow:var(--shadow-soft);display:grid;gap:8px}
+.admin-ops-intro strong{font-size:15px;color:var(--brand)}
+.admin-ops-intro p{margin:0;color:#4e677e;font-size:13px;line-height:1.5}
+.admin-stage-grid,.admin-gap-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.admin-stage-card,.admin-gap-card{border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,#ffffff 0,#f7fbff 100%);padding:16px;display:grid;gap:10px;box-shadow:var(--shadow-soft)}
+.admin-stage-card header,.admin-gap-card header{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.admin-stage-card h5,.admin-gap-card h5{margin:0;color:var(--brand);font-size:15px}
+.admin-stage-card p,.admin-gap-card p{margin:0;color:var(--muted);font-size:13px;line-height:1.45}
+.admin-stage-status,.admin-gap-status,.audit-revert-badge,.audit-risk-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+.admin-stage-status.ok,.admin-gap-status.ok,.audit-revert-badge.ok,.audit-risk-badge.low{background:#e8f5f0;color:#0f6a54}
+.admin-stage-status.warn,.admin-gap-status.warn,.audit-revert-badge.warn,.audit-risk-badge.medium{background:#fff4de;color:#8b5a00}
+.admin-stage-status.critical,.admin-gap-status.critical,.audit-revert-badge.critical,.audit-risk-badge.high{background:#fde9ec;color:#a03447}
+.admin-stage-status.info,.admin-gap-status.info,.audit-revert-badge.info,.audit-risk-badge.info{background:#edf4ff;color:#174a75}
+.admin-stage-meta{display:flex;flex-wrap:wrap;gap:8px}
+.admin-stage-meta span,.admin-gap-meta span{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:#eef4fb;color:var(--brand);font-size:12px;font-weight:700}
+.admin-gap-list{display:grid;gap:8px;margin:0;padding-left:18px;color:#4e677e;font-size:12px;line-height:1.45}
+.admin-gap-list li{padding-left:2px}
+.admin-record-grid,.admin-review-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+.admin-record-card,.admin-review-card{border:1px solid #d9e6f2;border-radius:18px;background:linear-gradient(180deg,#ffffff 0,#f8fbfe 100%);padding:16px;display:grid;gap:12px;box-shadow:var(--shadow-soft)}
+.admin-record-card header,.admin-review-card header{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.admin-record-card h5,.admin-review-card h5{margin:0;color:var(--brand);font-size:16px;line-height:1.2}
+.admin-record-card p,.admin-review-card p{margin:0;color:#556d83;font-size:13px;line-height:1.45}
+.admin-record-meta,.admin-review-meta{display:flex;flex-wrap:wrap;gap:8px}
+.admin-record-meta span,.admin-review-meta span{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:#eef4fb;color:var(--brand);font-size:12px;font-weight:700}
+.admin-record-diff{display:grid;gap:8px}
+.admin-record-row{border:1px solid #e1ebf5;border-radius:12px;background:#fff;padding:10px 11px;display:grid;gap:5px}
+.admin-record-row strong{font-size:12px;color:var(--brand)}
+.admin-record-row span{font-size:12px;color:#50697f;line-height:1.4}
+.admin-record-row code{font-family:Consolas,"Courier New",monospace;font-size:11px;color:#183956;word-break:break-word}
+.admin-review-list{display:grid;gap:8px;margin:0;padding-left:18px;color:#516a7f;font-size:12px;line-height:1.45}
+.admin-review-list li{padding-left:2px}
 .delivery-config-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
 .delivery-config-inline{display:flex;align-items:center;gap:10px;min-height:42px;padding:0 2px}
 .delivery-config-inline input{width:18px;height:18px;min-height:18px;margin:0}
@@ -438,6 +479,39 @@ tbody tr:hover td{background:#f8fbfe}
 .audit-report-entry:first-child{padding-top:0;border-top:0}
 .audit-report-entry strong{display:block;color:var(--ink)}
 .audit-report-entry span{display:block;color:var(--muted);font-size:12px;line-height:1.45}
+.admin-audit-scroll{max-height:540px;overflow:auto;padding-right:4px}
+.audit-actor-card{border:1px solid #d7e5f2;border-radius:20px;background:linear-gradient(180deg,#ffffff 0,#f7fbff 100%);padding:18px;display:grid;gap:14px;box-shadow:var(--shadow-soft)}
+.audit-actor-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.audit-actor-head h4{margin:0;color:var(--brand);font-size:28px;line-height:1.05}
+.audit-actor-head p{margin:6px 0 0;color:var(--muted);font-size:13px;line-height:1.45}
+.audit-actor-card .audit-report-entry-list{max-height:760px;overflow:auto;padding-right:4px}
+.audit-entry-card{border:1px solid #deebf7;border-radius:18px;background:#fff;padding:14px 15px;display:grid;gap:10px}
+.audit-entry-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.audit-entry-top strong{font-size:16px;line-height:1.25}
+.audit-entry-top span{font-size:12px}
+.audit-entry-meta{display:flex;flex-wrap:wrap;gap:8px}
+.audit-entry-meta span{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:#eef4fb;color:var(--brand);font-size:12px;font-weight:700}
+.audit-entry-grid{display:grid;grid-template-columns:1.4fr .9fr;gap:12px}
+.audit-entry-panel{border:1px solid #e6edf4;border-radius:14px;background:#f9fbfe;padding:12px;display:grid;gap:8px}
+.audit-entry-panel h6{margin:0;color:var(--brand);font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+.audit-entry-panel p{margin:0;color:#516a7f;font-size:12px;line-height:1.45}
+.audit-diff-list{display:grid;gap:8px}
+.audit-diff-item{border:1px solid #dfeaf5;border-radius:12px;background:#fff;padding:10px 11px;display:grid;gap:5px}
+.audit-diff-item strong{font-size:12px;color:var(--brand)}
+.audit-diff-item span{font-size:12px;color:#4e677e;line-height:1.4}
+.audit-diff-item code{font-family:Consolas,"Courier New",monospace;font-size:11px;color:#183956;word-break:break-word}
+.audit-entry-gaps{display:grid;gap:6px}
+.audit-entry-gaps span{display:block;padding:8px 10px;border-radius:12px;background:#fff4de;color:#7f5800;font-size:12px;line-height:1.4}
+.audit-record-list{display:flex;flex-wrap:wrap;gap:8px}
+.audit-record-list span{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;background:#f1f6fb;color:var(--brand);font-size:12px;font-weight:700}
+.audit-compact-list{display:grid;gap:12px;max-height:620px;overflow:auto;padding-right:4px}
+.audit-compact-card{border:1px solid #dce8f3;border-radius:18px;background:linear-gradient(180deg,#ffffff 0,#f8fbfe 100%);padding:14px;display:grid;gap:10px}
+.audit-compact-card strong{font-size:18px;color:var(--brand);line-height:1.15}
+.audit-compact-card p{margin:0;color:#526b81;font-size:12px;line-height:1.45}
+.audit-compact-card .audit-entry-meta{gap:6px}
+.audit-compact-card .audit-entry-meta span{font-size:11px}
+.audit-compact-card .audit-diff-list{gap:6px}
+.audit-compact-card .audit-diff-item{padding:8px 10px}
 .report-preview{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;line-height:1.6}
 .report-preview h1,.report-preview h2,.report-preview h3{color:var(--brand)}
 .analytics-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:14px}
@@ -487,10 +561,6 @@ tbody tr:hover td{background:#f8fbfe}
     <aside class="report-box">
       <h2>Resumen ejecutivo</h2>
       <div class="summary-list" id="quickReportSummary"></div>
-      <figure>
-        <img src="https://dpardave-byte.github.io/PEC/assets/planta-tratamiento-2.jpg" alt="Planta de tratamiento y enfoque de economía circular">
-        <figcaption>Seguimiento ejecutivo de hitos, riesgos, inversion, operacion y mantenimiento del portafolio.</figcaption>
-      </figure>
     </aside>
   </section>
 
@@ -661,7 +731,7 @@ tbody tr:hover td{background:#f8fbfe}
             <button id="exportStructureXlsxBtn" class="soft">Exportar estructura XLSX</button>
             <button id="exportStructureJsonBtn" class="ghost">Exportar estructura JSON</button>
             <button id="exportBackupBtn" class="soft">Exportar backup del día</button>
-            <button id="restoreLatestSnapshotBtn" class="ghost" style="display:none">Restaurar último snapshot</button>
+            <button id="restoreLatestSnapshotBtn" class="danger" style="display:none">Restaurar último snapshot</button>
             <button id="exportSupportInventoryJsonBtn" class="ghost">Inventario sustentos JSON</button>
             <button id="exportSupportInventoryCsvBtn" class="secondary">Inventario sustentos CSV</button>
             <button id="exportSupportInventoryHtmlBtn" class="soft">Inventario sustentos HTML</button>
@@ -966,7 +1036,7 @@ tbody tr:hover td{background:#f8fbfe}
       <div class="detail-box"><b>Etiquetas adicionales</b><input id="heroEditMetaExtra" type="text" value="" placeholder="Separar con |"></div>
     </div>
     <div class="toolbar-actions" style="margin-top:14px">
-      <button id="saveHeroBtn">Guardar portada</button>
+      <button id="saveHeroBtn" class="action-save">Guardar portada</button>
       <button id="resetHeroBtn" class="secondary">Restablecer</button>
     </div>
   </div>
@@ -986,7 +1056,10 @@ tbody tr:hover td{background:#f8fbfe}
       </div>
       <button id="closeAdminBtn" class="secondary">Cerrar</button>
     </div>
-    <div class="operations-note"><strong>Operación diaria del visor PEC.</strong> El panel administra el recordatorio operativo matutino, el resumen ejecutivo nocturno admin y el reporte detallado de auditoría por usuario.</div>
+    <div class="admin-ops-intro">
+      <strong>Operación diaria, trazabilidad y reversión controlada del visor PEC</strong>
+      <p>Este panel concentra la lectura ejecutiva del cierre diario, la verificación de brechas por tabla interna, el estado de respaldo y la lectura operativa de auditoría para decidir si un cambio se mantiene, se corrige manualmente o se revierte por snapshot.</p>
+    </div>
     <div class="admin-audit-toolbar">
       <label class="admin-date-field" for="adminAuditDate">
         <span>Fecha del reporte</span>
@@ -999,6 +1072,14 @@ tbody tr:hover td{background:#f8fbfe}
       </div>
     </div>
     <div class="admin-audit-sections">
+      <section class="admin-audit-section">
+        <div>
+          <h4>Plan por etapas y brechas de control</h4>
+          <p id="adminGovernanceMeta">Se mostrará el estado de madurez del panel admin, la trazabilidad utilizable y los posibles fallos por tabla interna.</p>
+        </div>
+        <div class="admin-stage-grid" id="adminImplementationStages"></div>
+        <div class="admin-gap-grid" id="adminGapMatrix"></div>
+      </section>
       <section class="admin-audit-section">
         <div>
           <h4>Centro de control operativo</h4>
@@ -1032,6 +1113,20 @@ tbody tr:hover td{background:#f8fbfe}
           <p id="adminDailyAuditMeta">Se mostrará un resumen diario por usuario con todos los cambios auditados de la fecha seleccionada.</p>
         </div>
         <div class="admin-daily-report" id="adminDailyAuditSummary"></div>
+      </section>
+      <section class="admin-audit-section">
+        <div>
+          <h4>Comparación before/after por registro</h4>
+          <p id="adminRecordComparisonMeta">Se mostrará la comparación por registro para estado, responsable, seguimiento DGPPCS, EDT y sustentos, priorizando cambios con valor ejecutivo.</p>
+        </div>
+        <div class="admin-record-grid" id="adminRecordComparisonSummary"></div>
+      </section>
+      <section class="admin-audit-section">
+        <div>
+          <h4>Secciones, reportes y proyecciones</h4>
+          <p id="adminSectionReviewMeta">Se evaluará qué superficies del visor conviene mantener, simplificar, consolidar o retirar según su utilidad real para decisión ejecutiva.</p>
+        </div>
+        <div class="admin-review-grid" id="adminSectionReviewGrid"></div>
       </section>
       <section class="admin-audit-section">
         <div>
@@ -1084,11 +1179,11 @@ tbody tr:hover td{background:#f8fbfe}
             </label>
           </div>
           <div class="toolbar-actions">
-            <button id="saveDailyDeliveryConfigBtn" class="secondary">Guardar entrega</button>
+            <button id="saveDailyDeliveryConfigBtn" class="action-save">Guardar entrega</button>
             <button id="refreshDailyDeliveryBtn" class="secondary">Actualizar entrega</button>
-            <button id="sendDailyAuditMailBtn">Enviar recordatorio ahora</button>
-            <button id="createDailyAuditTriggerBtn" class="ghost">Activar recordatorio diario</button>
-            <button id="deleteDailyAuditTriggerBtn" class="ghost">Eliminar trigger diario</button>
+            <button id="sendDailyAuditMailBtn" class="action-send">Enviar recordatorio ahora</button>
+            <button id="createDailyAuditTriggerBtn" class="soft">Activar recordatorio diario</button>
+            <button id="deleteDailyAuditTriggerBtn" class="danger">Eliminar trigger diario</button>
           </div>
           <div class="ops-feedback info" id="adminDailyDeliveryFeedback">
             <strong>Recordatorio matutino listo</strong>
@@ -1118,11 +1213,11 @@ tbody tr:hover td{background:#f8fbfe}
             </label>
           </div>
           <div class="toolbar-actions">
-            <button id="saveAdminNightlySummaryConfigBtn" class="secondary">Guardar horario</button>
+            <button id="saveAdminNightlySummaryConfigBtn" class="action-save">Guardar horario</button>
             <button id="refreshAdminNightlySummaryBtn" class="secondary">Actualizar resumen admin</button>
-            <button id="sendAdminNightlySummaryBtn">Enviar resumen ahora</button>
-            <button id="createAdminNightlySummaryTriggerBtn" class="ghost">Activar resumen nocturno</button>
-            <button id="deleteAdminNightlySummaryTriggerBtn" class="ghost">Eliminar trigger nocturno</button>
+            <button id="sendAdminNightlySummaryBtn" class="action-send">Enviar resumen ahora</button>
+            <button id="createAdminNightlySummaryTriggerBtn" class="soft">Activar resumen nocturno</button>
+            <button id="deleteAdminNightlySummaryTriggerBtn" class="danger">Eliminar trigger nocturno</button>
           </div>
           <div class="ops-feedback info" id="adminNightlySummaryFeedback">
             <strong>Resumen nocturno listo</strong>
@@ -1132,10 +1227,10 @@ tbody tr:hover td{background:#f8fbfe}
       </section>
       <section class="admin-audit-section">
         <div>
-          <h4>Detalle reciente de auditoría</h4>
-          <p>Últimos movimientos registrados en la bitácora operativa del visor.</p>
+          <h4>Visor de auditoría y reversión reciente</h4>
+          <p>Últimos movimientos registrados en la bitácora operativa del visor, con lectura de cambio, brechas de trazabilidad y criterio de reversión.</p>
         </div>
-        <div class="summary-list" id="adminAuditList"></div>
+        <div class="audit-compact-list" id="adminAuditList"></div>
       </section>
     </div>
   </div>
@@ -4257,6 +4352,906 @@ function humanizeAuditAction(action){
   }
 }
 
+function humanizeAuditSectionName(section){
+  switch(text(section)){
+    case 'notes': return 'Ficha y notas';
+    case 'edits': return 'Edición de registros';
+    case 'payload': return 'Estructura base';
+    case 'customRecords': return 'Subactividades';
+    case 'customPeople': return 'Catálogo de seguimiento';
+    case 'customEntities': return 'Catálogo de responsables';
+    case 'aliases': return 'Ubicación visual';
+    case 'attachments': return 'Sustentos';
+    case 'attachmentFolder': return 'Carpeta de sustentos';
+    case 'hero': return 'Portada';
+    case 'state': return 'Estado compartido';
+    default: return text(section) ? text(section).replace(/_/g,' ') : 'Sin sección';
+  }
+}
+
+function humanizeAuditFieldName(field){
+  switch(text(field)){
+    case 'edt': return 'EDT';
+    case 'parent_edt': return 'Padre visual';
+    case 'grupo': return 'Bloque';
+    case 'nivel': return 'Nivel';
+    case 'actividad': return 'Actividad';
+    case 'responsable': return 'Responsable';
+    case 'seguimiento_dgppcs': return 'Seguimiento DGPPCS';
+    case 'inicio': return 'Fecha inicio';
+    case 'final': return 'Fecha final';
+    case 'estado': return 'Estado';
+    case 'alerta': return 'Alerta';
+    case 'resumen': return 'Resumen';
+    case 'value': return 'Valor';
+    case 'attachment_name': return 'Sustento';
+    case 'documentType': return 'Tipo documental';
+    case 'fileId': return 'ID archivo';
+    case 'folderId': return 'ID carpeta';
+    case 'folderName': return 'Nombre carpeta';
+    case 'logicalPath': return 'Ruta lógica';
+    case 'status': return 'Estado documental';
+    case 'removedAt': return 'Fecha de retiro';
+    case 'removedReason': return 'Motivo de retiro';
+    case 'cargar_sustento': return 'Carga de sustento';
+    case 'retirar_sustento': return 'Retiro de sustento';
+    case 'title': return 'Título';
+    case 'subtitle': return 'Subtítulo';
+    case 'meta1': return 'Meta 1';
+    case 'meta2': return 'Meta 2';
+    case 'meta3': return 'Meta 3';
+    case 'extras': return 'Etiquetas adicionales';
+    default: return text(field) ? text(field).replace(/_/g,' ') : 'Campo';
+  }
+}
+
+function formatAuditPreviewValue(value){
+  const safe = text(value);
+  if(!safe) return 'Vacio';
+  if(safe === 'unknown') return 'Sin clasificar';
+  if(safe === 'active') return 'Activo';
+  if(safe === 'removed') return 'Retirado';
+  return safe.length > 110 ? (safe.slice(0,107) + '...') : safe;
+}
+
+function isAuditActionDiffExpected(action){
+  return [
+    'guardar_estado_compartido',
+    'guardar_ficha',
+    'agregar_subactividad',
+    'eliminar_subarbol',
+    'eliminar_subactividad',
+    'editar_portada',
+    'catalogo_responsable',
+    'catalogo_seguimiento',
+    'cargar_sustento',
+    'retirar_sustento',
+    'preparar_carpeta_sustento'
+  ].includes(text(action));
+}
+
+function findMatchingAuditItem(actorName, entry){
+  const actor = text(actorName);
+  const at = text(entry && entry.at);
+  const action = text(entry && entry.action);
+  const detail = text(entry && (entry.detail || entry.message));
+  const list = Array.isArray(appState.audit) ? appState.audit : [];
+  return list.find(item => (
+    text(item && item.actor) === actor &&
+    text(item && item.at) === at &&
+    text(item && item.action) === action &&
+    (!detail || text(item && (item.detail || item.message)) === detail)
+  )) || list.find(item => (
+    text(item && item.actor) === actor &&
+    text(item && item.at) === at &&
+    text(item && item.action) === action
+  )) || null;
+}
+
+function getAuditEntryTouchedRecordLabels(entry, actorName){
+  const direct = Array.isArray(entry && entry.touchedRecords) ? entry.touchedRecords.map(text).filter(Boolean) : [];
+  if(direct.length) return direct;
+  const raw = findMatchingAuditItem(actorName, entry);
+  return getAuditItemTouchedRecords(raw);
+}
+
+function buildFrontendAuditRecordIndex(){
+  const index = new Map();
+  const records = Array.isArray(appState.raw) ? appState.raw : [];
+  records.forEach(record => {
+    if(!record || typeof record !== 'object') return;
+    const label = displayTitle(record);
+    if(text(record.id) && !index.has(text(record.id))){
+      index.set(text(record.id), label);
+    }
+    if(text(record.edt) && !index.has(text(record.edt))){
+      index.set(text(record.edt), label);
+    }
+  });
+  return index;
+}
+
+function resolveFrontendAuditRecordLabel(recordId){
+  const safeId = text(recordId);
+  if(!safeId) return 'Registro sin identificar';
+  const index = buildFrontendAuditRecordIndex();
+  if(index.has(safeId)) return index.get(safeId);
+  if(/^case-\d+/i.test(safeId)) return 'Caso ' + safeId.replace(/^case-/i, '');
+  return safeId;
+}
+
+function getAuditComparisonPriority(change){
+  const field = text(change && change.field);
+  const section = text(change && change.section);
+  if(['edt','parent_edt','grupo','nivel'].includes(field)) return 1;
+  if(field === 'estado') return 2;
+  if(field === 'responsable') return 3;
+  if(field === 'seguimiento_dgppcs') return 4;
+  if(section === 'attachments' || ['cargar_sustento','retirar_sustento','attachment_name','documentType','status','removedReason','removedAt'].includes(field)) return 5;
+  if(section === 'attachmentFolder' || ['folderId','folderName','logicalPath','fileId'].includes(field)) return 6;
+  return 20;
+}
+
+function isRelevantAuditComparisonChange(change){
+  return getAuditComparisonPriority(change) < 20;
+}
+
+function getAuditEntryArtifacts(entry, actorName){
+  const direct = Array.isArray(entry && entry.artifacts) ? entry.artifacts : [];
+  const raw = findMatchingAuditItem(actorName, entry);
+  const source = direct.length
+    ? direct
+    : (Array.isArray(raw && raw.artifacts) ? raw.artifacts : []);
+  return source.map(item => ({
+    type: text(item && item.type),
+    recordId: text(item && item.recordId),
+    recordLabel: text(item && item.recordLabel),
+    attachmentId: text(item && item.attachmentId),
+    attachmentName: text(item && item.attachmentName),
+    documentType: text(item && item.documentType),
+    fileId: text(item && item.fileId),
+    folderId: text(item && item.folderId),
+    folderName: text(item && item.folderName),
+    logicalPath: text(item && item.logicalPath),
+    status: text(item && item.status),
+    removedAt: text(item && item.removedAt),
+    removedReason: text(item && item.removedReason)
+  })).filter(item => item.recordId || item.attachmentId || item.attachmentName || item.folderId || item.logicalPath);
+}
+
+function getAuditEntryChangePreview(entry, actorName){
+  const direct = Array.isArray(entry && entry.changePreview) ? entry.changePreview : [];
+  const raw = findMatchingAuditItem(actorName, entry);
+  const changes = direct.length
+    ? direct
+    : (Array.isArray(entry && entry.changes) ? entry.changes : (Array.isArray(raw && raw.changes) ? raw.changes : []));
+  return changes
+    .filter(change => text(change && change.field) || text(change && change.section))
+    .slice(0, 6)
+    .map(change => ({
+      recordId: text(change && change.id),
+      sectionLabel: humanizeAuditSectionName(change && change.section),
+      fieldLabel: humanizeAuditFieldName(change && change.field),
+      beforeLabel: formatAuditPreviewValue(change && change.before),
+      afterLabel: formatAuditPreviewValue(change && change.after)
+    }));
+}
+
+function classifyAuditChangeNature(entry, actorName){
+  const raw = findMatchingAuditItem(actorName, entry);
+  const action = text(entry && entry.action) || text(raw && raw.action);
+  const changes = Array.isArray(entry && entry.changes) ? entry.changes : (Array.isArray(raw && raw.changes) ? raw.changes : []);
+  const artifacts = getAuditEntryArtifacts(entry, actorName);
+  const sections = Array.isArray(entry && entry.sections) ? entry.sections : [];
+  const changeCount = Number(entry && entry.changeCount || 0);
+  const touchedCount = getAuditEntryTouchedRecordLabels(entry, actorName).length;
+  const fields = changes.map(change => text(change && change.field));
+  const sectionNames = sections.map(section => text(section && section.name));
+  if(action.startsWith('enviar_') || action.startsWith('configurar_') || action.startsWith('omitir_') || action.startsWith('restaurar_')){
+    return 'Administrativo';
+  }
+  if(changeCount >= 25 || touchedCount >= 6){
+    return 'Masivo';
+  }
+  if(fields.some(field => ['edt','parent_edt','grupo','nivel'].includes(field))){
+    return 'Estructural';
+  }
+  if(sectionNames.includes('attachments') || sectionNames.includes('attachmentFolder') || artifacts.length || fields.some(field => ['cargar_sustento','retirar_sustento','folderId','documentType','fileId','logicalPath','status'].includes(field))){
+    return 'Documental';
+  }
+  return 'Operativo simple';
+}
+
+function buildAuditRecordComparisonItems(entry, actorName){
+  const raw = findMatchingAuditItem(actorName, entry);
+  const changes = Array.isArray(entry && entry.changes) ? entry.changes : (Array.isArray(raw && raw.changes) ? raw.changes : []);
+  const artifacts = getAuditEntryArtifacts(entry, actorName);
+  const relevant = changes.filter(isRelevantAuditComparisonChange);
+  const recordMap = new Map();
+  relevant
+    .sort((a,b) => getAuditComparisonPriority(a) - getAuditComparisonPriority(b))
+    .forEach(change => {
+      const recordId = text(change && change.id) || text(entry && entry.touchedRecords && entry.touchedRecords[0]) || 'sin_registro';
+      if(!recordMap.has(recordId)){
+        recordMap.set(recordId, {
+          recordId,
+          label: resolveFrontendAuditRecordLabel(recordId),
+          rows: [],
+          artifacts: []
+        });
+      }
+      recordMap.get(recordId).rows.push({
+        section: text(change && change.section),
+        field: text(change && change.field),
+        sectionLabel: humanizeAuditSectionName(change && change.section),
+        fieldLabel: humanizeAuditFieldName(change && change.field),
+        beforeLabel: formatAuditPreviewValue(change && change.before),
+        afterLabel: formatAuditPreviewValue(change && change.after),
+        priority: getAuditComparisonPriority(change)
+      });
+    });
+  artifacts.forEach(artifact => {
+    const recordId = text(artifact && artifact.recordId) || text(entry && entry.touchedRecords && entry.touchedRecords[0]) || 'sin_registro';
+    if(!recordMap.has(recordId)){
+      recordMap.set(recordId, {
+        recordId,
+        label: resolveFrontendAuditRecordLabel(recordId),
+        rows: [],
+        artifacts: []
+      });
+    }
+    recordMap.get(recordId).artifacts.push(artifact);
+  });
+  if(recordMap.size) return Array.from(recordMap.values()).map(item => {
+    item.rows = item.rows.sort((a,b) => a.priority - b.priority).slice(0, 6);
+    item.artifacts = Array.isArray(item.artifacts) ? item.artifacts.slice(0, 4) : [];
+    return item;
+  });
+  const touched = getAuditEntryTouchedRecordLabels(entry, actorName);
+  if(touched.length){
+    return touched.slice(0, 6).map(label => ({
+      recordId: label,
+      label,
+      rows: [],
+      artifacts: []
+    }));
+  }
+  return [{
+    recordId: 'sin_registro',
+    label: 'Registro no identificable',
+    rows: [],
+    artifacts: []
+  }];
+}
+
+function getAuditEntryGapFlags(entry, actorName){
+  const gaps = [];
+  const touchedRecords = getAuditEntryTouchedRecordLabels(entry, actorName);
+  const preview = getAuditEntryChangePreview(entry, actorName);
+  const artifacts = getAuditEntryArtifacts(entry, actorName);
+  const sections = Array.isArray(entry && entry.sections) ? entry.sections.filter(item => text(item && item.name)) : [];
+  const changeCount = Number(entry && entry.changeCount || 0);
+  const raw = findMatchingAuditItem(actorName, entry);
+  if(!text(entry && (entry.detail || entry.message)) && !text(raw && (raw.detail || raw.message))){
+    gaps.push('Sin detalle narrativo del cambio.');
+  }
+  if(!touchedRecords.length){
+    gaps.push('No se identifican registros asociados.');
+  }
+  if(isAuditActionDiffExpected(entry && entry.action) && !preview.length){
+    gaps.push(artifacts.length
+      ? 'Sin diff campo a campo suficiente; solo hay metadata auxiliar del evento.'
+      : 'No existe diff campo a campo visible para esta acción.');
+  }
+  if(!sections.length){
+    gaps.push('No se consolidaron secciones impactadas.');
+  }
+  if(changeCount >= 25){
+    gaps.push('Cambio masivo: revisar antes de decidir una reversión.');
+  }
+  return gaps;
+}
+
+function renderAuditArtifactsHtml(entry, actorName){
+  const artifacts = getAuditEntryArtifacts(entry, actorName).slice(0, 4);
+  if(!artifacts.length) return '';
+  return '<div class="audit-diff-list">' + artifacts.map(item => {
+    const parts = [];
+    if(text(item.attachmentName)) parts.push('Sustento: ' + item.attachmentName);
+    if(text(item.documentType)) parts.push('Tipo: ' + formatAuditPreviewValue(item.documentType));
+    if(text(item.status)) parts.push('Estado: ' + formatAuditPreviewValue(item.status));
+    if(text(item.fileId)) parts.push('fileId: ' + item.fileId);
+    if(text(item.folderId)) parts.push('folderId: ' + item.folderId);
+    if(text(item.folderName)) parts.push('Carpeta: ' + item.folderName);
+    if(text(item.logicalPath)) parts.push('Ruta: ' + item.logicalPath);
+    if(text(item.removedReason)) parts.push('Motivo: ' + item.removedReason);
+    return '<div class="audit-diff-item">' +
+      '<strong>' + escapeHtml(text(item.recordLabel) || resolveFrontendAuditRecordLabel(item.recordId)) + '</strong>' +
+      '<span>' + escapeHtml(parts.join(' | ') || 'Metadata documental sin detalle adicional.') + '</span>' +
+    '</div>';
+  }).join('') + '</div>';
+}
+
+function buildAuditRecordCorrectionGuide(recordItem, entry, actorName){
+  const rows = Array.isArray(recordItem && recordItem.rows) ? recordItem.rows : [];
+  const artifacts = Array.isArray(recordItem && recordItem.artifacts) ? recordItem.artifacts : [];
+  const fields = rows.map(row => text(row && row.field));
+  const guide = [];
+  if(fields.some(field => ['edt','parent_edt','grupo','nivel'].includes(field))){
+    guide.push('Revisa EDT, bloque, padre visual y nivel de este registro antes de decidir un rollback global.');
+  }
+  if(fields.some(field => ['estado','responsable','seguimiento_dgppcs'].includes(field))){
+    guide.push('Este cambio puede corregirse editando nuevamente la ficha del registro y guardando una nueva revisión.');
+  }
+  if(fields.some(field => ['attachment_name','documentType','fileId','folderId','logicalPath','status','removedReason'].includes(field)) || artifacts.length){
+    guide.push('Contrasta inventario, carpeta y metadata documental. Si el sustento fue retirado, vuelve a cargarlo; si la carpeta es incorrecta, prepara carpeta nuevamente.');
+  }
+  if(!rows.length){
+    guide.push('La evidencia sigue siendo parcial; revisa el detalle narrativo y, si el impacto fue amplio, evalúa snapshot global.');
+  }
+  const revert = getAuditEntryRevertMeta(entry);
+  if(revert && revert.label === 'Snapshot global o corrección manual'){
+    guide.push('Usa snapshot global solo si el movimiento afectó varios registros o rompió estructura, no como primera opción para un caso aislado.');
+  }
+  return guide.slice(0, 3);
+}
+
+function getAuditEntryRiskMeta(entry, actorName){
+  const changeCount = Number(entry && entry.changeCount || 0);
+  const touchedRecords = getAuditEntryTouchedRecordLabels(entry, actorName);
+  const gaps = getAuditEntryGapFlags(entry, actorName);
+  if(changeCount >= 40 || touchedRecords.length >= 8){
+    return {tone:'high', label:'Riesgo alto', detail:'Movimiento amplio; confirmar alcance antes de corregir o revertir.'};
+  }
+  if(gaps.length || changeCount >= 10){
+    return {tone:'medium', label:'Revisión requerida', detail:'La evidencia de auditoría existe, pero conviene revisar detalle y trazabilidad.'};
+  }
+  return {tone:'low', label:'Trazabilidad consistente', detail:'La acción tiene alcance acotado y evidencia suficiente para seguimiento.'};
+}
+
+function getAuditEntryRevertMeta(entry){
+  const action = text(entry && entry.action);
+  const info = ensureServerInfo();
+  if(action === 'restaurar_snapshot'){
+    return {tone:'ok', label:'Ya revertido', detail:'Este movimiento ya corresponde a una restauración del estado compartido.'};
+  }
+  if(action.startsWith('enviar_') || action.startsWith('omitir_')){
+    return {tone:'info', label:'No reversible', detail:'Los envíos y omisiones no se revierten desde esta vista; solo pueden corregirse en la siguiente operación.'};
+  }
+  if(action === 'configurar_reporte_diario' || action === 'configurar_resumen_admin_nocturno'){
+    return {tone:'warn', label:'Corrección manual', detail:'La configuración se corrige guardando un nuevo valor; no existe reversión por evento.'};
+  }
+  if(isSharedBackendMode() && info.admin && info.canRestoreSharedState){
+    return {tone:'warn', label:'Snapshot global o corrección manual', detail:'Puedes restaurar el último snapshot, pero afectará el estado completo del visor, no solo este movimiento.'};
+  }
+  return {tone:'info', label:'Corrección manual', detail:'Este cambio se corrige editando nuevamente la ficha, el catálogo o la configuración afectada.'};
+}
+
+function renderAuditChangePreviewHtml(entry, actorName){
+  const preview = getAuditEntryChangePreview(entry, actorName);
+  const artifactsHtml = renderAuditArtifactsHtml(entry, actorName);
+  if(!preview.length){
+    return '<p>La auditoría no expone un diff campo a campo suficiente para este movimiento. Se muestra el detalle narrativo y la metadata documental disponible.</p>' + artifactsHtml;
+  }
+  return '<div class="audit-diff-list">' + preview.map(item => (
+    '<div class="audit-diff-item">' +
+      '<strong>' + escapeHtml([item.sectionLabel, item.fieldLabel].filter(Boolean).join(' | ')) + (item.recordId ? ' <code>' + escapeHtml(item.recordId) + '</code>' : '') + '</strong>' +
+      '<span><code>' + escapeHtml(item.beforeLabel) + '</code> -> <code>' + escapeHtml(item.afterLabel) + '</code></span>' +
+    '</div>'
+  )).join('') + '</div>' + artifactsHtml;
+}
+
+function renderAuditGapFlagHtml(entry, actorName){
+  const flags = getAuditEntryGapFlags(entry, actorName);
+  if(!flags.length){
+    return '<p>Sin brechas críticas visibles en esta evidencia. La reversión debe evaluarse según alcance y snapshot disponible.</p>';
+  }
+  return '<div class="audit-entry-gaps">' + flags.map(item => '<span>' + escapeHtml(item) + '</span>').join('') + '</div>';
+}
+
+function renderAuditRecordTags(entry, actorName){
+  const touchedRecords = getAuditEntryTouchedRecordLabels(entry, actorName).slice(0, 8);
+  return touchedRecords.length
+    ? '<div class="audit-record-list">' + touchedRecords.map(item => '<span>' + escapeHtml(item) + '</span>').join('') + '</div>'
+    : '';
+}
+
+function renderAuditEntryCard(entry, actorName, compact){
+  const risk = getAuditEntryRiskMeta(entry, actorName);
+  const revert = getAuditEntryRevertMeta(entry, actorName);
+  const sections = Array.isArray(entry && entry.sections) ? entry.sections.filter(item => text(item && item.name)).slice(0, 4) : [];
+  const cardClass = compact ? 'audit-compact-card' : 'audit-entry-card';
+  return '<article class="' + cardClass + '">' +
+    '<div class="audit-entry-top">' +
+      '<div>' +
+        '<strong>' + escapeHtml((formatIsoDisplay(entry && entry.at) || 'Sin hora') + ' | ' + (text(entry && entry.actionLabel) || humanizeAuditAction(entry && entry.action))) + '</strong>' +
+        '<span>' + escapeHtml(text(entry && (entry.detail || entry.message)) || 'Sin detalle narrativo.') + '</span>' +
+      '</div>' +
+      '<div class="audit-entry-meta">' +
+        '<span class="audit-risk-badge ' + escapeHtml(risk.tone) + '">' + escapeHtml(risk.label) + '</span>' +
+        '<span class="audit-revert-badge ' + escapeHtml(revert.tone) + '">' + escapeHtml(revert.label) + '</span>' +
+      '</div>' +
+    '</div>' +
+    '<div class="audit-entry-meta">' +
+      '<span>Impactos: ' + escapeHtml(String(Number(entry && entry.changeCount || 0))) + '</span>' +
+      '<span>Registros: ' + escapeHtml(String(getAuditEntryTouchedRecordLabels(entry, actorName).length)) + '</span>' +
+      sections.map(section => '<span>' + escapeHtml(humanizeAuditSectionName(section.name) + ' (' + Number(section.count || 0) + ')') + '</span>').join('') +
+    '</div>' +
+    '<div class="audit-entry-grid">' +
+      '<div class="audit-entry-panel">' +
+        '<h6>Cambio realizado</h6>' +
+        renderAuditChangePreviewHtml(entry, actorName) +
+      '</div>' +
+      '<div class="audit-entry-panel">' +
+        '<h6>Reversión y brechas</h6>' +
+        '<p>' + escapeHtml(revert.detail) + '</p>' +
+        '<p>' + escapeHtml(risk.detail) + '</p>' +
+        renderAuditGapFlagHtml(entry, actorName) +
+      '</div>' +
+    '</div>' +
+    renderAuditRecordTags(entry, actorName) +
+  '</article>';
+}
+
+function collectAuditEntriesForGovernance(report){
+  const actors = Array.isArray(report && report.actors) ? report.actors : [];
+  const entries = [];
+  actors.forEach(actor => {
+    (Array.isArray(actor && actor.entries) ? actor.entries : []).forEach(entry => {
+      entries.push({ actor: text(actor.actor), entry });
+    });
+  });
+  return entries;
+}
+
+function buildAdminGovernanceModel(){
+  const report = appState.adminDailyReport;
+  const operational = appState.operationalControl || {};
+  const delivery = appState.dailyReportDelivery || {};
+  const nightly = appState.adminNightlySummary || {};
+  const info = ensureServerInfo();
+  const safeRecords = (Array.isArray(appState.raw) ? appState.raw : []).filter(record => !isExcludedRecord(record) && !isCommentOnlyRecord(record));
+  const rootCount = safeRecords.filter(record => Number(record && record.nivel) === 1).length;
+  const entryPairs = collectAuditEntriesForGovernance(report);
+  const missingDiff = entryPairs.filter(item => isAuditActionDiffExpected(item.entry && item.entry.action) && !getAuditEntryChangePreview(item.entry, item.actor).length).length;
+  const missingRecords = entryPairs.filter(item => !getAuditEntryTouchedRecordLabels(item.entry, item.actor).length).length;
+  const highRisk = entryPairs.filter(item => Number(item.entry && item.entry.changeCount || 0) >= 25).length;
+  const totalEntries = Number(report && report.totalEntries || 0);
+  const criticalGapCount = [
+    missingDiff > 0,
+    missingRecords > 0,
+    delivery && delivery.ok && !(Array.isArray(delivery.effectiveRecipients) && delivery.effectiveRecipients.length) && text(delivery.mode) !== 'PREVIEW_ONLY',
+    nightly && nightly.ok && !(Array.isArray(nightly.recipients) && nightly.recipients.length),
+    !text(info.lastSnapshotAt)
+  ].filter(Boolean).length;
+  const stages = [
+    {
+      title: 'Etapa 1 | Operación diaria',
+      tone: operational && operational.controlReady ? 'ok' : 'warn',
+      detail: operational && operational.controlReady
+        ? 'El centro de control operativo responde y muestra su estado consolidado.'
+        : 'El centro operativo aún depende de backend, admin o revisión de configuración.',
+      tags: [
+        'Control: ' + (operational && operational.controlReady ? 'listo' : 'revisar'),
+        'Movimientos del día: ' + totalEntries
+      ]
+    },
+    {
+      title: 'Etapa 2 | Trazabilidad útil',
+      tone: missingDiff || missingRecords ? 'warn' : 'ok',
+      detail: missingDiff || missingRecords
+        ? 'Hay evidencia auditada, pero parte de los movimientos todavía no muestra diff completo o registros asociados.'
+        : 'La auditoría diaria ya permite leer quién cambió, qué tocó y dónde revisar.',
+      tags: [
+        'Sin diff: ' + missingDiff,
+        'Sin registros: ' + missingRecords
+      ]
+    },
+    {
+      title: 'Etapa 3 | Reversión controlada',
+      tone: text(info.lastSnapshotAt) && info.canRestoreSharedState ? 'ok' : 'warn',
+      detail: text(info.lastSnapshotAt) && info.canRestoreSharedState
+        ? 'Existe snapshot reciente y esta sesión admin puede restaurarlo si hace falta.'
+        : 'La reversión por snapshot no está plenamente disponible en esta sesión o falta snapshot reciente.',
+      tags: [
+        'Snapshot: ' + (text(info.lastSnapshotAt) ? 'si' : 'no'),
+        'Rollback admin: ' + (info.canRestoreSharedState ? 'si' : 'no')
+      ]
+    },
+    {
+      title: 'Etapa 4 | Madurez institucional',
+      tone: criticalGapCount ? 'warn' : 'ok',
+      detail: criticalGapCount
+        ? 'Todavía existen brechas de madurez operativa antes de declarar el panel como cierre institucional robusto.'
+        : 'El panel ya está en una lectura ejecutiva consistente para seguimiento y reversión controlada.',
+      tags: [
+        'Brechas criticas: ' + criticalGapCount,
+        'Cambios masivos: ' + highRisk
+      ]
+    }
+  ];
+  const gaps = [
+    {
+      title: 'Tabla interna | Bitácora de auditoría',
+      tone: totalEntries ? ((missingDiff || missingRecords) ? 'warn' : 'ok') : 'info',
+      detail: totalEntries
+        ? 'Resume la trazabilidad diaria por actor, acción y registro.'
+        : 'No hay movimientos auditados para la fecha seleccionada.',
+      items: [
+        'Movimientos leídos: ' + totalEntries,
+        'Eventos sin diff campo a campo: ' + missingDiff,
+        'Eventos sin registros asociados: ' + missingRecords
+      ]
+    },
+    {
+      title: 'Tabla interna | Estado compartido',
+      tone: isSharedBackendMode() ? (text(info.syncState) === 'ready' || syncStateLabel() === 'Sincronizado' ? 'ok' : 'warn') : 'info',
+      detail: 'Concentra el bundle vivo del visor compartido y condiciona qué puede restaurarse o rehidratarse.',
+      items: [
+        'Revision visible: ' + (Number.isFinite(Number(info.revision)) ? String(info.revision) : 'sin dato'),
+        'Ultimo guardado: ' + (formatIsoDisplay(info.savedAt) || 'sin registro'),
+        'Sincronizacion: ' + syncStateLabel()
+      ]
+    },
+    {
+      title: 'Tabla interna | Cierre diario por usuario',
+      tone: report && report.ok ? 'ok' : 'warn',
+      detail: report && report.ok
+        ? 'La agregación diaria está activa y puede resumir cambios por actor.'
+        : 'No se pudo consolidar el cierre diario con la evidencia disponible.',
+      items: [
+        'Usuarios con cambios: ' + Number(report && report.totalActors || 0),
+        'Impactos auditados: ' + Number(report && report.totalChanges || 0),
+        'Registros tocados: ' + Number(report && report.totalTouchedRecords || 0)
+      ]
+    },
+    {
+      title: 'Tabla interna | Recordatorio matutino',
+      tone: delivery && delivery.ok ? (delivery.triggerEnabled ? 'ok' : 'warn') : 'warn',
+      detail: delivery && delivery.ok
+        ? 'Controla destinatarios, trigger y modo de envío del arranque del día.'
+        : 'La configuración del recordatorio aún no está disponible en esta sesión.',
+      items: [
+        'Trigger activo: ' + ((delivery && delivery.triggerEnabled) ? 'si' : 'no'),
+        'Destinos efectivos: ' + Number(Array.isArray(delivery && delivery.effectiveRecipients) ? delivery.effectiveRecipients.length : 0),
+        'Modo: ' + (text(delivery && delivery.mode) || 'sin dato')
+      ]
+    },
+    {
+      title: 'Tabla interna | Resumen admin',
+      tone: nightly && nightly.ok ? (Array.isArray(nightly.recipients) && nightly.recipients.length ? 'ok' : 'warn') : 'warn',
+      detail: nightly && nightly.ok
+        ? 'Consolida el cierre ejecutivo nocturno y los destinatarios administradores.'
+        : 'La configuración del resumen admin aún no está disponible en esta sesión.',
+      items: [
+        'Trigger activo: ' + ((nightly && nightly.triggerEnabled) ? 'si' : 'no'),
+        'Admins destino: ' + Number(Array.isArray(nightly && nightly.recipients) ? nightly.recipients.length : 0),
+        'Hora: ' + (Number.isFinite(Number(nightly && nightly.sendHour)) ? formatDeliveryHourLabel(nightly.sendHour) : 'sin dato')
+      ]
+    },
+    {
+      title: 'Tabla interna | Snapshots',
+      tone: text(info.lastSnapshotAt) ? 'ok' : 'warn',
+      detail: 'Sostiene la reversión global del estado compartido antes y después de mutaciones críticas.',
+      items: [
+        'Ultimo snapshot: ' + (formatIsoDisplay(info.lastSnapshotAt) || 'sin registro'),
+        'Archivo: ' + (text(info.lastSnapshotFile) || 'sin archivo'),
+        'Rollback admin: ' + (info.canRestoreSharedState ? 'disponible' : 'restringido')
+      ]
+    },
+    {
+      title: 'Tabla interna | Backup compartido',
+      tone: text(info.lastBackupAt) ? 'ok' : 'warn',
+      detail: 'Permite exportar respaldo diario como base de revisión externa y continuidad operativa.',
+      items: [
+        'Ultimo backup: ' + (formatIsoDisplay(info.lastBackupAt) || 'sin registro'),
+        'Archivo: ' + (text(info.lastBackupFile) || 'sin archivo'),
+        'Exportable: ' + (text(info.lastBackupAt) ? 'si' : 'no')
+      ]
+    },
+    {
+      title: 'Tabla interna | Inventario de sustentos',
+      tone: info.canExportSupportInventory ? 'ok' : 'info',
+      detail: 'Relaciona metadata documental, tipo, actor y estado de archivos por registro.',
+      items: [
+        'Exportacion inventario: ' + (info.canExportSupportInventory ? 'habilitada' : 'restringida'),
+        'Riesgo residual: inventario incompleto si falta fileId, folderId o tipo documental',
+        'Accion recomendada: seguir fortaleciendo el diff documental por evento'
+      ]
+    },
+    {
+      title: 'Tabla interna | Estructura Gantt/EDT',
+      tone: rootCount === 4 ? 'ok' : 'warn',
+      detail: 'La jerarquía de bloques y EDT condiciona lectura ejecutiva, búsqueda y auditoría estructural.',
+      items: [
+        'Raices visibles esperadas: 4',
+        'Raices detectadas: ' + rootCount,
+        'Fallos posibles: EDT movido, padre incorrecto o raíz contaminada'
+      ]
+    },
+    {
+      title: 'Tabla interna | Score documental',
+      tone: safeRecords.length ? 'ok' : 'info',
+      detail: 'Resume completitud y trazabilidad documental, pero no reemplaza la auditoría campo a campo.',
+      items: [
+        'Utilidad: priorizar brechas documentales y casos críticos',
+        'Fallo posible: score sano con trazabilidad insuficiente si falta diff',
+        'Accion recomendada: cruzar score con cambios recientes y sustentos'
+      ]
+    },
+    {
+      title: 'Tabla interna | Catálogos de responsables y seguimiento',
+      tone: 'warn',
+      detail: 'Los catálogos siguen siendo sensibles a ruido operativo si entran variantes no normalizadas.',
+      items: [
+        'Responsables custom: ' + Number(Array.isArray(appState.customEntities) ? appState.customEntities.length : 0),
+        'Seguimiento custom: ' + Number(Array.isArray(appState.customPeople) ? appState.customPeople.length : 0),
+        'Fallo posible: duplicados por escritura o alta sin normalización suficiente'
+      ]
+    }
+  ];
+  return { stages, gaps };
+}
+
+function renderAdminGovernanceOverview(){
+  const stageHost = document.getElementById('adminImplementationStages');
+  const gapHost = document.getElementById('adminGapMatrix');
+  const metaHost = document.getElementById('adminGovernanceMeta');
+  if(!stageHost || !gapHost || !metaHost) return;
+  if(!appState.adminEnabled){
+    metaHost.textContent = 'Modo administrador no habilitado.';
+    stageHost.innerHTML = '<div class="empty">Activa el modo administrador para revisar el plan por etapas.</div>';
+    gapHost.innerHTML = '<div class="empty">Activa el modo administrador para revisar brechas y fallos potenciales.</div>';
+    return;
+  }
+  const model = buildAdminGovernanceModel();
+  metaHost.textContent = 'El panel marca la madurez por etapas y declara explícitamente las brechas donde la evidencia de auditoría todavía no es suficiente para una reversión fina por cambio.';
+  stageHost.innerHTML = model.stages.map(stage => (
+    '<article class="admin-stage-card">' +
+      '<header>' +
+        '<div><h5>' + escapeHtml(stage.title) + '</h5><p>' + escapeHtml(stage.detail) + '</p></div>' +
+        '<span class="admin-stage-status ' + escapeHtml(stage.tone) + '">' + escapeHtml(stage.tone === 'ok' ? 'Listo' : stage.tone === 'critical' ? 'Crítico' : stage.tone === 'warn' ? 'Revisar' : 'Info') + '</span>' +
+      '</header>' +
+      '<div class="admin-stage-meta">' + (Array.isArray(stage.tags) ? stage.tags.map(tag => '<span>' + escapeHtml(tag) + '</span>').join('') : '') + '</div>' +
+    '</article>'
+  )).join('');
+  gapHost.innerHTML = model.gaps.map(gap => (
+    '<article class="admin-gap-card">' +
+      '<header>' +
+        '<div><h5>' + escapeHtml(gap.title) + '</h5><p>' + escapeHtml(gap.detail) + '</p></div>' +
+        '<span class="admin-gap-status ' + escapeHtml(gap.tone) + '">' + escapeHtml(gap.tone === 'ok' ? 'Operativa' : gap.tone === 'critical' ? 'Crítico' : gap.tone === 'warn' ? 'Revisar' : 'Info') + '</span>' +
+      '</header>' +
+      '<ul class="admin-gap-list">' + (Array.isArray(gap.items) ? gap.items.map(item => '<li>' + escapeHtml(item) + '</li>').join('') : '<li>Sin datos.</li>') + '</ul>' +
+    '</article>'
+  )).join('');
+}
+
+function buildAdminSectionReviewModel(){
+  return [
+    {
+      title: 'Drawer del caso',
+      decision: 'Mantener',
+      tone: 'ok',
+      detail: 'Sigue siendo la mejor superficie operativa para editar ficha, revisar sustentos y leer trazabilidad del caso.',
+      items: [
+        'Conservar como núcleo operativo',
+        'Seguir priorizando ficha, sustentos y trazabilidad',
+        'Evitar sobrecargarlo con analítica pesada'
+      ]
+    },
+    {
+      title: 'Admin modal',
+      decision: 'Mantener y madurar',
+      tone: 'ok',
+      detail: 'Debe concentrar gobierno, cierre diario, reversión y lectura ejecutiva de auditoría.',
+      items: [
+        'Mantener como superficie solo admin',
+        'Continuar con vista before/after por registro',
+        'No mezclarlo con trabajo diario de no admins'
+      ]
+    },
+    {
+      title: 'Monitoring + Pending',
+      decision: 'Consolidar',
+      tone: 'warn',
+      detail: 'Hoy existe solapamiento entre pendientes y monitoreo; mantener ambos aumenta ruido sin agregar mucha señal.',
+      items: [
+        'Usar monitoring como superficie principal',
+        'Reducir pending a acceso puntual o retirar',
+        'Unificar filtros y contadores de pendientes'
+      ]
+    },
+    {
+      title: 'Report modal',
+      decision: 'Simplificar',
+      tone: 'info',
+      detail: 'El reporte aporta, pero parte de su valor ya se cruza con analítica y cierre diario.',
+      items: [
+        'Mantener exportación ejecutiva útil',
+        'Reducir duplicación con analítica y auditoría',
+        'Evitar texto narrativo repetitivo'
+      ]
+    },
+    {
+      title: 'Analytics modal y narrativa',
+      decision: 'Mantener pero depurar',
+      tone: 'warn',
+      detail: 'La analítica sí aporta, pero debe enfocarse en señales accionables y no en saturación de lectura.',
+      items: [
+        'Priorizar riesgo, brechas y presión operativa',
+        'Reducir widgets redundantes',
+        'Mantener score documental y alertas claras'
+      ]
+    },
+    {
+      title: 'Gráficos y proyecciones',
+      decision: 'Reemplazar parcialmente',
+      tone: 'warn',
+      detail: 'Las proyecciones de avance son frágiles si no integran productividad real, cambios auditados y brechas documentales.',
+      items: [
+        'Mantener gráficos que expliquen riesgo y carga',
+        'Sustituir proyección débil por avance observado',
+        'Usar presión por vencimiento y cambios críticos recientes'
+      ]
+    },
+    {
+      title: 'Operations panel',
+      decision: 'Mantener pero simplificar',
+      tone: 'info',
+      detail: 'La carga, exportación y respaldo son necesarios, pero la superficie debe seguir siendo sobria y utilitaria.',
+      items: [
+        'Conservar carga/exportación/backups',
+        'No convertirlo en dashboard paralelo',
+        'Reservar acciones sensibles a admin o canal adecuado'
+      ]
+    },
+    {
+      title: 'Score documental y alertas',
+      decision: 'Mantener',
+      tone: 'ok',
+      detail: 'Sí aporta a decisión cuando se cruza con sosten documental, brechas y actividad reciente.',
+      items: [
+        'Mantener score como señal complementaria',
+        'No usarlo aislado sin auditoría',
+        'Cruzar con inventario y cambios recientes'
+      ]
+    },
+    {
+      title: 'Productos institucionales base',
+      decision: 'Mantener solo admin',
+      tone: 'info',
+      detail: 'Sirven para ordenar la rutina institucional, pero no deben invadir la experiencia operativa general.',
+      items: [
+        'Conservar en panel admin',
+        'Usarlos como contrato operativo y no como adorno',
+        'Actualizar solo cuando el flujo real cambie'
+      ]
+    }
+  ];
+}
+
+function renderAdminSectionReview(){
+  const host = document.getElementById('adminSectionReviewGrid');
+  const metaHost = document.getElementById('adminSectionReviewMeta');
+  if(!host || !metaHost) return;
+  if(!appState.adminEnabled){
+    metaHost.textContent = 'Modo administrador no habilitado.';
+    host.innerHTML = '<div class="empty">Activa el modo administrador para revisar pertinencia de secciones, reportes y proyecciones.</div>';
+    return;
+  }
+  const items = buildAdminSectionReviewModel();
+  metaHost.textContent = 'La evaluación distingue qué superficies siguen aportando decisión ejecutiva real y cuáles conviene consolidar, simplificar o reemplazar para evitar más saturación.';
+  host.innerHTML = items.map(item => (
+    '<article class="admin-review-card">' +
+      '<header>' +
+        '<div><h5>' + escapeHtml(item.title) + '</h5><p>' + escapeHtml(item.detail) + '</p></div>' +
+        '<span class="admin-stage-status ' + escapeHtml(item.tone) + '">' + escapeHtml(item.decision) + '</span>' +
+      '</header>' +
+      '<ul class="admin-review-list">' + (Array.isArray(item.items) ? item.items.map(line => '<li>' + escapeHtml(line) + '</li>').join('') : '') + '</ul>' +
+    '</article>'
+  )).join('');
+}
+
+function getRiskSeverityWeight(tone){
+  switch(text(tone)){
+    case 'high': return 3;
+    case 'medium': return 2;
+    case 'low': return 1;
+    default: return 0;
+  }
+}
+
+function renderAdminRecordComparisonSummary(report){
+  const host = document.getElementById('adminRecordComparisonSummary');
+  const metaHost = document.getElementById('adminRecordComparisonMeta');
+  if(!host || !metaHost) return;
+  if(!appState.adminEnabled){
+    metaHost.textContent = 'Modo administrador no habilitado.';
+    host.innerHTML = '<div class="empty">Activa el modo administrador para revisar comparaciones before/after por registro.</div>';
+    return;
+  }
+  if(!report){
+    metaHost.textContent = 'Preparando comparación por registro...';
+    host.innerHTML = '<div class="empty">Preparando comparación before/after...</div>';
+    return;
+  }
+  if(report.ok === false){
+    metaHost.textContent = text(report.message) || 'No se pudo generar la comparación por registro.';
+    host.innerHTML = '<div class="empty">' + escapeHtml(text(report.message) || 'No se pudo generar la comparación por registro.') + '</div>';
+    return;
+  }
+  const items = collectAuditEntriesForGovernance(report)
+    .flatMap(item => buildAuditRecordComparisonItems(item.entry, item.actor).map(recordItem => ({
+      actor: item.actor,
+      entry: item.entry,
+      record: recordItem,
+      risk: getAuditEntryRiskMeta(item.entry, item.actor),
+      revert: getAuditEntryRevertMeta(item.entry),
+      nature: classifyAuditChangeNature(item.entry, item.actor)
+    })))
+    .sort((a,b) => (
+      getRiskSeverityWeight(b.risk && b.risk.tone) - getRiskSeverityWeight(a.risk && a.risk.tone) ||
+      text(b.entry && b.entry.at).localeCompare(text(a.entry && a.entry.at))
+    ));
+  metaHost.textContent = [
+    report.dateLabel || report.date,
+    items.length + ' comparación(es) priorizadas',
+    'Campos foco: EDT, estado, responsable, seguimiento DGPPCS y sustentos'
+  ].join(' | ');
+  if(!items.length){
+    host.innerHTML = '<div class="empty">Sin comparaciones relevantes para la fecha seleccionada.</div>';
+    return;
+  }
+  host.innerHTML = items.slice(0, 18).map(item => {
+    const rowsHtml = Array.isArray(item.record.rows) && item.record.rows.length
+      ? '<div class="admin-record-diff">' + item.record.rows.map(row => (
+          '<div class="admin-record-row">' +
+            '<strong>' + escapeHtml([row.sectionLabel, row.fieldLabel].filter(Boolean).join(' | ')) + '</strong>' +
+            '<span><code>' + escapeHtml(row.beforeLabel) + '</code> -> <code>' + escapeHtml(row.afterLabel) + '</code></span>' +
+          '</div>'
+        )).join('') + '</div>'
+      : '<div class="admin-record-diff"><div class="admin-record-row"><strong>Evidencia insuficiente</strong><span>No existe diff campo a campo suficiente para este registro. Revisa el detalle narrativo o el snapshot asociado.</span></div></div>';
+    const artifactHtml = Array.isArray(item.record.artifacts) && item.record.artifacts.length
+      ? '<div class="admin-record-diff">' + item.record.artifacts.map(artifact => {
+          const parts = [];
+          if(text(artifact.attachmentName)) parts.push('Sustento: ' + artifact.attachmentName);
+          if(text(artifact.documentType)) parts.push('Tipo: ' + formatAuditPreviewValue(artifact.documentType));
+          if(text(artifact.status)) parts.push('Estado: ' + formatAuditPreviewValue(artifact.status));
+          if(text(artifact.fileId)) parts.push('fileId: ' + artifact.fileId);
+          if(text(artifact.folderId)) parts.push('folderId: ' + artifact.folderId);
+          if(text(artifact.logicalPath)) parts.push('Ruta: ' + artifact.logicalPath);
+          if(text(artifact.removedReason)) parts.push('Motivo: ' + artifact.removedReason);
+          return '<div class="admin-record-row">' +
+            '<strong>Metadata documental</strong>' +
+            '<span>' + escapeHtml(parts.join(' | ') || 'Sin metadata documental adicional.') + '</span>' +
+          '</div>';
+        }).join('') + '</div>'
+      : '';
+    const guide = buildAuditRecordCorrectionGuide(item.record, item.entry, item.actor);
+    const guideHtml = guide.length
+      ? '<div class="audit-entry-gaps">' + guide.map(message => '<span>' + escapeHtml(message) + '</span>').join('') + '</div>'
+      : '';
+    return '<article class="admin-record-card">' +
+      '<header>' +
+        '<div>' +
+          '<h5>' + escapeHtml(item.record.label) + '</h5>' +
+          '<p>' + escapeHtml((formatIsoDisplay(item.entry && item.entry.at) || 'Sin hora') + ' | ' + (text(item.entry && item.entry.actionLabel) || humanizeAuditAction(item.entry && item.entry.action)) + ' | ' + item.actor) + '</p>' +
+        '</div>' +
+        '<span class="admin-stage-status ' + escapeHtml(item.risk.tone === 'high' ? 'critical' : item.risk.tone === 'medium' ? 'warn' : item.risk.tone === 'low' ? 'ok' : 'info') + '">' + escapeHtml(item.nature) + '</span>' +
+      '</header>' +
+      '<div class="admin-record-meta">' +
+        '<span>' + escapeHtml(item.risk.label) + '</span>' +
+        '<span>' + escapeHtml(item.revert.label) + '</span>' +
+        '<span>Impactos: ' + escapeHtml(String(Number(item.entry && item.entry.changeCount || 0))) + '</span>' +
+      '</div>' +
+      '<p>' + escapeHtml(item.revert.detail) + '</p>' +
+      rowsHtml +
+      artifactHtml +
+      guideHtml +
+    '</article>';
+  }).join('');
+}
+
 function mapAuditSummaryPairs(sourceMap){
   return Array.from(sourceMap.entries())
     .map(([name, count]) => ({name:text(name), count:Number(count || 0)}))
@@ -4422,17 +5417,25 @@ function renderAdminDailyAuditReport(report){
   if(!appState.adminEnabled){
     metaHost.textContent = 'Modo administrador no habilitado.';
     host.innerHTML = '<div class="empty">Modo administrador no habilitado.</div>';
+    renderAdminRecordComparisonSummary(null);
+    renderAdminSectionReview();
     return;
   }
   if(!report){
     metaHost.textContent = 'Preparando reporte diario de cambios...';
     host.innerHTML = '<div class="empty">Preparando reporte diario...</div>';
+    renderAdminRecordComparisonSummary(null);
+    renderAdminSectionReview();
+    renderAdminGovernanceOverview();
     return;
   }
   if(report.ok === false){
     const message = text(report.message) || 'No se pudo generar el reporte diario.';
     metaHost.textContent = message;
     host.innerHTML = '<div class="empty">' + escapeHtml(message) + '</div>';
+    renderAdminRecordComparisonSummary(report);
+    renderAdminSectionReview();
+    renderAdminGovernanceOverview();
     return;
   }
   metaHost.textContent = [
@@ -4443,6 +5446,9 @@ function renderAdminDailyAuditReport(report){
   ].join(' | ');
   if(!Array.isArray(report.actors) || !report.actors.length){
     host.innerHTML = '<div class="empty">Sin cambios auditados para la fecha seleccionada.</div>';
+    renderAdminRecordComparisonSummary(report);
+    renderAdminSectionReview();
+    renderAdminGovernanceOverview();
     return;
   }
   host.innerHTML = report.actors.map(actor => {
@@ -4456,16 +5462,10 @@ function renderAdminDailyAuditReport(report){
       ? '<div><p>Identidad</p><div class="audit-report-tags"><span>' + escapeHtml(actor.identityLabel) + '</span>' + (Array.isArray(actor.identitySources) ? actor.identitySources.slice(0,4).map(item => '<span>' + escapeHtml(item) + '</span>').join('') : '') + '</div></div>'
       : '';
     const entriesHtml = (Array.isArray(actor.entries) ? actor.entries : []).map(entry => {
-      const recordLine = Array.isArray(entry.touchedRecords) && entry.touchedRecords.length
-        ? ' | Registros: ' + entry.touchedRecords.slice(0,8).join(', ')
-        : '';
-      return '<div class="audit-report-entry">' +
-        '<strong>' + escapeHtml((formatIsoDisplay(entry.at) || 'Sin hora') + ' | ' + (entry.actionLabel || humanizeAuditAction(entry.action))) + '</strong>' +
-        '<span>' + escapeHtml((entry.detail || 'Sin detalle.') + recordLine) + '</span>' +
-      '</div>';
+      return renderAuditEntryCard(entry, actor.actor, false);
     }).join('');
-    return '<section class="audit-report-card">' +
-      '<div class="audit-report-head">' +
+    return '<section class="audit-actor-card">' +
+      '<div class="audit-actor-head">' +
         '<div>' +
           '<h4>' + escapeHtml(actor.actor || 'Usuario sin identificar') + '</h4>' +
           '<p>' + escapeHtml(actor.lastChangeAt ? ('Último cambio: ' + formatIsoDisplay(actor.lastChangeAt)) : 'Sin hora de cierre registrada.') + (actor.identityLabel ? ' | ' + actor.identityLabel : '') + '</p>' +
@@ -4484,6 +5484,9 @@ function renderAdminDailyAuditReport(report){
       (entriesHtml ? '<div class="audit-report-entry-list">' + entriesHtml + '</div>' : '<div class="empty">Sin detalle disponible.</div>') +
     '</section>';
   }).join('');
+  renderAdminRecordComparisonSummary(report);
+  renderAdminSectionReview();
+  renderAdminGovernanceOverview();
 }
 
 function loadAdminDailyAuditReport(rawDate){
@@ -4553,6 +5556,7 @@ function renderOperationalControlState(state){
     entriesHost.innerHTML = '<div class="empty">Activa el modo administrador para revisar triggers, entregas y productos base.</div>';
     productsHost.innerHTML = '<div class="empty">Los productos institucionales base se administran desde el visor compartido.</div>';
     if(productsMetaHost) productsMetaHost.textContent = 'Disponible solo para administradores del visor compartido.';
+    renderAdminGovernanceOverview();
     return;
   }
   if(!state){
@@ -4563,6 +5567,7 @@ function renderOperationalControlState(state){
     tagsHost.innerHTML = '<span>Preparando control operativo</span>';
     entriesHost.innerHTML = '<div class="empty">Preparando indicadores operativos...</div>';
     productsHost.innerHTML = '<div class="empty">Preparando matriz de productos base...</div>';
+    renderAdminGovernanceOverview();
     return;
   }
   if(state.ok === false){
@@ -4574,6 +5579,7 @@ function renderOperationalControlState(state){
     tagsHost.innerHTML = '<span>' + escapeHtml(message) + '</span>';
     entriesHost.innerHTML = '<div class="empty">' + escapeHtml(message) + '</div>';
     productsHost.innerHTML = '<div class="empty">No se pudo cargar la matriz de productos.</div>';
+    renderAdminGovernanceOverview();
     return;
   }
   const backend = state.backend || {};
@@ -4645,6 +5651,7 @@ function renderOperationalControlState(state){
       '<span>' + escapeHtml('Salida esperada: ' + text(item.output)) + '</span>' +
     '</div>'
   )).join('');
+  renderAdminGovernanceOverview();
 }
 
 function loadOperationalControlState(){
@@ -4735,6 +5742,7 @@ function renderDailyAuditDeliveryState(state){
     if(createBtn) createBtn.disabled = true;
     if(deleteBtn) deleteBtn.disabled = true;
     syncDailyAuditDeliveryForm({ok:false});
+    renderAdminGovernanceOverview();
     return;
   }
   if(!state){
@@ -4747,6 +5755,7 @@ function renderDailyAuditDeliveryState(state){
     if(createBtn) createBtn.disabled = true;
     if(deleteBtn) deleteBtn.disabled = true;
     syncDailyAuditDeliveryForm({ok:false});
+    renderAdminGovernanceOverview();
     return;
   }
   if(state.ok === false){
@@ -4760,6 +5769,7 @@ function renderDailyAuditDeliveryState(state){
     if(createBtn) createBtn.disabled = true;
     if(deleteBtn) deleteBtn.disabled = true;
     syncDailyAuditDeliveryForm(state);
+    renderAdminGovernanceOverview();
     return;
   }
   const recipients = Array.isArray(state.recipients) ? state.recipients : [];
@@ -4796,6 +5806,7 @@ function renderDailyAuditDeliveryState(state){
   if(deleteBtn) deleteBtn.disabled = !canSend || !state.triggerEnabled;
   if(saveBtn) saveBtn.disabled = !canSend;
   syncDailyAuditDeliveryForm(state);
+  renderAdminGovernanceOverview();
 }
 
 function loadDailyAuditDeliveryState(){
@@ -4865,6 +5876,7 @@ function renderAdminNightlySummaryState(state){
     if(createBtn) createBtn.disabled = true;
     if(deleteBtn) deleteBtn.disabled = true;
     syncAdminNightlySummaryForm({ok:false});
+    renderAdminGovernanceOverview();
     return;
   }
   if(!state){
@@ -4877,6 +5889,7 @@ function renderAdminNightlySummaryState(state){
     if(createBtn) createBtn.disabled = true;
     if(deleteBtn) deleteBtn.disabled = true;
     syncAdminNightlySummaryForm({ok:false});
+    renderAdminGovernanceOverview();
     return;
   }
   if(state.ok === false){
@@ -4890,6 +5903,7 @@ function renderAdminNightlySummaryState(state){
     if(createBtn) createBtn.disabled = true;
     if(deleteBtn) deleteBtn.disabled = true;
     syncAdminNightlySummaryForm(state);
+    renderAdminGovernanceOverview();
     return;
   }
   const recipients = Array.isArray(state.recipients) ? state.recipients : [];
@@ -4918,6 +5932,7 @@ function renderAdminNightlySummaryState(state){
   if(deleteBtn) deleteBtn.disabled = !canSend || !state.triggerEnabled;
   if(saveBtn) saveBtn.disabled = !canSend;
   syncAdminNightlySummaryForm(state);
+  renderAdminGovernanceOverview();
 }
 
 function loadAdminNightlySummaryState(){
@@ -7203,12 +8218,24 @@ function renderAdminAudit(){
   renderAdminStatus();
   if(!appState.adminEnabled){
     host.innerHTML = '<div class="empty">Modo administrador no habilitado.</div>';
+    renderAdminGovernanceOverview();
     return;
   }
-  const list = (appState.audit || []).slice(0,40);
+  const list = (appState.audit || []).slice(0,24);
   host.innerHTML = list.length
-    ? list.map(item => '<div class="summary-item"><div><strong>' + escapeHtml(text(item.actionLabel) || humanizeAuditAction(item.action) || 'Cambio') + '</strong><span>' + escapeHtml(describeAuditItem(item)) + '</span></div></div>').join('')
+    ? list.map(item => renderAuditEntryCard({
+        at: text(item && item.at),
+        action: text(item && item.action),
+        actionLabel: text(item && item.actionLabel) || humanizeAuditAction(item && item.action),
+        detail: text(item && (item.detail || item.message)),
+        message: text(item && item.message),
+        changeCount: Number(item && item.changeCount || (item && item.summary && item.summary.total) || 0),
+        touchedRecords: getAuditItemTouchedRecords(item),
+        sections: getAuditItemSections(item),
+        changes: Array.isArray(item && item.changes) ? item.changes : []
+      }, text(item && item.actor), true)).join('')
     : '<div class="empty">Sin cambios auditados todavía.</div>';
+  renderAdminGovernanceOverview();
 }
 
 function refreshSharedAudit(limit){
@@ -7224,6 +8251,7 @@ function refreshSharedAudit(limit){
         appState.audit = result.items;
       }
       renderAdminAudit();
+      renderAdminDailyAuditReport(appState.adminDailyReport);
     })
     .withFailureHandler(error => {
       console.error('No se pudo cargar la auditoría compartida.', error);
@@ -7241,12 +8269,13 @@ function openAdminModal(){
   renderDailyAuditDeliveryState(appState.dailyReportDelivery);
   renderAdminNightlySummaryState(appState.adminNightlySummary);
   renderOperationalControlState(appState.operationalControl);
+  renderAdminGovernanceOverview();
   document.getElementById('adminModal').classList.add('open');
   loadOperationalControlState();
   loadAdminDailyAuditReport();
   loadDailyAuditDeliveryState();
   loadAdminNightlySummaryState();
-  refreshSharedAudit(180);
+  refreshSharedAudit(500);
 }
 
 function closeAdminModal(){
@@ -8117,11 +9146,6 @@ function renderQuickSummary(){
       title:'Presion por bloque',
       kicker:'Lectura ejecutiva',
       items: byBlock.length ? byBlock.map(blockSummaryLine) : ['Sin bloques visibles en la vista actual']
-    },
-    {
-      title:'Cobertura de seguimiento',
-      kicker:'Trazabilidad',
-      body: records.filter(r => r.local_note || r.local_action).length + ' casos con notas o proximos pasos registrados en este equipo'
     }
   ];
   document.getElementById('quickReportSummary').innerHTML = summary.map(item =>

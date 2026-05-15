@@ -9873,37 +9873,40 @@ function renderCaseDrawerActionState(recordId){
   const publicBlocked = isPublicReadOnlyChannel();
   const sharedEditBlocked = isSharedBackendMode() && !publicBlocked && !permission.canEditShared;
   const saving = hasPendingDrawerSharedSave(targetId);
+  const attachmentBlocked = Boolean(isSharedBackendMode() && sharedAttachmentActionInFlight && !saving);
   const syncBlocked = Boolean(isSharedBackendMode() && sharedSyncInFlight && !saving);
   const disabledReason = saving
     ? 'Apps Script está guardando esta ficha compartida. Espera la confirmación antes de cerrar o volver a editar.'
+    : (attachmentBlocked
+        ? 'Apps Script está cargando o actualizando sustentos de esta ficha. Espera la confirmación antes de guardar o cerrar.'
     : (syncBlocked
         ? 'El visor está sincronizando el estado compartido. Espera unos segundos antes de volver a editar esta ficha.'
     : (publicBlocked
         ? 'La URL pública no permite editar ni guardar cambios en la ficha.'
-        : (sharedEditBlocked ? text(permission.detail) || 'La edición compartida no está autorizada para el usuario actual.' : '')));
+        : (sharedEditBlocked ? text(permission.detail) || 'La edición compartida no está autorizada para el usuario actual.' : ''))));
   const saveBtn = document.getElementById('saveCaseNoteBtn');
   const addBtn = document.getElementById('addChildBtn');
   const clearBtn = document.getElementById('clearCaseNoteBtn');
   const deleteBtn = document.getElementById('deleteNodeBtn');
   if(saveBtn){
-    saveBtn.textContent = saving ? 'Guardando...' : (syncBlocked ? 'Sincronizando...' : 'Guardar y cerrar');
-    saveBtn.disabled = Boolean(saving || syncBlocked || publicBlocked || sharedEditBlocked);
+    saveBtn.textContent = saving ? 'Guardando...' : (attachmentBlocked ? 'Subiendo sustento...' : (syncBlocked ? 'Sincronizando...' : 'Guardar y cerrar'));
+    saveBtn.disabled = Boolean(saving || attachmentBlocked || syncBlocked || publicBlocked || sharedEditBlocked);
     saveBtn.title = disabledReason;
     saveBtn.dataset.disabledReason = disabledReason;
   }
   if(addBtn){
-    addBtn.disabled = Boolean(saving || syncBlocked || publicBlocked || sharedEditBlocked);
+    addBtn.disabled = Boolean(saving || attachmentBlocked || syncBlocked || publicBlocked || sharedEditBlocked);
     addBtn.title = disabledReason;
     addBtn.dataset.disabledReason = disabledReason;
   }
   if(clearBtn){
-    clearBtn.disabled = Boolean(saving || syncBlocked || publicBlocked || sharedEditBlocked);
+    clearBtn.disabled = Boolean(saving || attachmentBlocked || syncBlocked || publicBlocked || sharedEditBlocked);
     clearBtn.title = disabledReason;
     clearBtn.dataset.disabledReason = disabledReason;
   }
   if(deleteBtn){
     const protectedRoot = deleteBtn.dataset.protectedRoot === '1';
-    deleteBtn.disabled = Boolean(protectedRoot || saving || syncBlocked || publicBlocked || sharedEditBlocked);
+    deleteBtn.disabled = Boolean(protectedRoot || saving || attachmentBlocked || syncBlocked || publicBlocked || sharedEditBlocked);
     deleteBtn.title = protectedRoot
       ? 'No se permite eliminar las raíces principales 1, 2, 3 o 4.'
       : disabledReason;
@@ -9919,6 +9922,7 @@ function getDrawerActionDiagnostics(){
   const identity = getCurrentActorIdentity();
   const publicBlocked = isPublicReadOnlyChannel();
   const sharedEditBlocked = isSharedBackendMode() && !publicBlocked && !permission.canEditShared;
+  const attachmentBlocked = Boolean(isSharedBackendMode() && sharedAttachmentActionInFlight && !hasPendingDrawerSharedSave(appState.selectedId));
   const saveBtn = document.getElementById('saveCaseNoteBtn');
   const style = saveBtn ? window.getComputedStyle(saveBtn) : null;
   const rect = saveBtn ? saveBtn.getBoundingClientRect() : null;
@@ -9930,9 +9934,10 @@ function getDrawerActionDiagnostics(){
   else if(publicBlocked) probableCause = 'A. deshabilitado por canal público';
   else if(sharedEditBlocked) probableCause = 'A. deshabilitado por permisos';
   else if(hasPendingDrawerSharedSave()) probableCause = 'B. deshabilitado por guardado compartido en curso';
-  else if(sharedSyncInFlight) probableCause = 'B. deshabilitado por sincronización en curso';
-  else if(saveBtn.disabled) probableCause = 'C. deshabilitado por estado local/UI';
-  else if(hit && hit !== saveBtn && !saveBtn.contains(hit)) probableCause = 'D. cubierto por otro elemento';
+  else if(sharedAttachmentActionInFlight) probableCause = 'B. deshabilitado por operación documental en curso';
+  else if(sharedSyncInFlight) probableCause = 'C. deshabilitado por sincronización en curso';
+  else if(saveBtn.disabled) probableCause = 'D. deshabilitado por estado local/UI';
+  else if(hit && hit !== saveBtn && !saveBtn.contains(hit)) probableCause = 'E. cubierto por otro elemento';
   else probableCause = 'OK o no bloqueado';
   return {
     actor: text(identity.actor),
@@ -9953,6 +9958,7 @@ function getDrawerActionDiagnostics(){
     hasUnsyncedSharedChanges: Boolean(appState.hasUnsyncedSharedChanges),
     sharedSyncInFlight: Boolean(sharedSyncInFlight),
     sharedAttachmentActionInFlight: Boolean(sharedAttachmentActionInFlight),
+    attachmentBlocked: attachmentBlocked,
     pendingDrawerCloseAfterSharedSave: pendingDrawerCloseAfterSharedSave
       ? {
           recordId: text(pendingDrawerCloseAfterSharedSave.recordId),
@@ -9998,9 +10004,45 @@ function getDrawerActionDiagnostics(){
 
 window.__pecDebugDrawerState = getDrawerActionDiagnostics;
 
+function getAttachmentStateDiagnostics(){
+  const selectedId = text(appState.selectedId);
+  const currentRecord = appState.raw.find(item => item.id === selectedId) || null;
+  const noteEntry = getCaseNoteEntry(selectedId);
+  const attachments = normalizeCaseAttachmentList(noteEntry.attachments);
+  const permission = getCurrentPermissionState();
+  return {
+    selectedId,
+    currentEdt: text(currentRecord && currentRecord.edt),
+    currentTitle: text(currentRecord && currentRecord.actividad),
+    attachmentFolder: normalizeCaseAttachmentFolderMeta(noteEntry.attachmentFolder),
+    attachmentsCount: attachments.length,
+    activeAttachmentsCount: getActiveCaseAttachments(attachments).length,
+    attachmentsNames: attachments.map(item => text(item.name)),
+    hasUnsyncedSharedChanges: Boolean(appState.hasUnsyncedSharedChanges),
+    sharedSyncInFlight: Boolean(sharedSyncInFlight),
+    sharedAttachmentActionInFlight: Boolean(sharedAttachmentActionInFlight),
+    pendingDrawerCloseAfterSharedSave: pendingDrawerCloseAfterSharedSave
+      ? {
+          recordId: text(pendingDrawerCloseAfterSharedSave.recordId),
+          hasExpandedSnapshot: Boolean(pendingDrawerCloseAfterSharedSave.expandedSnapshot)
+        }
+      : null,
+    permissionRole: text(permission.permissionRole || permission.label),
+    canEditShared: Boolean(permission.canEditShared),
+    canManageAttachments: Boolean(permission.canManageAttachments),
+    canRemoveAttachments: Boolean(permission.canRemoveAttachments)
+  };
+}
+
+window.__pecDebugAttachmentState = getAttachmentStateDiagnostics;
+
 function closeDrawer(force){
   if(!force && hasPendingDrawerSharedSave()){
     setImportFeedback('Guardado en curso', 'Espera la confirmación de Apps Script antes de cerrar esta ficha.', 'info');
+    return;
+  }
+  if(!force && sharedAttachmentActionInFlight){
+    setCaseAttachmentFeedback('Sustento en proceso', 'Espera que Apps Script termine la operación documental antes de cerrar esta ficha.', 'warn');
     return;
   }
   document.getElementById('drawer').classList.remove('open');
@@ -10486,14 +10528,16 @@ async function uploadCaseAttachments(){
       .withSuccessHandler(result => {
         sharedAttachmentActionInFlight = false;
         updateServerInfoFromEnvelope(result || {});
-        if(result && result.ok && result.state){
+        if(result && result.state){
           applySharedStateBundle(result.state, {skipRenderHero:true});
           refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:selectedId});
+        }
+        if(result && result.ok && result.state){
           setImportFeedback('Sustentos cargados', text(result.message) || 'El visor compartido registró los archivos de sustento para esta actividad.', 'success');
           setCaseAttachmentFeedback('Sustentos cargados', text(result.message) || 'El visor compartido registró los archivos de sustento para esta actividad.', 'success');
           return;
         }
-        refreshDerivedViews({drawerRecordId:selectedId});
+        refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:selectedId});
         setImportFeedback('No se cargó el sustento', text(result && result.message) || 'Apps Script no pudo registrar los archivos de sustento.', 'warn');
         setCaseAttachmentFeedback('No se cargó el sustento', text(result && result.message) || 'Apps Script no pudo registrar los archivos de sustento.', 'warn');
       })
@@ -10567,14 +10611,16 @@ function ensureCaseAttachmentFolder(){
     .withSuccessHandler(result => {
       sharedAttachmentActionInFlight = false;
       updateServerInfoFromEnvelope(result || {});
-      if(result && result.ok && result.state){
+      if(result && result.state){
         applySharedStateBundle(result.state, {skipRenderHero:true});
         refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:selectedId});
+      }
+      if(result && result.ok && result.state){
         setImportFeedback('Carpeta de sustento lista', text(result.message) || 'La carpeta visible del registro quedó preparada en Drive.', 'success');
         setCaseAttachmentFeedback('Carpeta de sustento lista', text(result.message) || 'La carpeta visible del registro quedó preparada en Drive.', 'success');
         return;
       }
-      refreshDerivedViews({drawerRecordId:selectedId});
+      refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:selectedId});
       setImportFeedback('No se preparó la carpeta', text(result && result.message) || 'Apps Script no pudo preparar la carpeta de sustento del registro.', 'warn');
       setCaseAttachmentFeedback('No se preparó la carpeta', text(result && result.message) || 'Apps Script no pudo preparar la carpeta de sustento del registro.', 'warn');
     })
@@ -10605,7 +10651,8 @@ function removeCaseAttachment(attachmentId){
     return;
   }
   const record = appState.raw.find(item => item.id === appState.selectedId);
-  const attachments = normalizeCaseAttachmentList(record && record.attachments);
+  const noteEntry = getCaseNoteEntry(appState.selectedId);
+  const attachments = normalizeCaseAttachmentList(noteEntry.attachments);
   const target = attachments.find(item => item.id === attachmentId);
   if(!target) return;
   if(!window.confirm('¿Deseas retirar el sustento "' + target.name + '" de esta actividad?')) return;
@@ -10620,14 +10667,16 @@ function removeCaseAttachment(attachmentId){
     .withSuccessHandler(result => {
       sharedAttachmentActionInFlight = false;
       updateServerInfoFromEnvelope(result || {});
-      if(result && result.ok && result.state){
+      if(result && result.state){
         applySharedStateBundle(result.state, {skipRenderHero:true});
         refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:selectedId});
+      }
+      if(result && result.ok && result.state){
         setImportFeedback('Sustento retirado', text(result.message) || 'El archivo de sustento fue retirado del repositorio compartido.', 'success');
         setCaseAttachmentFeedback('Sustento retirado', text(result.message) || 'El archivo de sustento fue retirado del repositorio compartido.', 'success');
         return;
       }
-      refreshDerivedViews({drawerRecordId:selectedId});
+      refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:selectedId});
       setImportFeedback('No se retiró el sustento', text(result && result.message) || 'Apps Script no pudo retirar el archivo de sustento.', 'warn');
       setCaseAttachmentFeedback('No se retiró el sustento', text(result && result.message) || 'Apps Script no pudo retirar el archivo de sustento.', 'warn');
     })
@@ -10963,6 +11012,12 @@ function saveCurrentCase(){
     renderCaseDrawerActionState(appState.selectedId);
     return;
   }
+  if(sharedAttachmentActionInFlight){
+    setImportFeedback('Carga documental en curso', 'Espera que Apps Script termine de subir o sincronizar los sustentos antes de guardar la ficha.', 'info');
+    setCaseAttachmentFeedback('Carga documental en curso', 'El repositorio documental todavía se está actualizando en Apps Script. Espera la confirmación antes de guardar y cerrar.', 'warn');
+    renderCaseDrawerActionState(appState.selectedId);
+    return;
+  }
   if(hasPendingDrawerSharedSave(appState.selectedId)){
     setImportFeedback('Guardado en curso', 'Apps Script todavía está guardando esta ficha. Espera la confirmación antes de volver a intentarlo.', 'info');
     renderCaseDrawerActionState(appState.selectedId);
@@ -10991,8 +11046,12 @@ function saveCurrentCase(){
   const currentGroup = text(currentRecord.grupo) || deriveGroup(currentRecord.edt);
   const selectedGroup = text(document.getElementById('editGrupo')?.value) || currentGroup;
   const currentEdt = text(currentRecord.edt);
-  const manualEdt = normalizeProgramEdt(text(document.getElementById('editEdt')?.value), currentRecord.actividad, currentRecord.id);
-  const hasManualEdtOverride = Boolean(manualEdt && manualEdt !== currentEdt);
+  const rawManualEdtValue = text(document.getElementById('editEdt')?.value);
+  const manualEdtFieldTouched = rawManualEdtValue !== currentEdt;
+  const manualEdt = manualEdtFieldTouched
+    ? normalizeProgramEdt(rawManualEdtValue, currentRecord.actividad, currentRecord.id)
+    : currentEdt;
+  const hasManualEdtOverride = Boolean(manualEdtFieldTouched && manualEdt && manualEdt !== currentEdt);
   const manualRootTargetRecord = hasManualEdtOverride && isTopLevelEdt(manualEdt)
     ? appState.raw.find(record => record.id !== currentRecord.id && text(record.edt) === manualEdt && visualHierarchyLevel(record) === 1)
     : null;
@@ -11051,12 +11110,19 @@ function saveCurrentCase(){
     nextGroup = deriveGroup(manualEdt) || nextGroup;
   }
   if(isTopLevelEdt(nextEdt)) nextParentEdt = '';
-  const subtreeIds = getSubtreeIdSet(currentRecord);
-  const hierarchyConflict = validateEditedHierarchyTarget(currentRecord, nextEdt, nextParentEdt, subtreeIds);
-  if(hierarchyConflict){
-    setImportFeedback('Conflicto de EDT visible', hierarchyConflict, 'warn');
-    alert(hierarchyConflict);
-    return;
+  const hierarchyInputsTouched = Boolean(
+    manualEdtFieldTouched ||
+    explicitMoveTargetChange ||
+    (selectedGroup && selectedGroup !== currentGroup)
+  );
+  if(hierarchyChanged || hierarchyInputsTouched){
+    const subtreeIds = getSubtreeIdSet(currentRecord);
+    const hierarchyConflict = validateEditedHierarchyTarget(currentRecord, nextEdt, nextParentEdt, subtreeIds);
+    if(hierarchyConflict){
+      setImportFeedback('Conflicto de EDT visible', hierarchyConflict, 'warn');
+      alert(hierarchyConflict);
+      return;
+    }
   }
 
   const editedSummaryValue = text(document.getElementById('editResumen').value);

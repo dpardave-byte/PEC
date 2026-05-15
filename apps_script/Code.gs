@@ -1376,52 +1376,96 @@ function saveSharedTrackingState(bundle, actorName, action) {
       }
     );
   }
-  const requestedRevision = Number(bundle && bundle.revision || 0);
-  if (requestedRevision < Number(previous.revision || 0)) {
-    const conflictActor = buildAuditActorMeta_(actorInfo);
-    appendSharedTrackingAudit_({
-      at: new Date().toISOString(),
-      actor: conflictActor.actor,
-      actorEmail: conflictActor.actorEmail,
-      actorSource: conflictActor.actorSource,
-      actorVerified: conflictActor.actorVerified,
-      declaredActor: conflictActor.declaredActor,
-      action: 'conflicto_guardado',
-      origin: String(action || 'guardar_estado_compartido'),
-      revision: Number(previous.revision || 0),
-      requestedRevision: requestedRevision,
-      message: 'Se detectó una versión más reciente del estado compartido y no se sobrescribieron los cambios.',
-      sourceMode: previous.sourceMode || '',
-      records: previous.payload && Array.isArray(previous.payload.records) ? previous.payload.records.length : 0
+  return withSharedTrackingStateMutationLock_(previous, actorInfo, String(action || 'guardar_estado_compartido'), function() {
+    const latest = loadSharedTrackingState_();
+    const requestedRevision = Number(bundle && bundle.revision || 0);
+    if (requestedRevision < Number(latest.revision || 0)) {
+      const conflictActor = buildAuditActorMeta_(actorInfo);
+      appendSharedTrackingAudit_({
+        at: new Date().toISOString(),
+        actor: conflictActor.actor,
+        actorEmail: conflictActor.actorEmail,
+        actorSource: conflictActor.actorSource,
+        actorVerified: conflictActor.actorVerified,
+        declaredActor: conflictActor.declaredActor,
+        action: 'conflicto_guardado',
+        origin: String(action || 'guardar_estado_compartido'),
+        revision: Number(latest.revision || 0),
+        requestedRevision: requestedRevision,
+        message: 'Se detectó una versión más reciente del estado compartido y no se sobrescribieron los cambios.',
+        sourceMode: latest.sourceMode || '',
+        records: latest.payload && Array.isArray(latest.payload.records) ? latest.payload.records.length : 0
+      });
+      return buildSharedTrackingEnvelope_(latest, {
+        ok: false,
+        conflict: true,
+        message: 'El estado compartido cambió desde tu última sincronización. Revisa la versión más reciente antes de volver a guardar.',
+        requestedRevision: requestedRevision,
+        currentRevision: Number(latest.revision || 0),
+        actor: conflictActor.actor,
+        actorVerified: conflictActor.actorVerified,
+        actorSource: conflictActor.actorSource,
+        declaredActor: conflictActor.declaredActor,
+        backend: getSharedTrackingBackendMeta_(actorInfo)
+      });
+    }
+    writeSharedTrackingSnapshot_(latest, actorInfo, String(action || 'guardar_estado_compartido'), 'before_save');
+    const next = normalizeSharedTrackingStateBundle_(bundle, latest);
+    next.revision = Number(latest.revision || 0) + 1;
+    next.savedAt = new Date().toISOString();
+    next.savedBy = actorInfo.actor;
+    writeSharedTrackingState_(next);
+    appendSharedTrackingAudit_(buildSharedTrackingAuditEntry_(latest, next, actorInfo, action, requestedRevision));
+    writeSharedTrackingBackup_(next);
+    return buildSharedTrackingEnvelope_(next, {
+      actor: actorInfo.actor,
+      actorVerified: actorInfo.verified,
+      actorSource: actorInfo.source,
+      declaredActor: actorInfo.declaredActor,
+      backend: getSharedTrackingBackendMeta_(actorInfo)
     });
-    return buildSharedTrackingEnvelope_(previous, {
+  });
+}
+
+function withSharedTrackingStateMutationLock_(state, actorInfo, origin, callback) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(15000);
+  } catch (error) {
+    const currentState = loadSharedTrackingState_();
+    const actorMeta = buildAuditActorMeta_(actorInfo);
+    if (actorMeta.actor || actorMeta.actorEmail || actorMeta.declaredActor) {
+      appendSharedTrackingAudit_({
+        at: new Date().toISOString(),
+        actor: actorMeta.actor,
+        actorEmail: actorMeta.actorEmail,
+        actorSource: actorMeta.actorSource,
+        actorVerified: actorMeta.actorVerified,
+        declaredActor: actorMeta.declaredActor,
+        action: 'conflicto_guardado_compartido',
+        origin: String(origin || 'guardar_estado_compartido').trim() || 'guardar_estado_compartido',
+        permissionRole: String(actorInfo && actorInfo.permissionRole || 'viewer').trim() || 'viewer',
+        message: 'Otra operación del visor compartido sigue en curso. Intenta nuevamente en unos segundos.'
+      });
+    }
+    return buildSharedTrackingEnvelope_(currentState, {
       ok: false,
-      conflict: true,
-      message: 'El estado compartido cambió desde tu última sincronización. Revisa la versión más reciente antes de volver a guardar.',
-      requestedRevision: requestedRevision,
-      currentRevision: Number(previous.revision || 0),
-      actor: conflictActor.actor,
-      actorVerified: conflictActor.actorVerified,
-      actorSource: conflictActor.actorSource,
-      declaredActor: conflictActor.declaredActor,
+      busy: true,
+      actor: actorMeta.actor,
+      actorVerified: actorMeta.actorVerified,
+      actorSource: actorMeta.actorSource,
+      declaredActor: actorMeta.declaredActor,
+      message: 'Otra operación del visor compartido sigue en curso. Intenta nuevamente en unos segundos.',
       backend: getSharedTrackingBackendMeta_(actorInfo)
     });
   }
-  writeSharedTrackingSnapshot_(previous, actorInfo, String(action || 'guardar_estado_compartido'), 'before_save');
-  const next = normalizeSharedTrackingStateBundle_(bundle, previous);
-  next.revision = Number(previous.revision || 0) + 1;
-  next.savedAt = new Date().toISOString();
-  next.savedBy = actorInfo.actor;
-  writeSharedTrackingState_(next);
-  appendSharedTrackingAudit_(buildSharedTrackingAuditEntry_(previous, next, actorInfo, action, requestedRevision));
-  writeSharedTrackingBackup_(next);
-  return buildSharedTrackingEnvelope_(next, {
-    actor: actorInfo.actor,
-    actorVerified: actorInfo.verified,
-    actorSource: actorInfo.source,
-    declaredActor: actorInfo.declaredActor,
-    backend: getSharedTrackingBackendMeta_(actorInfo)
-  });
+  try {
+    return callback();
+  } finally {
+    try {
+      lock.releaseLock();
+    } catch (error) {}
+  }
 }
 
 function withSharedTrackingAttachmentMutationLock_(state, actorInfo, origin, callback) {
@@ -1491,6 +1535,57 @@ function mergeSharedTrackingAttachmentList_(currentValues, nextValues) {
     merged.push(item);
   });
   return normalizeSharedTrackingAttachmentList_(merged);
+}
+
+function hasSharedTrackingNoteEntryContent_(value) {
+  const entry = normalizeSharedTrackingNoteEntry_(value);
+  return Boolean(
+    String(entry.note || '').trim() ||
+    String(entry.action || '').trim() ||
+    (entry.attachments && entry.attachments.length) ||
+    hasSharedTrackingAttachmentFolderMeta_(entry.attachmentFolder)
+  );
+}
+
+function mergeSharedTrackingNoteEntry_(currentValue, nextValue) {
+  const current = normalizeSharedTrackingNoteEntry_(currentValue);
+  const next = normalizeSharedTrackingNoteEntry_(nextValue);
+  const merged = Object.assign({}, current, next, {
+    note: String(next.note || ''),
+    action: String(next.action || ''),
+    attachmentFolder: hasSharedTrackingAttachmentFolderMeta_(next.attachmentFolder)
+      ? next.attachmentFolder
+      : current.attachmentFolder,
+    attachments: mergeSharedTrackingAttachmentList_(current.attachments || [], next.attachments || [])
+  });
+  return normalizeSharedTrackingNoteEntry_(merged);
+}
+
+function mergeSharedTrackingNotesMap_(currentValues, nextValues) {
+  const current = normalizeObjectMap_(currentValues);
+  const next = normalizeObjectMap_(nextValues);
+  const merged = {};
+  const seen = {};
+  Object.keys(current).concat(Object.keys(next)).forEach(function(id) {
+    const safeId = String(id || '').trim();
+    if (!safeId || seen[safeId]) return;
+    seen[safeId] = true;
+    if (Object.prototype.hasOwnProperty.call(next, safeId)) {
+      const entry = mergeSharedTrackingNoteEntry_(current[safeId], next[safeId]);
+      if (hasSharedTrackingNoteEntryContent_(entry)) {
+        merged[safeId] = entry;
+      }
+      return;
+    }
+    const preservedEntry = normalizeSharedTrackingNoteEntry_(current[safeId]);
+    if (
+      (preservedEntry.attachments && preservedEntry.attachments.length) ||
+      hasSharedTrackingAttachmentFolderMeta_(preservedEntry.attachmentFolder)
+    ) {
+      merged[safeId] = preservedEntry;
+    }
+  });
+  return merged;
 }
 
 function uploadSharedTrackingAttachments(recordId, uploads, actorName) {
@@ -5604,6 +5699,9 @@ function buildSharedTrackingPublicBackendMeta_() {
 function normalizeSharedTrackingStateBundle_(bundle, fallback) {
   const data = bundle && typeof bundle === 'object' ? bundle : {};
   const base = fallback && typeof fallback === 'object' ? fallback : {};
+  const notes = Object.prototype.hasOwnProperty.call(data, 'notes')
+    ? mergeSharedTrackingNotesMap_(base.notes || {}, data.notes || {})
+    : normalizeSharedTrackingNotesMap_(base.notes || {});
   return {
     format: 'pec-shared-state-v1',
     revision: Number(data.revision != null ? data.revision : (base.revision || 0)),
@@ -5614,7 +5712,7 @@ function normalizeSharedTrackingStateBundle_(bundle, fallback) {
     customPeople: normalizeStringArray_(data.customPeople || base.customPeople || []),
     customEntities: normalizeStringArray_(data.customEntities || base.customEntities || []),
     aliases: normalizeObjectMap_(data.aliases || base.aliases || {}),
-    notes: normalizeSharedTrackingNotesMap_(data.notes || base.notes || {}),
+    notes: notes,
     edits: normalizeObjectMap_(data.edits || base.edits || {}),
     customRecords: Array.isArray(data.customRecords) ? data.customRecords : (Array.isArray(base.customRecords) ? base.customRecords : []),
     payload: normalizeSharedPayload_(data.payload || base.payload || null)

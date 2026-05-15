@@ -386,11 +386,22 @@ tbody tr:hover td{background:#f8fbfe}
 .recovery-clarity-item{border:1px solid var(--line);border-radius:12px;background:#fff;padding:10px 12px;display:grid;gap:4px}
 .recovery-clarity-item span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700}
 .recovery-clarity-item b{font-size:14px;color:var(--ink);line-height:1.35}
-.case-attachment-folder-card{display:grid;gap:8px;padding:12px;border:1px solid #e6edf4;border-radius:12px;background:#fff}
-.case-attachment-folder-card strong{display:block;color:var(--ink)}
-.case-attachment-folder-card span{display:block;color:var(--muted);font-size:12px;line-height:1.45}
+.case-attachment-summary-card,.case-attachment-folder-panel,.case-attachment-item{border:1px solid #e6edf4;border-radius:14px;background:#fff;box-shadow:0 6px 18px rgba(19,41,61,.04)}
+.case-attachment-summary-card{display:grid;gap:10px;padding:14px}
+.case-attachment-summary-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.case-attachment-summary-head strong{display:block;color:var(--ink);font-size:15px}
+.case-attachment-summary-head span{display:block;color:var(--muted);font-size:12px;line-height:1.45;margin-top:3px}
+.case-attachment-summary-metrics{display:flex;gap:8px;flex-wrap:wrap}
+.case-attachment-summary-card .doc-score-pill{font-size:12px}
+.case-attachment-folder-card{display:grid;gap:10px}
+.case-attachment-folder-panel{display:grid;gap:10px;padding:14px}
+.case-attachment-folder-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
+.case-attachment-folder-head strong{display:block;color:var(--ink);font-size:14px}
+.case-attachment-folder-head span{display:block;color:var(--muted);font-size:12px;line-height:1.45;margin-top:3px}
+.case-attachment-folder-body{display:grid;gap:8px}
+.case-attachment-folder-card .case-attachment-path{padding:8px 10px;border-radius:10px;background:#f6f9fc;border:1px dashed #d8e3ee}
 .case-attachment-list{display:grid;gap:10px}
-.case-attachment-item{display:grid;gap:6px;padding:12px;border:1px solid #e6edf4;border-radius:12px;background:#fff}
+.case-attachment-item{display:grid;gap:8px;padding:12px}
 .case-attachment-item strong{display:block;color:var(--ink)}
 .case-attachment-meta{color:var(--muted);font-size:12px;line-height:1.45}
 .case-attachment-tags{display:flex;gap:6px;flex-wrap:wrap}
@@ -402,6 +413,10 @@ tbody tr:hover td{background:#f8fbfe}
 .case-attachment-path{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-size:11px;color:#3d556b;word-break:break-all}
 .case-attachment-actions{display:flex;gap:8px;flex-wrap:wrap}
 .case-attachment-empty{color:var(--muted);font-size:13px;line-height:1.45}
+.case-attachment-file-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.case-attachment-file-route{display:grid;gap:4px}
+.case-attachment-muted{color:var(--muted);font-size:11px;line-height:1.35}
+.case-attachment-summary-card .case-attachment-muted,.case-attachment-folder-panel .case-attachment-muted{font-size:12px}
 .permission-debug-card{display:grid;gap:8px;padding:12px;border:1px dashed #d7e4ef;border-radius:12px;background:#f6fbff}
 .permission-debug-card strong{display:block;color:var(--brand)}
 .permission-debug-card p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
@@ -3182,6 +3197,72 @@ function normalizeCaseAttachmentMeta(value){
   };
 }
 
+function normalizeCaseAttachmentNameKey(value){
+  return normalizeDocumentTypeKey(text(value)).replace(/\s+/g, ' ').trim();
+}
+
+function buildCaseAttachmentProbableDuplicateKey(value){
+  const safe = normalizeCaseAttachmentMeta(value);
+  if(!safe) return '';
+  const nameKey = normalizeCaseAttachmentNameKey(safe.name);
+  const size = Number(safe.size || 0);
+  if(!nameKey || !(size > 0)) return '';
+  return nameKey + '|' + String(Math.round(size));
+}
+
+function rankCaseAttachmentDocumentType(value){
+  const safe = normalizeCaseAttachmentDocumentType(value);
+  if(safe === 'unknown') return 0;
+  if(safe === 'Otro') return 1;
+  return 2;
+}
+
+function pickCaseAttachmentTimestamp(values, mode){
+  const safeValues = (Array.isArray(values) ? values : [])
+    .map(item => text(item))
+    .filter(Boolean)
+    .sort();
+  if(!safeValues.length) return '';
+  return mode === 'latest' ? safeValues[safeValues.length - 1] : safeValues[0];
+}
+
+function mergeCaseAttachmentMeta(currentValue, nextValue){
+  const current = normalizeCaseAttachmentMeta(currentValue);
+  const next = normalizeCaseAttachmentMeta(nextValue);
+  if(!current) return next;
+  if(!next) return current;
+  const mergedStatus = current.status === 'active' || next.status === 'active' ? 'active' : 'removed';
+  return normalizeCaseAttachmentMeta({
+    id: text(current.id || next.id || current.fileId || next.fileId || current.url || next.url || current.name || next.name),
+    name: text(next.name || current.name),
+    mimeType: text(
+      (next.mimeType && next.mimeType !== 'application/octet-stream' ? next.mimeType : '') ||
+      (current.mimeType && current.mimeType !== 'application/octet-stream' ? current.mimeType : '') ||
+      next.mimeType ||
+      current.mimeType ||
+      'application/octet-stream'
+    ),
+    size: Number(next.size || current.size || 0),
+    fileId: text(next.fileId || current.fileId),
+    folderId: text(next.folderId || current.folderId),
+    folderUrl: text(next.folderUrl || current.folderUrl),
+    url: text(next.url || current.url),
+    logicalPath: text(next.logicalPath || current.logicalPath),
+    documentType: rankCaseAttachmentDocumentType(next.documentType) >= rankCaseAttachmentDocumentType(current.documentType)
+      ? normalizeCaseAttachmentDocumentType(next.documentType)
+      : normalizeCaseAttachmentDocumentType(current.documentType),
+    status: mergedStatus,
+    uploadedAt: pickCaseAttachmentTimestamp([current.uploadedAt, next.uploadedAt], 'earliest'),
+    uploadedBy: text(next.uploadedBy || current.uploadedBy),
+    uploadedByEmail: text(next.uploadedByEmail || current.uploadedByEmail),
+    actorSource: text(next.actorSource || current.actorSource),
+    actorVerified: Boolean(current.actorVerified || next.actorVerified),
+    removedAt: mergedStatus === 'removed' ? pickCaseAttachmentTimestamp([current.removedAt, next.removedAt], 'latest') : '',
+    removedBy: mergedStatus === 'removed' ? text(next.removedBy || current.removedBy) : '',
+    removedReason: mergedStatus === 'removed' ? text(next.removedReason || current.removedReason) : ''
+  });
+}
+
 function normalizeCaseAttachmentFolderMeta(value){
   const raw = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const folderId = text(raw.folderId || raw.id);
@@ -3196,7 +3277,29 @@ function normalizeCaseAttachmentFolderMeta(value){
     name,
     recordId: text(raw.recordId),
     recordLabel: text(raw.recordLabel),
+    edt: text(raw.edt),
+    rootEdt: text(raw.rootEdt),
+    rootName: text(raw.rootName),
+    activityName: text(raw.activityName),
     logicalPath: text(raw.logicalPath),
+    supportFolderId: text(raw.supportFolderId),
+    supportFolderUrl: text(raw.supportFolderUrl),
+    supportLogicalPath: text(raw.supportLogicalPath),
+    reportFolderId: text(raw.reportFolderId),
+    reportFolderUrl: text(raw.reportFolderUrl),
+    reportLogicalPath: text(raw.reportLogicalPath),
+    historyFolderId: text(raw.historyFolderId),
+    historyFolderUrl: text(raw.historyFolderUrl),
+    historyLogicalPath: text(raw.historyLogicalPath),
+    lastReportId: text(raw.lastReportId),
+    lastReportUrl: text(raw.lastReportUrl),
+    lastReportDocxUrl: text(raw.lastReportDocxUrl),
+    lastReportName: text(raw.lastReportName),
+    lastReportFormat: text(raw.lastReportFormat),
+    lastReportGeneratedAt: text(raw.lastReportGeneratedAt),
+    lastReportGeneratedBy: text(raw.lastReportGeneratedBy),
+    lastReportGeneratedByEmail: text(raw.lastReportGeneratedByEmail),
+    lastVerifiedAt: text(raw.lastVerifiedAt),
     createdAt: text(raw.createdAt),
     createdBy: text(raw.createdBy),
     createdByEmail: text(raw.createdByEmail),
@@ -3204,20 +3307,101 @@ function normalizeCaseAttachmentFolderMeta(value){
   };
 }
 
+function buildDriveFolderUrl(value){
+  const folderMeta = normalizeCaseAttachmentFolderMeta(value);
+  const explicitUrl = text(folderMeta && (folderMeta.folderUrl || folderMeta.url));
+  if(explicitUrl && /^https?:\/\//i.test(explicitUrl)) return explicitUrl;
+  const folderId = text(folderMeta && folderMeta.folderId);
+  if(!folderId) return '';
+  return 'https://drive.google.com/drive/folders/' + encodeURIComponent(folderId);
+}
+
 function hasCaseAttachmentFolderMeta(value){
   return Boolean(value && (text(value.folderId) || text(value.folderUrl || value.url) || text(value.folderName || value.name)));
 }
 
+function formatAttachmentMimeLabel(value){
+  const safe = text(value).toLowerCase();
+  if(!safe) return 'Tipo no identificado';
+  if(safe === 'application/pdf') return 'PDF';
+  if(safe === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return 'DOCX';
+  if(safe === 'application/msword') return 'DOC';
+  if(safe === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') return 'XLSX';
+  if(safe === 'application/vnd.ms-excel') return 'XLS';
+  if(safe === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') return 'PPTX';
+  if(safe === 'application/vnd.ms-powerpoint') return 'PPT';
+  if(safe === 'image/jpeg') return 'JPG';
+  if(safe === 'image/png') return 'PNG';
+  const slashIndex = safe.indexOf('/');
+  if(slashIndex !== -1){
+    return safe.slice(slashIndex + 1).replace(/[.+_-]+/g, ' ').trim().toUpperCase();
+  }
+  return safe.toUpperCase();
+}
+
+function findCaseAttachmentMatchIndex(values, candidateValue){
+  const candidate = normalizeCaseAttachmentMeta(candidateValue);
+  if(!candidate) return -1;
+  const candidateProbableKey = buildCaseAttachmentProbableDuplicateKey(candidate);
+  const candidateContext = text(candidate.folderId || candidate.logicalPath);
+  for(let index = 0; index < values.length; index += 1){
+    const current = normalizeCaseAttachmentMeta(values[index]);
+    if(!current) continue;
+    if(candidate.fileId && current.fileId && candidate.fileId === current.fileId) return index;
+    if(candidate.url && current.url && candidate.url === current.url) return index;
+    if(candidate.id && current.id && candidate.id === current.id) return index;
+    const currentProbableKey = buildCaseAttachmentProbableDuplicateKey(current);
+    const currentContext = text(current.folderId || current.logicalPath);
+    const contextCompatible = !candidateContext || !currentContext || candidateContext === currentContext;
+    if(!candidateProbableKey || !currentProbableKey || candidateProbableKey !== currentProbableKey || !contextCompatible) continue;
+    if(candidate.fileId && current.fileId && candidate.fileId !== current.fileId) continue;
+    if(candidate.url && current.url && candidate.url !== current.url) continue;
+    return index;
+  }
+  return -1;
+}
+
 function normalizeCaseAttachmentList(values){
   const out = [];
-  const seen = new Set();
   (Array.isArray(values) ? values : []).forEach(item => {
     const normalized = normalizeCaseAttachmentMeta(item);
-    if(!normalized || seen.has(normalized.id)) return;
-    seen.add(normalized.id);
+    if(!normalized) return;
+    const matchIndex = findCaseAttachmentMatchIndex(out, normalized);
+    if(matchIndex >= 0){
+      out[matchIndex] = mergeCaseAttachmentMeta(out[matchIndex], normalized);
+      return;
+    }
     out.push(normalized);
   });
-  return out;
+  return out.map(item => normalizeCaseAttachmentMeta(item)).filter(Boolean);
+}
+
+function buildCaseAttachmentDuplicateSummary(values){
+  const attachments = normalizeCaseAttachmentList(values);
+  const groups = {};
+  getActiveCaseAttachments(attachments).forEach(item => {
+    const probableKey = buildCaseAttachmentProbableDuplicateKey(item);
+    if(!probableKey) return;
+    if(!groups[probableKey]) groups[probableKey] = [];
+    groups[probableKey].push(item);
+  });
+  const duplicateGroups = Object.keys(groups)
+    .map(key => groups[key])
+    .filter(group => group.length > 1);
+  const probableDuplicateIds = new Set();
+  duplicateGroups.forEach(group => group.forEach(item => probableDuplicateIds.add(text(item.id))));
+  const probableDuplicateCount = duplicateGroups.reduce((sum, group) => sum + Math.max(group.length - 1, 0), 0);
+  return {
+    probableDuplicateIds,
+    probableDuplicateGroups: duplicateGroups.map(group => ({
+      key: buildCaseAttachmentProbableDuplicateKey(group[0]),
+      count: group.length,
+      names: group.map(item => text(item.name)),
+      fileIds: group.map(item => text(item.fileId)).filter(Boolean)
+    })),
+    probableDuplicateCount,
+    effectiveActiveCount: Math.max(0, getActiveCaseAttachments(attachments).length - probableDuplicateCount)
+  };
 }
 
 function normalizeCaseNoteEntry(value){
@@ -6371,6 +6555,10 @@ function buildAttachmentSyncState(status, options){
       title = title || 'Actualizando repositorio...';
       detail = detail || 'Se está refrescando la lista confirmada de sustentos desde Apps Script.';
       tone = 'info';
+    }else if(status === 'reporting'){
+      title = title || 'Generando reporte Word...';
+      detail = detail || 'Apps Script está consolidando la información de la actividad y creando su reporte documental.';
+      tone = 'info';
     }else if(status === 'confirmed'){
       title = title || 'Sustento guardado y confirmado';
       detail = detail || 'Apps Script confirmó el archivo en Drive y registró su metadata en el repositorio compartido.';
@@ -6418,7 +6606,7 @@ function setAttachmentSyncState(status, options){
   clearAttachmentActionPhaseTimer();
   const next = buildAttachmentSyncState(status, options);
   lastAttachmentSyncStatus = next;
-  const pendingStatuses = ['uploading', 'registering', 'refreshing'];
+  const pendingStatuses = ['uploading', 'registering', 'refreshing', 'reporting'];
   if(pendingStatuses.includes(next.status)){
     pendingAttachmentConfirmation = {
       recordId: next.recordId,
@@ -10004,9 +10192,11 @@ function renderCaseDrawerActionState(recordId){
   const disabledReason = saving
     ? 'Apps Script está guardando esta ficha compartida. Espera la confirmación antes de cerrar o volver a editar.'
     : (attachmentBlocked
-        ? (attachmentState.status === 'registering'
+        ? (attachmentState.status === 'reporting'
+            ? 'Apps Script está generando el reporte documental de esta actividad. Espera a que termine antes de guardar o cerrar.'
+            : (attachmentState.status === 'registering'
             ? 'Apps Script está confirmando la metadata del sustento en el visor compartido. Espera antes de guardar o cerrar.'
-            : 'Apps Script está cargando o actualizando sustentos de esta ficha. Espera a que termine la carga del sustento antes de guardar o cerrar.')
+            : 'Apps Script está cargando o actualizando sustentos de esta ficha. Espera a que termine la carga del sustento antes de guardar o cerrar.'))
     : (syncBlocked
         ? 'El visor está sincronizando el estado compartido. Espera unos segundos antes de volver a editar esta ficha.'
     : (publicBlocked
@@ -10020,7 +10210,9 @@ function renderCaseDrawerActionState(recordId){
     saveBtn.textContent = saving
       ? 'Guardando...'
       : (attachmentBlocked
-          ? (attachmentState.status === 'registering' ? 'Esperando sustento...' : 'Subiendo sustento...')
+          ? (attachmentState.status === 'reporting'
+              ? 'Generando reporte...'
+              : (attachmentState.status === 'registering' ? 'Esperando sustento...' : 'Subiendo sustento...'))
           : (syncBlocked ? 'Sincronizando...' : 'Guardar y cerrar'));
     saveBtn.disabled = Boolean(saving || attachmentBlocked || syncBlocked || publicBlocked || sharedEditBlocked);
     saveBtn.title = disabledReason;
@@ -10185,6 +10377,60 @@ function getAttachmentStateDiagnostics(){
 }
 
 window.__pecDebugAttachmentState = getAttachmentStateDiagnostics;
+
+function getDocumentPanelDiagnostics(){
+  const selectedId = text(appState.selectedId);
+  const currentRecord = appState.raw.find(item => item.id === selectedId) || null;
+  const noteEntry = getCaseNoteEntry(selectedId);
+  const attachments = normalizeCaseAttachmentList(noteEntry.attachments);
+  const attachmentFolder = normalizeCaseAttachmentFolderMeta(noteEntry.attachmentFolder);
+  const duplicateSummary = buildCaseAttachmentDuplicateSummary(attachments);
+  const folderButton = document.querySelector('#caseAttachmentFolderCard [data-attachment-folder-open]');
+  const resolvedFolderUrl = buildDriveFolderUrl(attachmentFolder);
+  const hitTarget = folderButton
+    ? document.elementFromPoint(
+        Math.max(0, Math.round(folderButton.getBoundingClientRect().left + (folderButton.getBoundingClientRect().width / 2))),
+        Math.max(0, Math.round(folderButton.getBoundingClientRect().top + (folderButton.getBoundingClientRect().height / 2)))
+      )
+    : null;
+  return {
+    selectedId,
+    currentEdt: text(currentRecord && currentRecord.edt),
+    currentTitle: text(currentRecord && currentRecord.actividad),
+    attachmentFolder,
+    resolvedFolderUrl,
+    folderButton: folderButton ? {
+      text: text(folderButton.innerText || folderButton.textContent),
+      disabled: Boolean(folderButton.disabled),
+      dataset: Object.assign({}, folderButton.dataset || {}),
+      title: text(folderButton.title),
+      hitTarget: hitTarget ? {
+        tagName: text(hitTarget.tagName),
+        id: text(hitTarget.id),
+        className: text(hitTarget.className)
+      } : null
+    } : null,
+    attachments: attachments.map(item => ({
+      id: text(item.id),
+      fileId: text(item.fileId),
+      name: text(item.name),
+      size: Number(item.size || 0),
+      url: text(item.url),
+      logicalPath: text(item.logicalPath),
+      uploadedAt: text(item.uploadedAt),
+      documentType: normalizeCaseAttachmentDocumentType(item.documentType),
+      status: normalizeCaseAttachmentStatus(item.status),
+      probableDuplicate: duplicateSummary.probableDuplicateIds.has(text(item.id))
+    })),
+    duplicateSummary: {
+      probableDuplicateCount: duplicateSummary.probableDuplicateCount,
+      effectiveActiveCount: duplicateSummary.effectiveActiveCount,
+      groups: duplicateSummary.probableDuplicateGroups
+    }
+  };
+}
+
+window.__pecDebugDocumentPanel = getDocumentPanelDiagnostics;
 
 function closeDrawer(force){
   if(!force && hasPendingDrawerSharedSave()){
@@ -10457,6 +10703,98 @@ function exportSupportInventory(format, recordId){
     .exportSharedTrackingSupportInventory(safeFormat, targetRecordId);
 }
 
+function openCaseActivityReportUrl(url){
+  const safeUrl = text(url);
+  if(!safeUrl || !/^https?:\/\//i.test(safeUrl)){
+    setCaseAttachmentFeedback('Reporte no disponible', 'Todavía no existe un reporte confirmado para esta actividad.', 'warn');
+    return;
+  }
+  window.open(safeUrl, '_blank', 'noopener');
+}
+
+function openLastCaseActivityReport(){
+  const record = appState.raw.find(item => item.id === appState.selectedId);
+  const noteEntry = getCaseNoteEntry(record && record.id);
+  const folderMeta = normalizeCaseAttachmentFolderMeta(noteEntry.attachmentFolder);
+  const reportUrl = text(folderMeta && (folderMeta.lastReportUrl || folderMeta.lastReportDocxUrl));
+  if(!reportUrl){
+    setCaseAttachmentFeedback('Reporte no disponible', 'Esta actividad aún no tiene un reporte Word confirmado en el repositorio compartido.', 'warn');
+    return;
+  }
+  openCaseActivityReportUrl(reportUrl);
+}
+
+function generateCaseActivityReport(){
+  if(blockPublicReadOnlyMutation('Reporte bloqueado', 'La URL pública no puede generar reportes documentales. Usa el visor de trabajo para esta operación.')) return;
+  if(!appState.selectedId) return;
+  if(!supportsSharedCaseAttachments()){
+    setCaseAttachmentFeedback('Reporte no disponible', 'La generación del reporte documental requiere abrir la versión compartida de Apps Script.', 'warn');
+    return;
+  }
+  const permission = getCurrentPermissionState();
+  if(!permission.canExportSupportInventory){
+    setCaseAttachmentFeedback(permission.label, permission.detail || 'Tu perfil no puede generar el reporte documental de esta actividad.', 'warn');
+    return;
+  }
+  if(appState.hasUnsyncedSharedChanges || sharedSyncInFlight || sharedAttachmentActionInFlight || hasPendingAttachmentConfirmation(appState.selectedId)){
+    setCaseAttachmentFeedback('Espera la sincronización compartida', 'Guarda primero la ficha y espera a que terminen las operaciones documentales antes de generar el reporte.', 'warn');
+    return;
+  }
+  const selectedId = appState.selectedId;
+  const selectedRecord = appState.raw.find(item => item.id === selectedId) || {id:selectedId};
+  const identity = getCurrentActorIdentity();
+  setAttachmentSyncState('reporting', {
+    recordId: selectedId,
+    operation: 'report',
+    detail: 'Apps Script está generando el reporte documental de esta actividad y registrándolo en su carpeta de Reportes.'
+  });
+  sharedAttachmentActionInFlight = true;
+  renderCaseAttachments(selectedRecord);
+  google.script.run
+    .withSuccessHandler(result => {
+      sharedAttachmentActionInFlight = false;
+      updateServerInfoFromEnvelope(result || {});
+      if(result && result.state){
+        applySharedStateBundle(result.state, {skipRenderHero:true});
+        refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:selectedId});
+      }
+      if(result && result.ok && result.state){
+        const reportMeta = result.reportMeta && typeof result.reportMeta === 'object' ? result.reportMeta : {};
+        setAttachmentSyncState('confirmed', {
+          recordId: selectedId,
+          operation: 'report',
+          confirmedRevision: Number(result.state && result.state.revision || 0),
+          title: 'Reporte de actividad listo',
+          detail: text(reportMeta.reportFormat) === 'gdoc_with_docx_export'
+            ? 'Se generó el reporte en Google Docs y quedó disponible con exportación DOCX desde la carpeta Reportes del registro.'
+            : 'Se generó el reporte documental de esta actividad y quedó registrado en el repositorio compartido.'
+        });
+        setCaseAttachmentFeedback('Reporte de actividad listo', text(reportMeta.reportFormat) === 'gdoc_with_docx_export'
+          ? 'El reporte quedó guardado en la carpeta Reportes del registro. Ya puedes abrir el último reporte desde este panel.'
+          : 'El reporte documental quedó registrado para esta actividad.', 'success');
+        renderCaseAttachments(appState.raw.find(item => item.id === selectedId) || {id:selectedId});
+        return;
+      }
+      setAttachmentSyncState('failed', {
+        recordId: selectedId,
+        operation: 'report',
+        detail: text(result && result.message) || 'Apps Script no pudo confirmar la generación del reporte documental.'
+      });
+      renderCaseAttachments(appState.raw.find(item => item.id === selectedId) || {id:selectedId});
+    })
+    .withFailureHandler(error => {
+      sharedAttachmentActionInFlight = false;
+      setAttachmentSyncState('failed', {
+        recordId: selectedId,
+        operation: 'report',
+        detail: 'Apps Script no pudo generar el reporte documental de esta actividad.'
+      });
+      setCaseAttachmentFeedback('No se generó el reporte', error && error.message ? error.message : 'Apps Script no pudo generar el reporte documental de esta actividad.', 'warn');
+      renderCaseAttachments(appState.raw.find(item => item.id === selectedId) || {id:selectedId});
+    })
+    .generateSharedTrackingActivityReport(selectedId, identity.actor);
+}
+
 function setCaseAttachmentFeedback(title, detail, tone){
   const host = document.getElementById('caseAttachmentFeedback');
   if(!host) return;
@@ -10476,9 +10814,22 @@ function renderCaseAttachments(record){
   if(!hintHost || !debugHost || !folderHost || !listHost || !input || !uploadBtn || !refreshBtn) return;
   const resolvedRecord = appState.raw.find(item => item.id === text(record && record.id)) || record || {};
   const noteEntry = getCaseNoteEntry(resolvedRecord && resolvedRecord.id);
-  const folderMeta = normalizeCaseAttachmentFolderMeta(noteEntry.attachmentFolder);
   const attachments = normalizeCaseAttachmentList(noteEntry.attachments);
   const activeAttachments = getActiveCaseAttachments(attachments);
+  const removedAttachments = getRemovedCaseAttachments(attachments);
+  const duplicateSummary = buildCaseAttachmentDuplicateSummary(attachments);
+  const effectiveActiveCount = duplicateSummary.effectiveActiveCount || activeAttachments.length;
+  const attachmentFolderFallbackSource = activeAttachments.find(item => text(item.folderId) || text(item.folderUrl) || text(item.logicalPath)) ||
+    attachments.find(item => text(item.folderId) || text(item.folderUrl) || text(item.logicalPath));
+  const folderMeta = normalizeCaseAttachmentFolderMeta(noteEntry.attachmentFolder) ||
+    normalizeCaseAttachmentFolderMeta(attachmentFolderFallbackSource ? {
+      folderId: attachmentFolderFallbackSource.folderId,
+      folderUrl: attachmentFolderFallbackSource.folderUrl,
+      logicalPath: attachmentFolderFallbackSource.logicalPath,
+      name: 'Carpeta del registro',
+      recordLabel: text(resolvedRecord && resolvedRecord.actividad)
+    } : null);
+  const driveFolderUrl = buildDriveFolderUrl(folderMeta);
   const documentScore = buildCaseDocumentScore(resolvedRecord);
   const permission = getCurrentPermissionState();
   const sharedReady = supportsSharedCaseAttachments();
@@ -10488,6 +10839,39 @@ function renderCaseAttachments(record){
   const canRefresh = Boolean(sharedReady && !appState.hasUnsyncedSharedChanges && !sharedSyncInFlight && !attachmentBusy);
   const canMutate = canMutateCaseAttachments();
   const permissionSummary = describeCurrentAttachmentPermissionSummary(permission);
+  const logicalPath = text(folderMeta && folderMeta.logicalPath);
+  const supportLogicalPath = text(folderMeta && folderMeta.supportLogicalPath);
+  const recordLabel = text(folderMeta && folderMeta.recordLabel) || text(resolvedRecord && resolvedRecord.actividad) || 'Actividad seleccionada';
+  const folderName = text(folderMeta && (folderMeta.folderName || folderMeta.name)) || ('record_' + text(resolvedRecord && resolvedRecord.id).replace(/[^a-z0-9_-]+/gi, '_'));
+  const folderStateLabel = driveFolderUrl ? 'Carpeta Drive disponible' : 'Carpeta Drive pendiente de preparar';
+  const metadataIncomplete = documentScore.missing.length ? 'Metadata incompleta' : '';
+  const lastReportUrl = text(folderMeta && (folderMeta.lastReportUrl || folderMeta.lastReportDocxUrl));
+  const lastReportGeneratedAt = text(folderMeta && folderMeta.lastReportGeneratedAt);
+  const lastReportGeneratedBy = text(folderMeta && folderMeta.lastReportGeneratedBy);
+  const summaryMetrics = [
+    '<span class="doc-score-pill ' + escapeHtml(documentScore.classification) + '">' + escapeHtml(String(documentScore.score)) + '/100 · ' + escapeHtml(describeDocumentScoreClass(documentScore.classification)) + '</span>',
+    '<span class="attachment-tag good">' + escapeHtml(String(effectiveActiveCount)) + ' activo(s)</span>',
+    '<span class="attachment-tag">' + escapeHtml(String(removedAttachments.length)) + ' retirado(s)</span>',
+    (duplicateSummary.probableDuplicateCount ? '<span class="attachment-tag warn">' + escapeHtml(String(duplicateSummary.probableDuplicateCount)) + ' duplicado(s) probable(s)</span>' : ''),
+    '<span class="attachment-tag ' + (driveFolderUrl ? 'good' : 'alert') + '">' + escapeHtml(folderStateLabel) + '</span>',
+    (metadataIncomplete ? '<span class="attachment-tag warn">' + escapeHtml(metadataIncomplete) + '</span>' : ''),
+    (attachmentState.status === 'confirmed' ? '<span class="attachment-tag good">Repositorio confirmado</span>' : ''),
+    (attachmentState.status === 'registering' ? '<span class="attachment-tag warn">Metadata en confirmacion</span>' : ''),
+    (attachmentState.status === 'uploading' ? '<span class="attachment-tag warn">Carga en curso</span>' : ''),
+    (attachmentState.status === 'reporting' ? '<span class="attachment-tag warn">Reporte en generacion</span>' : ''),
+    (attachmentState.status === 'refreshing' ? '<span class="attachment-tag">Lista sincronizando</span>' : '')
+  ].filter(Boolean).join('');
+  const folderRouteBlock = logicalPath
+    ? '<div class="case-attachment-file-route"><span class="case-attachment-muted">Ruta logica</span><span class="case-attachment-path">' + escapeHtml(logicalPath) + '</span></div>'
+    : '<span class="case-attachment-muted">La ruta logica del repositorio aun no esta registrada.</span>';
+  const folderActions = [
+    '<button type="button" class="secondary" data-attachment-folder-open="' + escapeHtml(driveFolderUrl) + '"' + (driveFolderUrl ? '' : ' disabled title="La carpeta Drive aun no tiene URL real. Prepara o repara la carpeta."') + '>Abrir carpeta</button>',
+    '<button type="button" class="ghost" id="copyCaseAttachmentPathBtn"' + (logicalPath ? '' : ' disabled title="La ruta logica aun no esta registrada."') + '>Copiar ruta</button>',
+    (permission.canExportSupportInventory ? '<button type="button" class="soft" id="exportCaseSupportInventoryBtn">Exportar inventario del caso</button>' : ''),
+    (sharedReady && permission.canExportSupportInventory ? '<button type="button" class="soft" id="generateCaseActivityReportBtn"' + (attachmentBusy || appState.hasUnsyncedSharedChanges || sharedSyncInFlight ? ' disabled' : '') + '>Generar reporte Word</button>' : ''),
+    (lastReportUrl ? '<button type="button" class="ghost" id="openLastCaseActivityReportBtn">Abrir ultimo reporte</button>' : ''),
+    (sharedReady && canMutate && !driveFolderUrl ? '<button type="button" class="soft" id="prepareCaseAttachmentFolderBtn">Preparar carpeta del registro</button>' : '')
+  ].filter(Boolean).join('');
   hintHost.textContent = sharedReady
     ? (permissionSummary + ' | ' + (permission.canManageAttachments
         ? 'Sube uno o varios archivos de sustento para este bloque o subactividad. Se guardarán en el backend compartido del visor.'
@@ -10504,68 +10888,88 @@ function renderCaseAttachments(record){
   uploadBtn.disabled = !sharedReady || !canMutate;
   refreshBtn.disabled = !canRefresh;
   input.value = '';
+  const summaryCard =
+    '<div class="case-attachment-summary-card">' +
+      '<div class="case-attachment-summary-head">' +
+        '<div><strong>Repositorio documental</strong><span>Carpeta Drive, score documental y trazabilidad compartida del caso.</span></div>' +
+        '<span class="case-attachment-muted">' + escapeHtml(sharedReady ? 'Repositorio operativo' : 'Disponible solo en Apps Script') + '</span>' +
+      '</div>' +
+      '<div class="case-attachment-summary-metrics">' + summaryMetrics + '</div>' +
+    '</div>';
   if(sharedReady){
-    if(folderMeta && folderMeta.url){
-      folderHost.innerHTML =
-        '<strong>Carpeta visible por registro</strong>' +
-        '<span>' + escapeHtml(folderMeta.name || 'Carpeta de sustento del registro') + '</span>' +
-        '<span>' + escapeHtml(folderMeta.recordLabel || 'Repositorio de sustento preparado para esta actividad.') + '</span>' +
-        '<span class="case-attachment-path">' + escapeHtml(folderMeta.logicalPath || 'Ruta lógica pendiente') + '</span>' +
-        '<div class="case-attachment-tags">' +
-          '<span class="doc-score-pill ' + escapeHtml(documentScore.classification) + '">' + escapeHtml(String(documentScore.score)) + '/100 · ' + escapeHtml(describeDocumentScoreClass(documentScore.classification)) + '</span>' +
-          (activeAttachments.length ? '<span class="attachment-tag good">Con sustento activo</span>' : '<span class="attachment-tag alert">Sin sustento</span>') +
-          (documentScore.missing.length ? '<span class="attachment-tag warn">Sustento incompleto</span>' : '') +
-          (attachmentState.status === 'confirmed' ? '<span class="attachment-tag good">Repositorio confirmado</span>' : '') +
-          (attachmentState.status === 'registering' ? '<span class="attachment-tag warn">Metadata en confirmación</span>' : '') +
-          (attachmentState.status === 'uploading' ? '<span class="attachment-tag warn">Carga en curso</span>' : '') +
+    folderHost.innerHTML =
+      summaryCard +
+      '<div class="case-attachment-folder-panel">' +
+        '<div class="case-attachment-folder-head">' +
+          '<div><strong>Carpeta del registro</strong><span>' + escapeHtml(folderName) + '</span></div>' +
+          '<span class="case-attachment-muted">' + escapeHtml(folderStateLabel) + '</span>' +
         '</div>' +
-        '<div class="case-attachment-actions">' +
-          '<button type="button" class="secondary" data-attachment-folder-open="' + escapeHtml(folderMeta.url) + '">Abrir carpeta</button>' +
-          '<button type="button" class="ghost" id="copyCaseAttachmentPathBtn">Copiar ruta</button>' +
-          (permission.canExportSupportInventory ? '<button type="button" class="soft" id="exportCaseSupportInventoryBtn">Exportar inventario del caso</button>' : '') +
-        '</div>';
-    }else{
-      folderHost.innerHTML =
-        '<strong>Carpeta visible por registro</strong>' +
-        '<span>Este registro aún no tiene una carpeta de sustento preparada en Drive.</span>' +
-        '<div class="case-attachment-tags">' +
-          '<span class="doc-score-pill ' + escapeHtml(documentScore.classification) + '">' + escapeHtml(String(documentScore.score)) + '/100 · ' + escapeHtml(describeDocumentScoreClass(documentScore.classification)) + '</span>' +
-          '<span class="attachment-tag alert">Sin carpeta Drive</span>' +
-          (!activeAttachments.length ? '<span class="attachment-tag alert">Sin sustento</span>' : '') +
-          (attachmentState.status === 'confirmed' ? '<span class="attachment-tag good">Repositorio confirmado</span>' : '') +
-          (attachmentState.status === 'registering' ? '<span class="attachment-tag warn">Metadata en confirmación</span>' : '') +
-          (attachmentState.status === 'uploading' ? '<span class="attachment-tag warn">Carga en curso</span>' : '') +
+        '<div class="case-attachment-folder-body">' +
+          '<span class="case-attachment-meta">' + escapeHtml([
+            text(resolvedRecord && resolvedRecord.edt) ? ('EDT ' + text(resolvedRecord.edt)) : '',
+            recordLabel
+          ].filter(Boolean).join(' | ')) + '</span>' +
+          folderRouteBlock +
+          (supportLogicalPath ? '<span class="case-attachment-muted">Sustentos: ' + escapeHtml(supportLogicalPath) + '</span>' : '') +
+          (text(folderMeta && folderMeta.folderId)
+            ? '<span class="case-attachment-muted">folderId: ' + escapeHtml(text(folderMeta.folderId)) + '</span>'
+            : '<span class="case-attachment-muted">La carpeta Drive aun no tiene URL real confirmada para abrirse desde el visor.</span>') +
+          (lastReportGeneratedAt
+            ? '<span class="case-attachment-muted">Ultimo reporte: ' + escapeHtml(formatIsoDisplay(lastReportGeneratedAt) || lastReportGeneratedAt) + (lastReportGeneratedBy ? (' | generado por ' + escapeHtml(lastReportGeneratedBy)) : '') + '</span>'
+            : '<span class="case-attachment-muted">Aun no se ha generado un reporte documental para esta actividad.</span>') +
         '</div>' +
-        '<div class="case-attachment-actions">' +
-          '<button type="button" class="soft" id="prepareCaseAttachmentFolderBtn"' + (canMutate ? '' : ' disabled') + '>Preparar carpeta del registro</button>' +
-          (permission.canExportSupportInventory ? '<button type="button" class="ghost" id="exportCaseSupportInventoryBtn">Exportar inventario del caso</button>' : '') +
-        '</div>';
-    }
+        '<div class="case-attachment-actions">' + folderActions + '</div>' +
+      '</div>';
   }else{
     folderHost.innerHTML =
-      '<strong>Carpeta visible por registro</strong>' +
-      '<span>Abre la versión compartida de Apps Script para preparar u abrir la carpeta de sustento de este bloque o subactividad.</span>';
+      summaryCard +
+      '<div class="case-attachment-folder-panel">' +
+        '<div class="case-attachment-folder-head">' +
+          '<div><strong>Carpeta del registro</strong><span>La gestion documental completa se habilita en el Web App compartido.</span></div>' +
+          '<span class="case-attachment-muted">Modo consulta</span>' +
+        '</div>' +
+        '<div class="case-attachment-folder-body">' +
+          '<span class="case-attachment-meta">Abre la version compartida de Apps Script para preparar u abrir la carpeta Drive de este registro.</span>' +
+          (logicalPath ? folderRouteBlock : '') +
+        '</div>' +
+      '</div>';
   }
   if(!attachments.length){
-    listHost.innerHTML = '<div class="case-attachment-empty">No hay archivos de sustento registrados para esta actividad todavía.</div>';
+    listHost.innerHTML = '<div class="case-attachment-item"><strong>Este registro aun no tiene sustentos activos.</strong><span class="case-attachment-meta">Cuando se carguen archivos documentales confirmados por Apps Script, apareceran aqui con su ruta, metadata y acciones disponibles.</span></div>';
   }else{
-    listHost.innerHTML = attachments.map(item => (
+    listHost.innerHTML =
+      (duplicateSummary.probableDuplicateCount
+        ? '<div class="case-attachment-item"><strong>Se detectaron sustentos duplicados probables.</strong><span class="case-attachment-meta">Revisa si corresponde retirar uno de los archivos con el mismo nombre y tamaño para evitar doble conteo documental.</span></div>'
+        : '') +
+      attachments.map(item => {
+        const probableDuplicate = duplicateSummary.probableDuplicateIds.has(text(item.id));
+        const shortFileId = text(item.fileId).slice(0, 8);
+        return (
       '<div class="case-attachment-item">' +
-        '<strong>' + escapeHtml(item.name) + '</strong>' +
-        '<div class="case-attachment-tags">' +
-          '<span class="attachment-tag ' + (normalizeCaseAttachmentStatus(item.status) === 'removed' ? 'alert' : 'good') + '">' + escapeHtml(describeAttachmentStatus(item.status)) + '</span>' +
-          '<span class="attachment-tag ' + (normalizeCaseAttachmentDocumentType(item.documentType) === 'unknown' ? 'warn' : '') + '">' + escapeHtml(describeAttachmentDocumentType(item.documentType)) + '</span>' +
-          (!text(item.folderId) ? '<span class="attachment-tag warn">Sin folderId</span>' : '') +
-          (!text(item.logicalPath) ? '<span class="attachment-tag warn">Sin ruta lógica</span>' : '') +
+        '<div class="case-attachment-file-head">' +
+          '<div>' +
+            '<strong>' + escapeHtml(item.name) + '</strong>' +
+            '<div class="case-attachment-tags">' +
+              '<span class="attachment-tag ' + (normalizeCaseAttachmentStatus(item.status) === 'removed' ? 'alert' : 'good') + '">' + escapeHtml(describeAttachmentStatus(item.status)) + '</span>' +
+              '<span class="attachment-tag ' + (normalizeCaseAttachmentDocumentType(item.documentType) === 'unknown' ? 'warn' : '') + '">' + escapeHtml(describeAttachmentDocumentType(item.documentType)) + '</span>' +
+              '<span class="attachment-tag">' + escapeHtml(formatAttachmentMimeLabel(item.mimeType)) + '</span>' +
+              (probableDuplicate ? '<span class="attachment-tag warn">Duplicado probable</span>' : '') +
+              (probableDuplicate && shortFileId ? '<span class="attachment-tag">fileId ' + escapeHtml(shortFileId) + '</span>' : '') +
+              (!text(item.folderId) ? '<span class="attachment-tag warn">Sin folderId</span>' : '') +
+              (!text(item.logicalPath) ? '<span class="attachment-tag warn">Sin ruta logica</span>' : '') +
+            '</div>' +
+          '</div>' +
+          '<span class="case-attachment-muted">' + escapeHtml(text(item.fileId) ? 'fileId confirmado' : 'Sin fileId') + '</span>' +
         '</div>' +
         '<span class="case-attachment-meta">' + escapeHtml([
           formatFileSize(item.size),
-          item.mimeType || 'Tipo no identificado',
           formatIsoDisplay(item.uploadedAt) || 'Sin fecha',
           item.uploadedBy ? ('Subido por ' + item.uploadedBy) : 'Sin actor',
           item.uploadedByEmail ? ('Correo ' + item.uploadedByEmail) : 'Sin correo verificado'
         ].filter(Boolean).join(' | ')) + '</span>' +
-        (text(item.logicalPath) ? '<span class="case-attachment-path">' + escapeHtml(item.logicalPath) + '</span>' : '') +
+        (text(item.logicalPath)
+          ? '<div class="case-attachment-file-route"><span class="case-attachment-muted">Ruta logica</span><span class="case-attachment-path">' + escapeHtml(item.logicalPath) + '</span></div>'
+          : '') +
         (normalizeCaseAttachmentStatus(item.status) === 'removed'
           ? '<span class="case-attachment-meta">' + escapeHtml([
               item.removedAt ? ('Retirado el ' + formatIsoDisplay(item.removedAt)) : 'Retirado',
@@ -10573,23 +10977,32 @@ function renderCaseAttachments(record){
               item.removedReason ? ('Motivo: ' + item.removedReason) : ''
             ].filter(Boolean).join(' | ')) + '</span>'
           : '') +
+        (probableDuplicate
+          ? '<span class="case-attachment-meta">Este sustento comparte nombre y tamaño con otro archivo activo del mismo registro. Revisa si corresponde retirarlo o renombrarlo.</span>'
+          : '') +
         '<div class="case-attachment-actions">' +
           (item.url ? '<button type="button" class="secondary" data-attachment-open="' + escapeHtml(item.url) + '">Abrir sustento</button>' : '') +
           '<button type="button" class="ghost" data-attachment-delete="' + escapeHtml(item.id) + '"' + (normalizeCaseAttachmentStatus(item.status) === 'active' && permission.canRemoveAttachments && !appState.hasUnsyncedSharedChanges && !sharedSyncInFlight && !attachmentBusy ? '' : ' disabled') + '>Retirar sustento</button>' +
         '</div>' +
       '</div>'
-    )).join('');
+    )}).join('');
   }
   if(sharedReady && attachmentState.status !== 'idle'){
     setCaseAttachmentFeedback(attachmentState.title, attachmentState.detail, attachmentState.tone);
+  }else if(sharedReady && duplicateSummary.probableDuplicateCount){
+    setCaseAttachmentFeedback(
+      'Sustentos duplicados probables',
+      'Se detectaron archivos activos con el mismo nombre y tamaño en esta actividad. Revisa si corresponde retirar uno para no duplicar el inventario documental.',
+      'warn'
+    );
   }else if(sharedReady){
     if(permission.canManageAttachments){
       setCaseAttachmentFeedback(
         'Repositorio operativo',
-        activeAttachments.length
-          ? ('Esta actividad tiene ' + activeAttachments.length + ' archivo(s) de sustento activo(s) y score documental ' + documentScore.score + '/100.')
+        effectiveActiveCount
+          ? ('Esta actividad tiene ' + effectiveActiveCount + ' archivo(s) de sustento activo(s) confirmados y score documental ' + documentScore.score + '/100.')
           : 'Esta actividad aún no tiene archivos de sustento activos registrados en el backend compartido.',
-        activeAttachments.length ? 'success' : 'info'
+        effectiveActiveCount ? 'success' : 'info'
       );
     }else{
       setCaseAttachmentFeedback(
@@ -10616,6 +11029,10 @@ function renderCaseAttachments(record){
   if(exportCaseInventoryBtn) exportCaseInventoryBtn.addEventListener('click', () => exportSupportInventory('json', text(resolvedRecord && resolvedRecord.id)));
   const copyPathBtn = document.getElementById('copyCaseAttachmentPathBtn');
   if(copyPathBtn) copyPathBtn.addEventListener('click', copyCurrentCaseAttachmentPath);
+  const generateReportBtn = document.getElementById('generateCaseActivityReportBtn');
+  if(generateReportBtn) generateReportBtn.addEventListener('click', generateCaseActivityReport);
+  const openLastReportBtn = document.getElementById('openLastCaseActivityReportBtn');
+  if(openLastReportBtn) openLastReportBtn.addEventListener('click', openLastCaseActivityReport);
   renderCaseTraceability(resolvedRecord);
 }
 
@@ -10679,6 +11096,31 @@ async function uploadCaseAttachments(){
   }
   const selectedId = appState.selectedId;
   const selectedRecord = appState.raw.find(item => item.id === selectedId) || {id:selectedId};
+  const currentAttachments = getActiveCaseAttachments(getCaseNoteEntry(selectedId).attachments);
+  const existingProbableKeys = new Map();
+  currentAttachments.forEach(item => {
+    const probableKey = buildCaseAttachmentProbableDuplicateKey(item);
+    if(probableKey && !existingProbableKeys.has(probableKey)) existingProbableKeys.set(probableKey, item);
+  });
+  const batchProbableKeys = new Set();
+  const duplicateFiles = [];
+  files.forEach(file => {
+    const probableKey = buildCaseAttachmentProbableDuplicateKey({name:text(file && file.name), size:Number(file && file.size || 0)});
+    if(!probableKey) return;
+    if(batchProbableKeys.has(probableKey) || existingProbableKeys.has(probableKey)){
+      duplicateFiles.push(text(file && file.name));
+      return;
+    }
+    batchProbableKeys.add(probableKey);
+  });
+  if(duplicateFiles.length){
+    setCaseAttachmentFeedback(
+      'Sustento duplicado probable',
+      'Ya existe un sustento activo con el mismo nombre y tamaño para esta actividad, o la selección repite archivos: ' + duplicateFiles.slice(0, 3).join(', ') + '. Renómbralo o retira el existente antes de volver a cargarlo.',
+      'warn'
+    );
+    return;
+  }
   setAttachmentSyncState('uploading', {
     recordId: selectedId,
     operation: 'upload',
@@ -10934,7 +11376,11 @@ function handleCaseAttachmentListClick(event){
   if(!trigger) return;
   if(trigger.hasAttribute('data-attachment-folder-open')){
     const folderUrl = text(trigger.getAttribute('data-attachment-folder-open'));
-    if(folderUrl) window.open(folderUrl, '_blank', 'noopener');
+    if(folderUrl){
+      window.open(folderUrl, '_blank', 'noopener');
+    }else{
+      setCaseAttachmentFeedback('Carpeta pendiente', 'La carpeta Drive aún no tiene URL real. Prepara o repara la carpeta antes de intentar abrirla.', 'warn');
+    }
     return;
   }
   if(trigger.hasAttribute('data-attachment-open')){
@@ -11990,6 +12436,7 @@ function bindEvents(){
     });
   });
   document.getElementById('refreshCaseAttachmentsBtn').addEventListener('click', refreshCurrentCaseAttachments);
+  document.getElementById('caseAttachmentFolderCard').addEventListener('click', handleCaseAttachmentListClick);
   document.getElementById('caseAttachmentList').addEventListener('click', handleCaseAttachmentListClick);
   document.getElementById('caseAttachmentInput').addEventListener('change', event => {
     const files = Array.from((event.target && event.target.files) || []);

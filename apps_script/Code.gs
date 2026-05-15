@@ -1512,29 +1512,131 @@ function withSharedTrackingAttachmentMutationLock_(state, actorInfo, origin, cal
 function buildSharedTrackingAttachmentMergeKey_(value) {
   const attachment = normalizeSharedTrackingAttachmentMeta_(value);
   if (!attachment) return '';
-  return String(attachment.fileId || attachment.id || attachment.url || attachment.name || '').trim();
+  if (String(attachment.fileId || '').trim()) return 'file:' + String(attachment.fileId || '').trim();
+  if (String(attachment.url || '').trim()) return 'url:' + String(attachment.url || '').trim();
+  if (String(attachment.id || '').trim()) return 'id:' + String(attachment.id || '').trim();
+  const probableKey = buildSharedTrackingAttachmentProbableDuplicateKey_(attachment);
+  if (probableKey) return 'probable:' + probableKey;
+  return 'name:' + normalizeSharedTrackingAttachmentNameKey_(attachment.name || '');
+}
+
+function normalizeSharedTrackingAttachmentNameKey_(value) {
+  return normalizeNotificationKey_(sanitizeSharedTrackingAttachmentName_(value || '')).replace(/\s+/g, ' ').trim();
+}
+
+function buildSharedTrackingAttachmentProbableDuplicateKey_(value) {
+  const attachment = normalizeSharedTrackingAttachmentMeta_(value);
+  if (!attachment) return '';
+  const nameKey = normalizeSharedTrackingAttachmentNameKey_(attachment.name || '');
+  const size = Number(attachment.size || 0);
+  if (!nameKey || !(size > 0)) return '';
+  return nameKey + '|' + String(Math.round(size));
+}
+
+function rankSharedTrackingDocumentType_(value) {
+  const safe = normalizeSharedTrackingDocumentType_(value);
+  if (safe === 'unknown') return 0;
+  if (safe === 'Otro') return 1;
+  return 2;
+}
+
+function pickSharedTrackingTimestamp_(values, mode) {
+  const safeValues = (Array.isArray(values) ? values : []).map(function(item) {
+    return String(item || '').trim();
+  }).filter(Boolean);
+  if (!safeValues.length) return '';
+  const comparable = safeValues.slice().sort();
+  return mode === 'latest' ? comparable[comparable.length - 1] : comparable[0];
+}
+
+function mergeSharedTrackingAttachmentMeta_(currentValue, nextValue) {
+  const current = normalizeSharedTrackingAttachmentMeta_(currentValue);
+  const next = normalizeSharedTrackingAttachmentMeta_(nextValue);
+  if (!current) return next;
+  if (!next) return current;
+  const nextDocumentType = normalizeSharedTrackingDocumentType_(next.documentType);
+  const currentDocumentType = normalizeSharedTrackingDocumentType_(current.documentType);
+  const mergedStatus = current.status === 'active' || next.status === 'active' ? 'active' : 'removed';
+  const merged = {
+    id: String(current.id || next.id || current.fileId || next.fileId || current.url || next.url || current.name || next.name || '').trim(),
+    name: String(next.name || current.name || '').trim(),
+    mimeType: String(
+      (next.mimeType && next.mimeType !== 'application/octet-stream' ? next.mimeType : '') ||
+      (current.mimeType && current.mimeType !== 'application/octet-stream' ? current.mimeType : '') ||
+      next.mimeType ||
+      current.mimeType ||
+      'application/octet-stream'
+    ).trim(),
+    size: Number(next.size || current.size || 0),
+    fileId: String(next.fileId || current.fileId || '').trim(),
+    folderId: String(next.folderId || current.folderId || '').trim(),
+    folderUrl: String(next.folderUrl || current.folderUrl || '').trim(),
+    url: String(next.url || current.url || '').trim(),
+    logicalPath: String(next.logicalPath || current.logicalPath || '').trim(),
+    documentType: rankSharedTrackingDocumentType_(nextDocumentType) >= rankSharedTrackingDocumentType_(currentDocumentType)
+      ? nextDocumentType
+      : currentDocumentType,
+    status: mergedStatus,
+    uploadedAt: pickSharedTrackingTimestamp_([current.uploadedAt, next.uploadedAt], 'earliest'),
+    uploadedBy: String(next.uploadedBy || current.uploadedBy || '').trim(),
+    uploadedByEmail: String(next.uploadedByEmail || current.uploadedByEmail || '').trim(),
+    actorSource: String(next.actorSource || current.actorSource || '').trim(),
+    actorVerified: Boolean(current.actorVerified || next.actorVerified),
+    removedAt: mergedStatus === 'removed' ? pickSharedTrackingTimestamp_([current.removedAt, next.removedAt], 'latest') : '',
+    removedBy: mergedStatus === 'removed' ? String(next.removedBy || current.removedBy || '').trim() : '',
+    removedReason: mergedStatus === 'removed' ? String(next.removedReason || current.removedReason || '').trim() : ''
+  };
+  return normalizeSharedTrackingAttachmentMeta_(merged);
+}
+
+function findSharedTrackingAttachmentMatchIndex_(values, candidateValue) {
+  const candidate = normalizeSharedTrackingAttachmentMeta_(candidateValue);
+  if (!candidate) return -1;
+  const candidateProbableKey = buildSharedTrackingAttachmentProbableDuplicateKey_(candidate);
+  const candidateContext = String(candidate.folderId || candidate.logicalPath || '').trim();
+  for (var index = 0; index < values.length; index += 1) {
+    const current = normalizeSharedTrackingAttachmentMeta_(values[index]);
+    if (!current) continue;
+    if (candidate.fileId && current.fileId && candidate.fileId === current.fileId) return index;
+    if (candidate.url && current.url && candidate.url === current.url) return index;
+    if (candidate.id && current.id && candidate.id === current.id) return index;
+    const currentProbableKey = buildSharedTrackingAttachmentProbableDuplicateKey_(current);
+    const currentContext = String(current.folderId || current.logicalPath || '').trim();
+    const contextCompatible = !candidateContext || !currentContext || candidateContext === currentContext;
+    if (!candidateProbableKey || !currentProbableKey || candidateProbableKey !== currentProbableKey || !contextCompatible) continue;
+    if (candidate.fileId && current.fileId && candidate.fileId !== current.fileId) continue;
+    if (candidate.url && current.url && candidate.url !== current.url) continue;
+    return index;
+  }
+  return -1;
+}
+
+function dedupeSharedTrackingAttachmentList_(values) {
+  const merged = [];
+  (Array.isArray(values) ? values : []).forEach(function(item) {
+    const normalized = normalizeSharedTrackingAttachmentMeta_(item);
+    if (!normalized) return;
+    const matchIndex = findSharedTrackingAttachmentMatchIndex_(merged, normalized);
+    if (matchIndex >= 0) {
+      merged[matchIndex] = mergeSharedTrackingAttachmentMeta_(merged[matchIndex], normalized);
+      return;
+    }
+    merged.push(normalized);
+  });
+  return merged.map(normalizeSharedTrackingAttachmentMeta_).filter(Boolean);
 }
 
 function mergeSharedTrackingAttachmentList_(currentValues, nextValues) {
-  const merged = [];
-  const indexByKey = {};
-  normalizeSharedTrackingAttachmentList_(currentValues).forEach(function(item) {
-    const key = buildSharedTrackingAttachmentMergeKey_(item);
-    if (!key || Object.prototype.hasOwnProperty.call(indexByKey, key)) return;
-    indexByKey[key] = merged.length;
-    merged.push(item);
-  });
+  const merged = dedupeSharedTrackingAttachmentList_(currentValues);
   normalizeSharedTrackingAttachmentList_(nextValues).forEach(function(item) {
-    const key = buildSharedTrackingAttachmentMergeKey_(item);
-    if (!key) return;
-    if (Object.prototype.hasOwnProperty.call(indexByKey, key)) {
-      merged[indexByKey[key]] = item;
+    const matchIndex = findSharedTrackingAttachmentMatchIndex_(merged, item);
+    if (matchIndex >= 0) {
+      merged[matchIndex] = mergeSharedTrackingAttachmentMeta_(merged[matchIndex], item);
       return;
     }
-    indexByKey[key] = merged.length;
     merged.push(item);
   });
-  return normalizeSharedTrackingAttachmentList_(merged);
+  return dedupeSharedTrackingAttachmentList_(merged);
 }
 
 function hasSharedTrackingNoteEntryContent_(value) {
@@ -1671,12 +1773,53 @@ function uploadSharedTrackingAttachments(recordId, uploads, actorName) {
     writeSharedTrackingSnapshot_(latest, actorInfo, 'cargar_sustento', 'before_mutation');
     const recordMeta = getSharedTrackingRecordMetaForState_(latest, safeRecordId);
     const noteEntry = normalizeSharedTrackingNoteEntry_(latest.notes && latest.notes[safeRecordId]);
-    const folder = getOrCreateBackendRecordAttachmentFolder_(recordMeta);
-    const folderMeta = buildSharedTrackingAttachmentFolderMeta_(folder, recordMeta, actorInfo, noteEntry.attachmentFolder);
+    const existingActiveAttachments = normalizeSharedTrackingAttachmentList_(noteEntry.attachments).filter(function(item) {
+      return normalizeSharedTrackingAttachmentStatus_(item && item.status) === 'active';
+    });
+    const existingProbableMap = {};
+    existingActiveAttachments.forEach(function(item) {
+      const probableKey = buildSharedTrackingAttachmentProbableDuplicateKey_(item);
+      if (!probableKey || Object.prototype.hasOwnProperty.call(existingProbableMap, probableKey)) return;
+      existingProbableMap[probableKey] = item;
+    });
+    const batchProbableMap = {};
+    const conflictingUploads = [];
+    safeUploads.forEach(function(upload) {
+      const probableKey = buildSharedTrackingAttachmentProbableDuplicateKey_(upload);
+      if (!probableKey) return;
+      const duplicateInBatch = Object.prototype.hasOwnProperty.call(batchProbableMap, probableKey);
+      const duplicateAgainstExisting = Object.prototype.hasOwnProperty.call(existingProbableMap, probableKey);
+      if (!duplicateInBatch && !duplicateAgainstExisting) {
+        batchProbableMap[probableKey] = upload;
+        return;
+      }
+      conflictingUploads.push({
+        name: upload.name,
+        size: Number(upload.size || 0),
+        duplicateType: duplicateInBatch ? 'batch' : 'existing'
+      });
+    });
+    if (conflictingUploads.length) {
+      const labels = conflictingUploads.slice(0, 3).map(function(item) {
+        return item.name + (Number(item.size || 0) > 0 ? ' (' + Math.round(Number(item.size || 0) / 1024) + ' KB)' : '');
+      });
+      return buildSharedTrackingEnvelope_(latest, {
+        ok: false,
+        message: 'Ya existe un sustento activo con el mismo nombre y tamaño para esta actividad, o la selección repite archivos: ' + labels.join(', ') + '. Renómbralo o retira el existente antes de volver a cargarlo.',
+        actor: actorInfo.actor,
+        actorVerified: actorInfo.verified,
+        actorSource: actorInfo.source,
+        declaredActor: actorInfo.declaredActor,
+        backend: getSharedTrackingBackendMeta_(actorInfo)
+      });
+    }
+    const repositoryFolders = getOrCreateBackendRecordRepositoryFolders_(latest, recordMeta);
+    const supportFolder = repositoryFolders.supportFolder;
+    const folderMeta = buildSharedTrackingAttachmentFolderMeta_(repositoryFolders, recordMeta, actorInfo, noteEntry.attachmentFolder);
     const uploadedAt = new Date().toISOString();
     const uploaded = safeUploads.map(function(upload) {
       const storedName = buildSharedTrackingStoredAttachmentName_(upload.name);
-      const file = folder.createFile(Utilities.newBlob(Utilities.base64Decode(upload.contentBase64), upload.mimeType || 'application/octet-stream', storedName));
+      const file = supportFolder.createFile(Utilities.newBlob(Utilities.base64Decode(upload.contentBase64), upload.mimeType || 'application/octet-stream', storedName));
       try {
         file.setDescription([
           'Visor PEC',
@@ -1692,10 +1835,16 @@ function uploadSharedTrackingAttachments(recordId, uploads, actorName) {
         mimeType: String(file.getMimeType() || upload.mimeType || 'application/octet-stream'),
         size: Number(upload.size || file.getSize() || 0),
         fileId: file.getId(),
-        folderId: folderMeta && folderMeta.folderId ? folderMeta.folderId : '',
-        folderUrl: folderMeta && folderMeta.folderUrl ? folderMeta.folderUrl : '',
+        folderId: folderMeta && folderMeta.supportFolderId ? folderMeta.supportFolderId : '',
+        folderUrl: folderMeta && folderMeta.supportFolderUrl ? folderMeta.supportFolderUrl : '',
         url: file.getUrl(),
-        logicalPath: buildSharedTrackingLogicalPath_(folderMeta && folderMeta.folderName ? folderMeta.folderName : '', storedName),
+        logicalPath: buildPecRepositoryLogicalPath_([
+          '01_Raices_Gantt',
+          sanitizeDriveFolderName_(repositoryFolders.rootLabel || repositoryFolders.rootName || 'Bloque', 'Bloque'),
+          String(folderMeta && folderMeta.folderName || '').trim(),
+          'Sustentos',
+          storedName
+        ]),
         documentType: normalizeSharedTrackingDocumentType_(upload.documentType),
         status: 'active',
         uploadedAt: uploadedAt,
@@ -1767,8 +1916,8 @@ function ensureSharedTrackingAttachmentFolder(recordId, actorName) {
     writeSharedTrackingSnapshot_(latest, actorInfo, 'preparar_carpeta_sustento', 'before_mutation');
     const recordMeta = getSharedTrackingRecordMetaForState_(latest, safeRecordId);
     const noteEntry = normalizeSharedTrackingNoteEntry_(latest.notes && latest.notes[safeRecordId]);
-    const folder = getOrCreateBackendRecordAttachmentFolder_(recordMeta);
-    const folderMeta = buildSharedTrackingAttachmentFolderMeta_(folder, recordMeta, actorInfo, noteEntry.attachmentFolder);
+    const repositoryFolders = getOrCreateBackendRecordRepositoryFolders_(latest, recordMeta);
+    const folderMeta = buildSharedTrackingAttachmentFolderMeta_(repositoryFolders, recordMeta, actorInfo, noteEntry.attachmentFolder);
     const currentFolderId = String(noteEntry.attachmentFolder && noteEntry.attachmentFolder.folderId || '').trim();
     if (currentFolderId === folderMeta.folderId) {
       return buildSharedTrackingEnvelope_(latest, {
@@ -2080,6 +2229,7 @@ function humanizeAuditAction_(action) {
     case 'cargar_sustento': return 'Cargar sustento';
     case 'retirar_sustento': return 'Retirar sustento';
     case 'preparar_carpeta_sustento': return 'Preparar carpeta de sustento';
+    case 'generar_reporte_actividad': return 'Generar reporte de actividad';
     case 'configurar_reporte_diario': return 'Configurar recordatorio operativo matutino';
     case 'enviar_reporte_diario_correo': return 'Enviar recordatorio operativo por correo';
     case 'configurar_resumen_admin_nocturno': return 'Configurar resumen ejecutivo admin';
@@ -2204,6 +2354,64 @@ function getSharedTrackingRecordMetaForState_(state, recordId) {
   const edit = edits[safeRecordId] && typeof edits[safeRecordId] === 'object' ? edits[safeRecordId] : {};
   const merged = Object.assign({}, source || {}, edit || {});
   return buildSharedTrackingAuditRecordLabelMeta_(safeRecordId, merged, aliases[safeRecordId], Boolean(edit.__deleted));
+}
+
+function getSharedTrackingMergedRecordForState_(state, recordId) {
+  const safeState = state && typeof state === 'object' ? state : buildDefaultSharedTrackingState_();
+  const safeRecordId = String(recordId || '').trim();
+  if (!safeRecordId) return null;
+  const payload = safeState.payload && Array.isArray(safeState.payload.records) ? safeState.payload.records : [];
+  const customRecords = Array.isArray(safeState.customRecords) ? safeState.customRecords : [];
+  const edits = safeState.edits && typeof safeState.edits === 'object' ? safeState.edits : {};
+  const aliases = safeState.aliases && typeof safeState.aliases === 'object' ? safeState.aliases : {};
+  const notes = safeState.notes && typeof safeState.notes === 'object' ? safeState.notes : {};
+  const source = payload.concat(customRecords).filter(function(record) {
+    return String(record && record.id || '').trim() === safeRecordId;
+  }).slice(-1)[0] || {};
+  const edit = edits[safeRecordId] && typeof edits[safeRecordId] === 'object' ? edits[safeRecordId] : {};
+  const noteEntry = normalizeSharedTrackingNoteEntry_(notes[safeRecordId]);
+  const merged = Object.assign({}, source || {}, edit || {});
+  const labelMeta = buildSharedTrackingAuditRecordLabelMeta_(safeRecordId, merged, aliases[safeRecordId], Boolean(edit.__deleted));
+  return Object.assign({}, merged, {
+    id: safeRecordId,
+    edt: String(labelMeta.edt || merged.edt || '').trim(),
+    actividad: String(labelMeta.activity || merged.actividad || merged.resumen || '').trim(),
+    tituloVisible: String(labelMeta.label || '').trim(),
+    responsable: String(merged.responsable || '').trim(),
+    seguimientoDgppcs: String(merged.seguimiento_dgppcs || merged.seguimientoDgppcs || '').trim(),
+    territorio: String(merged.territorio || '').trim(),
+    estado: String(merged.estado || '').trim(),
+    avance: String(merged.avance || '').trim(),
+    alerta: String(merged.alerta || '').trim(),
+    fechaInicio: String(merged.inicio || merged.fecha_inicio || merged.fechaInicio || '').trim(),
+    fechaFin: String(merged.fin || merged.fecha_fin || merged.fechaFin || '').trim(),
+    noteEntry: noteEntry,
+    attachmentFolder: normalizeSharedTrackingAttachmentFolderMeta_(noteEntry.attachmentFolder),
+    attachments: normalizeSharedTrackingAttachmentList_(noteEntry.attachments),
+    deleted: Boolean(edit.__deleted)
+  });
+}
+
+function collectSharedTrackingRecordAuditEntries_(recordId, limit) {
+  const safeRecordId = String(recordId || '').trim();
+  if (!safeRecordId) return [];
+  const safeLimit = Math.max(1, Math.min(20, Number(limit || 8)));
+  return loadSharedTrackingAudit_().filter(function(entry) {
+    if (!entry || typeof entry !== 'object') return false;
+    if (Array.isArray(entry.summary && entry.summary.touchedRecords) && entry.summary.touchedRecords.indexOf(safeRecordId) >= 0) return true;
+    if (Array.isArray(entry.changes) && entry.changes.some(function(change) { return String(change && change.id || '').trim() === safeRecordId; })) return true;
+    if (Array.isArray(entry.artifacts) && entry.artifacts.some(function(artifact) { return String(artifact && artifact.recordId || '').trim() === safeRecordId; })) return true;
+    return false;
+  }).slice(0, safeLimit).map(function(entry) {
+    return {
+      at: String(entry.at || '').trim(),
+      action: String(entry.action || '').trim(),
+      actionLabel: String(entry.actionLabel || humanizeAuditAction_(entry.action)).trim(),
+      detail: String(entry.detail || entry.message || '').trim(),
+      actor: String(entry.actor || '').trim(),
+      actorEmail: String(entry.actorEmail || '').trim()
+    };
+  });
 }
 
 function buildSharedTrackingAuditRecordLabelMeta_(id, record, alias, deleted) {
@@ -2529,6 +2737,259 @@ function buildSharedTrackingSupportInventoryHtml_(rows, scope) {
     ['Record ID', 'EDT', 'Bloque raíz', 'Etiqueta bloque raíz', 'Actividad', 'Territorio', 'Responsable', 'Seguimiento DGPPCS', 'Estado registro', 'Score', 'Clasificación', 'Brechas documentales', 'Archivo', 'Tipo documental', 'Estado', 'Ruta lógica', 'Subido el', 'Subido por', 'Correo verificado', 'Retirado el', 'Retirado por', 'Motivo retiro']
       .map(function(label) { return '<th>' + escapeHtmlEmail_(label) + '</th>'; }).join('') +
     '</tr></thead><tbody>' + tableRows + '</tbody></table></body></html>';
+}
+
+function describeSharedTrackingDocumentGap_(value) {
+  const safe = String(value || '').trim();
+  if (safe === 'sin_carpeta_drive') return 'Sin carpeta Drive preparada';
+  if (safe === 'sin_sustento_activo') return 'Sin sustento activo';
+  if (safe === 'sin_tipo_documental') return 'Sin tipo documental clasificado';
+  if (safe === 'sin_actor_correo') return 'Sin actor o correo verificado';
+  if (safe === 'sin_fecha_carga') return 'Sin fecha de carga';
+  if (safe === 'sin_ruta_logica') return 'Sin ruta lógica';
+  if (safe === 'metadata_critica_incompleta') return 'Metadata crítica incompleta';
+  return safe || 'Sin brecha identificada';
+}
+
+function buildSharedTrackingActivityReportFileName_(record) {
+  const safeRecord = record && typeof record === 'object' ? record : {};
+  const safeRecordId = String(safeRecord.id || 'registro').trim().replace(/[^a-zA-Z0-9._-]+/g, '_') || 'registro';
+  const safeEdt = String(safeRecord.edt || '').trim().replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/\./g, '_');
+  const stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd_HHmmss');
+  return 'Reporte_Actividad_' + safeRecordId + (safeEdt ? ('_EDT_' + safeEdt) : '') + '_' + stamp;
+}
+
+function buildSharedTrackingActivityReportDocxUrl_(docId) {
+  const safeDocId = String(docId || '').trim();
+  if (!safeDocId) return '';
+  return 'https://docs.google.com/document/d/' + encodeURIComponent(safeDocId) + '/export?format=docx';
+}
+
+function appendSharedTrackingDocField_(body, label, value) {
+  const safeBody = body || null;
+  if (!safeBody || !safeBody.appendParagraph) return;
+  safeBody.appendParagraph(String(label || 'Campo') + ': ' + (String(value || '').trim() || 'Sin dato'));
+}
+
+function appendSharedTrackingDocList_(body, heading, items) {
+  const safeBody = body || null;
+  if (!safeBody || !safeBody.appendParagraph) return;
+  safeBody.appendParagraph(String(heading || 'Detalle')).setHeading(DocumentApp.ParagraphHeading.HEADING2);
+  const safeItems = (Array.isArray(items) ? items : []).map(function(item) {
+    return String(item || '').trim();
+  }).filter(Boolean);
+  if (!safeItems.length) {
+    safeBody.appendParagraph('Sin dato registrado.');
+    return;
+  }
+  safeItems.forEach(function(item) {
+    safeBody.appendListItem(item);
+  });
+}
+
+function createSharedTrackingActivityReportDocument_(state, record, folderMeta, actorInfo, repositoryFolders) {
+  const safeState = state && typeof state === 'object' ? state : buildDefaultSharedTrackingState_();
+  const safeRecord = record && typeof record === 'object' ? record : {};
+  const safeFolderMeta = normalizeSharedTrackingAttachmentFolderMeta_(folderMeta) || {};
+  const safeActor = actorInfo && typeof actorInfo === 'object' ? actorInfo : resolveSharedTrackingPermissionContext_('');
+  const reportFolder = repositoryFolders && repositoryFolders.reportFolder ? repositoryFolders.reportFolder : null;
+  if (!reportFolder || !reportFolder.createFile) {
+    throw new Error('No se pudo resolver la carpeta de reportes de esta actividad.');
+  }
+  const rootLabelMap = buildSharedTrackingRootBlockLabelMap_([safeRecord]);
+  const analytical = buildSharedTrackingRecordAnalyticalSummary_(safeRecord, rootLabelMap);
+  const attachments = normalizeSharedTrackingAttachmentList_(safeRecord.attachments);
+  const noteEntry = normalizeSharedTrackingNoteEntry_(safeRecord.noteEntry);
+  const auditEntries = collectSharedTrackingRecordAuditEntries_(safeRecord.id, 8);
+  const generatedAt = new Date().toISOString();
+  const reportName = buildSharedTrackingActivityReportFileName_(safeRecord);
+  const doc = DocumentApp.create(reportName);
+  const docId = doc.getId();
+  const docFile = DriveApp.getFileById(docId);
+  try {
+    docFile.moveTo(reportFolder);
+  } catch (error) {
+    try {
+      reportFolder.addFile(docFile);
+      DriveApp.getRootFolder().removeFile(docFile);
+    } catch (moveError) {}
+  }
+  const body = doc.getBody();
+  body.clear();
+  body.appendParagraph('Reporte de seguimiento de actividad - EDT ' + (String(safeRecord.edt || '').trim() || 'Sin EDT')).setHeading(DocumentApp.ParagraphHeading.HEADING1);
+  body.appendParagraph('Fuente: Visor PEC compartido | Generado: ' + (formatTrackingDateTime_(generatedAt) || generatedAt));
+  appendSharedTrackingDocList_(body, 'Datos generales', [
+    'Actividad: ' + (String(safeRecord.actividad || safeRecord.tituloVisible || '').trim() || 'Sin dato'),
+    'EDT: ' + (String(safeRecord.edt || '').trim() || 'Sin dato'),
+    'Raíz Gantt: ' + (String(analytical.rootBlockLabel || safeFolderMeta.rootEdt || '').trim() || 'Sin dato'),
+    'Responsable: ' + (String(safeRecord.responsable || '').trim() || 'Sin dato'),
+    'Seguimiento DGPPCS: ' + (String(safeRecord.seguimientoDgppcs || '').trim() || 'Sin dato'),
+    'Estado: ' + (String(safeRecord.estado || '').trim() || 'Sin dato'),
+    'Avance: ' + (String(safeRecord.avance || '').trim() || 'Sin dato'),
+    'Fecha inicio: ' + (String(safeRecord.fechaInicio || '').trim() || 'Sin dato'),
+    'Fecha fin: ' + (String(safeRecord.fechaFin || '').trim() || 'Sin dato'),
+    'Alerta: ' + (String(safeRecord.alerta || '').trim() || 'Sin dato'),
+    'Score documental: ' + String(analytical.scoreDocumental || 0) + '/100 - ' + (String(analytical.clasificacionDocumental || '').trim() || 'Sin clasificar'),
+    'Carpeta del registro: ' + (String(safeFolderMeta.folderName || '').trim() || 'Sin carpeta'),
+    'Ruta lógica del repositorio: ' + (String(safeFolderMeta.logicalPath || '').trim() || 'Sin ruta lógica'),
+    'Fecha de generación: ' + (formatTrackingDateTime_(generatedAt) || generatedAt),
+    'Generado por: ' + (String(safeActor.actor || '').trim() || 'Sin actor'),
+    'Correo verificado: ' + (String(safeActor.email || '').trim() || 'Sin correo verificado')
+  ]);
+  appendSharedTrackingDocList_(body, 'Comentarios y bitácora', [
+    'Comentario vigente: ' + (String(noteEntry.note || '').trim() || 'Sin comentario registrado'),
+    'Próximo paso: ' + (String(noteEntry.action || '').trim() || 'Sin próximo paso registrado'),
+    'Último movimiento: ' + (auditEntries[0] ? ((formatTrackingDateTime_(auditEntries[0].at) || auditEntries[0].at) + ' | ' + (auditEntries[0].actionLabel || auditEntries[0].action || 'Movimiento') + ' | ' + (auditEntries[0].detail || 'Sin detalle')) : 'Sin auditoría visible para este caso')
+  ]);
+  appendSharedTrackingDocList_(body, 'Auditoría visible del caso', auditEntries.map(function(entry) {
+    return [
+      formatTrackingDateTime_(entry.at) || entry.at || 'Sin fecha',
+      entry.actionLabel || entry.action || 'Acción',
+      entry.actor ? ('actor: ' + entry.actor) : '',
+      entry.actorEmail ? ('correo: ' + entry.actorEmail) : '',
+      entry.detail || ''
+    ].filter(Boolean).join(' | ');
+  }));
+  appendSharedTrackingDocList_(body, 'Sustentos', attachments.map(function(item) {
+    return [
+      String(item.name || '').trim() || 'Archivo sin nombre',
+      'Tipo: ' + describeSharedTrackingDocumentType_(item.documentType),
+      'Estado: ' + describeSharedTrackingAttachmentStatus_(item.status),
+      'Fecha: ' + (formatTrackingDateTime_(item.uploadedAt) || item.uploadedAt || 'Sin fecha'),
+      'Actor: ' + (String(item.uploadedBy || '').trim() || 'Sin actor'),
+      item.uploadedByEmail ? ('Correo: ' + item.uploadedByEmail) : 'Sin correo verificado',
+      item.url ? ('URL: ' + item.url) : 'Sin URL',
+      item.logicalPath ? ('Ruta lógica: ' + item.logicalPath) : 'Sin ruta lógica'
+    ].join(' | ');
+  }));
+  appendSharedTrackingDocList_(body, 'Brechas documentales', (Array.isArray(analytical.brechasDocumentales) ? analytical.brechasDocumentales : []).map(describeSharedTrackingDocumentGap_));
+  appendSharedTrackingDocList_(body, 'Cierre', [
+    'Este reporte refleja el estado del visor PEC al momento de su generación.',
+    'Los enlaces Drive y la metadata documental dependen del repositorio compartido configurado en Apps Script.',
+    'Si falta información, el reporte la marca como sin dato, no registrado o no verificable.'
+  ]);
+  doc.saveAndClose();
+  return {
+    reportId: docId,
+    reportUrl: doc.getUrl(),
+    reportDocxUrl: buildSharedTrackingActivityReportDocxUrl_(docId),
+    reportName: doc.getName(),
+    reportFormat: 'gdoc_with_docx_export',
+    generatedAt: generatedAt,
+    generatedBy: String(safeActor.actor || '').trim(),
+    generatedByEmail: String(safeActor.email || '').trim()
+  };
+}
+
+function generateSharedTrackingActivityReport(recordId, actorName) {
+  const previous = loadSharedTrackingState_();
+  const actorInfo = resolveSharedTrackingPermissionContext_(actorName);
+  if (!actorInfo.canExportSupportInventory) {
+    return buildSharedTrackingPermissionDeniedEnvelope_(
+      previous,
+      actorInfo,
+      'No se pudo autorizar la generación del reporte documental de esta actividad.',
+      {
+        action: 'intento_generar_reporte_actividad_bloqueado',
+        origin: 'generar_reporte_actividad'
+      }
+    );
+  }
+  const safeRecordId = String(recordId || '').trim();
+  if (!safeRecordId) {
+    return buildSharedTrackingEnvelope_(previous, {
+      ok: false,
+      message: 'No se identificó la actividad para generar su reporte documental.',
+      actor: actorInfo.actor,
+      actorVerified: actorInfo.verified,
+      actorSource: actorInfo.source,
+      declaredActor: actorInfo.declaredActor,
+      backend: getSharedTrackingBackendMeta_(actorInfo)
+    });
+  }
+  return withSharedTrackingAttachmentMutationLock_(previous, actorInfo, 'generar_reporte_actividad', function() {
+    const latest = loadSharedTrackingState_();
+    writeSharedTrackingSnapshot_(latest, actorInfo, 'generar_reporte_actividad', 'before_mutation');
+    const record = getSharedTrackingMergedRecordForState_(latest, safeRecordId);
+    if (!record || record.deleted) {
+      return buildSharedTrackingEnvelope_(latest, {
+        ok: false,
+        message: 'La actividad solicitada no está disponible para generar reporte.',
+        actor: actorInfo.actor,
+        actorVerified: actorInfo.verified,
+        actorSource: actorInfo.source,
+        declaredActor: actorInfo.declaredActor,
+        backend: getSharedTrackingBackendMeta_(actorInfo)
+      });
+    }
+    const noteEntry = normalizeSharedTrackingNoteEntry_(latest.notes && latest.notes[safeRecordId]);
+    const recordMeta = getSharedTrackingRecordMetaForState_(latest, safeRecordId);
+    const repositoryFolders = getOrCreateBackendRecordRepositoryFolders_(latest, recordMeta);
+    const folderMeta = buildSharedTrackingAttachmentFolderMeta_(repositoryFolders, recordMeta, actorInfo, noteEntry.attachmentFolder);
+    const reportMeta = createSharedTrackingActivityReportDocument_(latest, record, folderMeta, actorInfo, repositoryFolders);
+    const nextNotes = Object.assign({}, latest.notes || {});
+    nextNotes[safeRecordId] = Object.assign({}, noteEntry, {
+      attachmentFolder: Object.assign({}, folderMeta, {
+        lastReportId: String(reportMeta.reportId || '').trim(),
+        lastReportUrl: String(reportMeta.reportUrl || '').trim(),
+        lastReportDocxUrl: String(reportMeta.reportDocxUrl || '').trim(),
+        lastReportName: String(reportMeta.reportName || '').trim(),
+        lastReportFormat: String(reportMeta.reportFormat || '').trim(),
+        lastReportGeneratedAt: String(reportMeta.generatedAt || '').trim(),
+        lastReportGeneratedBy: String(reportMeta.generatedBy || '').trim(),
+        lastReportGeneratedByEmail: String(reportMeta.generatedByEmail || '').trim(),
+        lastVerifiedAt: String(reportMeta.generatedAt || '').trim(),
+        updatedAt: String(reportMeta.generatedAt || '').trim()
+      })
+    });
+    const next = normalizeSharedTrackingStateBundle_(Object.assign({}, latest, { notes: nextNotes }), latest);
+    next.revision = Number(latest.revision || 0) + 1;
+    next.savedAt = String(reportMeta.generatedAt || new Date().toISOString());
+    next.savedBy = actorInfo.actor;
+    writeSharedTrackingState_(next);
+    appendSharedTrackingAudit_({
+      at: next.savedAt,
+      actor: String(actorInfo.actor || '').trim(),
+      actorEmail: String(actorInfo.email || '').trim(),
+      actorSource: String(actorInfo.source || 'missing').trim() || 'missing',
+      actorVerified: Boolean(actorInfo.verified),
+      declaredActor: String(actorInfo.declaredActor || '').trim(),
+      action: 'generar_reporte_actividad',
+      actionLabel: humanizeAuditAction_('generar_reporte_actividad'),
+      origin: 'generar_reporte_actividad',
+      permissionRole: String(actorInfo.permissionRole || 'viewer').trim() || 'viewer',
+      revision: Number(next.revision || 0),
+      detail: 'Se generó un reporte de actividad para ' + (String(record.tituloVisible || record.actividad || safeRecordId).trim()) + ' | Formato: Google Doc con exportación DOCX disponible.',
+      summary: {
+        total: 1,
+        bySection: { reportes: 1 },
+        touchedRecords: [safeRecordId]
+      },
+      artifacts: [{
+        type: 'activityReport',
+        recordId: safeRecordId,
+        recordLabel: String(record.tituloVisible || record.actividad || safeRecordId).trim(),
+        fileId: String(reportMeta.reportId || '').trim(),
+        fileName: String(reportMeta.reportName || '').trim(),
+        fileUrl: String(reportMeta.reportUrl || '').trim(),
+        exportUrl: String(reportMeta.reportDocxUrl || '').trim(),
+        folderId: String(folderMeta.reportFolderId || '').trim(),
+        folderUrl: String(folderMeta.reportFolderUrl || '').trim(),
+        logicalPath: String(folderMeta.reportLogicalPath || '').trim(),
+        status: 'active'
+      }]
+    });
+    writeSharedTrackingBackup_(next);
+    return buildSharedTrackingEnvelope_(next, {
+      actor: actorInfo.actor,
+      actorVerified: actorInfo.verified,
+      actorSource: actorInfo.source,
+      declaredActor: actorInfo.declaredActor,
+      message: 'Se generó el reporte de actividad para ' + (String(record.tituloVisible || record.actividad || safeRecordId).trim()) + '.',
+      reportMeta: reportMeta,
+      backend: getSharedTrackingBackendMeta_(actorInfo)
+    });
+  });
 }
 
 function buildSharedTrackingAnalyticalSummary_(state, options) {
@@ -5755,7 +6216,29 @@ function normalizeSharedTrackingAttachmentFolderMeta_(value) {
     name: name,
     recordId: String(raw.recordId || '').trim(),
     recordLabel: String(raw.recordLabel || '').trim(),
+    edt: String(raw.edt || '').trim(),
+    rootEdt: String(raw.rootEdt || '').trim(),
+    rootName: String(raw.rootName || '').trim(),
+    activityName: String(raw.activityName || '').trim(),
     logicalPath: String(raw.logicalPath || '').trim(),
+    supportFolderId: String(raw.supportFolderId || '').trim(),
+    supportFolderUrl: String(raw.supportFolderUrl || '').trim(),
+    supportLogicalPath: String(raw.supportLogicalPath || '').trim(),
+    reportFolderId: String(raw.reportFolderId || '').trim(),
+    reportFolderUrl: String(raw.reportFolderUrl || '').trim(),
+    reportLogicalPath: String(raw.reportLogicalPath || '').trim(),
+    historyFolderId: String(raw.historyFolderId || '').trim(),
+    historyFolderUrl: String(raw.historyFolderUrl || '').trim(),
+    historyLogicalPath: String(raw.historyLogicalPath || '').trim(),
+    lastReportId: String(raw.lastReportId || '').trim(),
+    lastReportUrl: String(raw.lastReportUrl || '').trim(),
+    lastReportDocxUrl: String(raw.lastReportDocxUrl || '').trim(),
+    lastReportName: String(raw.lastReportName || '').trim(),
+    lastReportFormat: String(raw.lastReportFormat || '').trim(),
+    lastReportGeneratedAt: String(raw.lastReportGeneratedAt || '').trim(),
+    lastReportGeneratedBy: String(raw.lastReportGeneratedBy || '').trim(),
+    lastReportGeneratedByEmail: String(raw.lastReportGeneratedByEmail || '').trim(),
+    lastVerifiedAt: String(raw.lastVerifiedAt || '').trim(),
     createdAt: String(raw.createdAt || '').trim(),
     createdBy: String(raw.createdBy || '').trim(),
     createdByEmail: String(raw.createdByEmail || '').trim(),
@@ -5774,7 +6257,29 @@ function redactSharedTrackingAttachmentFolderMetaForPublic_(value) {
     name: String(safe.name || safe.folderName || '').trim(),
     recordId: String(safe.recordId || '').trim(),
     recordLabel: String(safe.recordLabel || '').trim(),
+    edt: String(safe.edt || '').trim(),
+    rootEdt: String(safe.rootEdt || '').trim(),
+    rootName: String(safe.rootName || '').trim(),
+    activityName: String(safe.activityName || '').trim(),
     logicalPath: '',
+    supportFolderId: '',
+    supportFolderUrl: '',
+    supportLogicalPath: '',
+    reportFolderId: '',
+    reportFolderUrl: '',
+    reportLogicalPath: '',
+    historyFolderId: '',
+    historyFolderUrl: '',
+    historyLogicalPath: '',
+    lastReportId: '',
+    lastReportUrl: '',
+    lastReportDocxUrl: '',
+    lastReportName: '',
+    lastReportFormat: String(safe.lastReportFormat || '').trim(),
+    lastReportGeneratedAt: String(safe.lastReportGeneratedAt || '').trim(),
+    lastReportGeneratedBy: '',
+    lastReportGeneratedByEmail: '',
+    lastVerifiedAt: String(safe.lastVerifiedAt || '').trim(),
     createdAt: String(safe.createdAt || '').trim(),
     createdBy: '',
     createdByEmail: '',
@@ -5787,15 +6292,7 @@ function hasSharedTrackingAttachmentFolderMeta_(value) {
 }
 
 function normalizeSharedTrackingAttachmentList_(values) {
-  const out = [];
-  const seen = {};
-  (Array.isArray(values) ? values : []).forEach(function(item) {
-    const normalized = normalizeSharedTrackingAttachmentMeta_(item);
-    if (!normalized || seen[normalized.id]) return;
-    seen[normalized.id] = true;
-    out.push(normalized);
-  });
-  return out;
+  return dedupeSharedTrackingAttachmentList_((Array.isArray(values) ? values : []).map(normalizeSharedTrackingAttachmentMeta_).filter(Boolean));
 }
 
 function redactSharedTrackingAttachmentForPublic_(value) {
@@ -6142,14 +6639,12 @@ function getOrCreateBackendAttachmentsFolder_() {
 }
 
 function getOrCreateBackendRecordAttachmentFolder_(recordMeta) {
-  const root = getOrCreateBackendAttachmentsFolder_();
-  const folderName = buildSharedTrackingAttachmentFolderName_(recordMeta);
-  const folders = root.getFoldersByName(folderName);
-  return folders.hasNext() ? folders.next() : root.createFolder(folderName);
+  return getOrCreateBackendRecordRepositoryFolders_(loadSharedTrackingState_(), recordMeta).supportFolder;
 }
 
 function buildSharedTrackingAttachmentFolderMeta_(folder, recordMeta, actorInfo, previousMeta) {
-  const safeFolder = folder || null;
+  const repositoryFolders = folder && typeof folder === 'object' && folder.activityFolder ? folder : null;
+  const safeFolder = repositoryFolders ? repositoryFolders.activityFolder : (folder || null);
   const meta = recordMeta && typeof recordMeta === 'object' ? recordMeta : {};
   const actor = actorInfo && typeof actorInfo === 'object' ? actorInfo : {};
   const previous = normalizeSharedTrackingAttachmentFolderMeta_(previousMeta);
@@ -6161,9 +6656,13 @@ function buildSharedTrackingAttachmentFolderMeta_(folder, recordMeta, actorInfo,
   const folderName = String(safeFolder.getName() || '').trim();
   const folderUrl = String(safeFolder.getUrl() || '').trim();
   const folderId = String(safeFolder.getId() || '').trim();
+  const supportFolder = repositoryFolders && repositoryFolders.supportFolder ? repositoryFolders.supportFolder : null;
+  const reportFolder = repositoryFolders && repositoryFolders.reportFolder ? repositoryFolders.reportFolder : null;
+  const historyFolder = repositoryFolders && repositoryFolders.historyFolder ? repositoryFolders.historyFolder : null;
   const finalCreatedAt = String(previous && previous.createdAt || createdAt || '').trim();
   const finalCreatedBy = String(previous && previous.createdBy || actor.actor || '').trim();
   const finalCreatedByEmail = String(previous && previous.createdByEmail || actor.email || '').trim();
+  const verifiedAt = new Date().toISOString();
   return {
     folderId: folderId,
     folderUrl: folderUrl,
@@ -6172,11 +6671,33 @@ function buildSharedTrackingAttachmentFolderMeta_(folder, recordMeta, actorInfo,
     name: folderName,
     recordId: String(meta.id || '').trim(),
     recordLabel: String(meta.label || '').trim(),
-    logicalPath: buildSharedTrackingLogicalPath_(folderName, ''),
+    edt: String(meta.edt || '').trim(),
+    rootEdt: String(repositoryFolders && repositoryFolders.rootEdt || previous && previous.rootEdt || '').trim(),
+    rootName: String(repositoryFolders && repositoryFolders.rootName || previous && previous.rootName || '').trim(),
+    activityName: sanitizeDriveFolderName_(stripSharedTrackingEdtPrefix_(meta.label || meta.activity || meta.actividad || ''), ''),
+    logicalPath: String(repositoryFolders && repositoryFolders.activityPath || (previous && previous.logicalPath) || buildSharedTrackingLogicalPath_(folderName, '')).trim(),
+    supportFolderId: String(supportFolder && supportFolder.getId ? supportFolder.getId() : (previous && previous.supportFolderId) || '').trim(),
+    supportFolderUrl: String(supportFolder && supportFolder.getUrl ? supportFolder.getUrl() : (previous && previous.supportFolderUrl) || '').trim(),
+    supportLogicalPath: String(repositoryFolders && repositoryFolders.supportPath || (previous && previous.supportLogicalPath) || '').trim(),
+    reportFolderId: String(reportFolder && reportFolder.getId ? reportFolder.getId() : (previous && previous.reportFolderId) || '').trim(),
+    reportFolderUrl: String(reportFolder && reportFolder.getUrl ? reportFolder.getUrl() : (previous && previous.reportFolderUrl) || '').trim(),
+    reportLogicalPath: String(repositoryFolders && repositoryFolders.reportPath || (previous && previous.reportLogicalPath) || '').trim(),
+    historyFolderId: String(historyFolder && historyFolder.getId ? historyFolder.getId() : (previous && previous.historyFolderId) || '').trim(),
+    historyFolderUrl: String(historyFolder && historyFolder.getUrl ? historyFolder.getUrl() : (previous && previous.historyFolderUrl) || '').trim(),
+    historyLogicalPath: String(repositoryFolders && repositoryFolders.historyPath || (previous && previous.historyLogicalPath) || '').trim(),
+    lastReportId: String(previous && previous.lastReportId || '').trim(),
+    lastReportUrl: String(previous && previous.lastReportUrl || '').trim(),
+    lastReportDocxUrl: String(previous && previous.lastReportDocxUrl || '').trim(),
+    lastReportName: String(previous && previous.lastReportName || '').trim(),
+    lastReportFormat: String(previous && previous.lastReportFormat || '').trim(),
+    lastReportGeneratedAt: String(previous && previous.lastReportGeneratedAt || '').trim(),
+    lastReportGeneratedBy: String(previous && previous.lastReportGeneratedBy || '').trim(),
+    lastReportGeneratedByEmail: String(previous && previous.lastReportGeneratedByEmail || '').trim(),
+    lastVerifiedAt: verifiedAt,
     createdAt: finalCreatedAt,
     createdBy: finalCreatedBy,
     createdByEmail: finalCreatedByEmail,
-    updatedAt: ''
+    updatedAt: verifiedAt
   };
 }
 
@@ -6220,6 +6741,126 @@ function getOrCreateBackendBackupFolder_() {
   const folder = folders.hasNext() ? folders.next() : root.createFolder('backups');
   props.setProperty('PEC_VISOR_BACKUP_FOLDER_ID', folder.getId());
   return folder;
+}
+
+function sanitizeDriveFolderName_(value, fallback) {
+  const safe = String(value == null ? '' : value)
+    .replace(/[\\\/:*?"<>|#%{}~]+/g, ' ')
+    .replace(/[\u0000-\u001f]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const finalName = safe || String(fallback || 'carpeta').trim() || 'carpeta';
+  return finalName.slice(0, 140);
+}
+
+function stripSharedTrackingEdtPrefix_(value) {
+  return String(value == null ? '' : value).trim().replace(/^\d+(?:\.\d+)*\s*-\s*/, '').trim();
+}
+
+function getOrCreateDriveChildFolder_(parent, folderName) {
+  const safeParent = parent || null;
+  if (!safeParent || !safeParent.getFoldersByName) {
+    throw new Error('No se pudo resolver la carpeta padre en Drive.');
+  }
+  const safeName = sanitizeDriveFolderName_(folderName, 'carpeta');
+  const folders = safeParent.getFoldersByName(safeName);
+  return folders.hasNext() ? folders.next() : safeParent.createFolder(safeName);
+}
+
+function buildPecRepositoryLogicalPath_(segments) {
+  const parts = ['_VisorSeguimientoPEC'].concat((Array.isArray(segments) ? segments : []).map(function(item) {
+    return String(item == null ? '' : item).trim();
+  }).filter(Boolean));
+  return parts.join('/');
+}
+
+function getOrCreatePecRepositoryRootFolder_() {
+  const props = PropertiesService.getScriptProperties();
+  const configuredId = String(props.getProperty('PEC_VISOR_REPOSITORY_ROOT_FOLDER_ID') || '').trim();
+  if (configuredId) {
+    try {
+      return DriveApp.getFolderById(configuredId);
+    } catch (error) {}
+  }
+  return getOrCreateBackendRootFolder_();
+}
+
+function ensurePecRepositorySections_() {
+  const root = getOrCreatePecRepositoryRootFolder_();
+  const sectionNames = [
+    '01_Raices_Gantt',
+    '02_Reportes_Actividad',
+    '03_Inventarios',
+    '04_Auditoria',
+    '05_Backups_Manuales',
+    '99_Temporales'
+  ];
+  const sections = {};
+  sectionNames.forEach(function(name) {
+    sections[name] = getOrCreateDriveChildFolder_(root, name);
+  });
+  return {
+    root: root,
+    sections: sections
+  };
+}
+
+function resolveRootRecordForActivity_(state, recordMeta) {
+  const safeMeta = recordMeta && typeof recordMeta === 'object' ? recordMeta : {};
+  const safeState = state && typeof state === 'object' ? state : buildDefaultSharedTrackingState_();
+  const safeRootEdt = getSharedTrackingRootBlock_(safeMeta.edt || '');
+  const records = getSharedTrackingEffectiveRecordsForState_(safeState);
+  const rootRecord = records.filter(function(record) {
+    return String(record && record.edt || '').trim() === safeRootEdt;
+  }).slice(-1)[0] || null;
+  const rootLabel = rootRecord
+    ? stripSharedTrackingEdtPrefix_(rootRecord.actividad || rootRecord.tituloVisible || '')
+    : stripSharedTrackingEdtPrefix_(safeMeta.label || safeMeta.activity || safeMeta.actividad || '');
+  return {
+    edt: safeRootEdt,
+    name: rootLabel || ('Bloque ' + safeRootEdt),
+    label: safeRootEdt ? (safeRootEdt + ' - ' + (rootLabel || ('Bloque ' + safeRootEdt))) : (rootLabel || 'Bloque sin raíz')
+  };
+}
+
+function buildPecActivityRepositoryFolderName_(recordMeta) {
+  const safeMeta = recordMeta && typeof recordMeta === 'object' ? recordMeta : {};
+  const recordId = String(safeMeta.id || 'record').trim().replace(/[^a-zA-Z0-9._-]+/g, '_') || 'record';
+  const edt = String(safeMeta.edt || '').trim().replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/\./g, '_');
+  const activityName = sanitizeDriveFolderName_(stripSharedTrackingEdtPrefix_(safeMeta.label || safeMeta.activity || safeMeta.actividad || ''), 'Actividad');
+  return sanitizeDriveFolderName_('record_' + recordId + (edt ? '_EDT_' + edt : '') + ' - ' + activityName, 'record_' + recordId);
+}
+
+function getOrCreateBackendRecordRepositoryFolders_(state, recordMeta) {
+  const safeMeta = recordMeta && typeof recordMeta === 'object' ? recordMeta : {};
+  const repository = ensurePecRepositorySections_();
+  const rootRecord = resolveRootRecordForActivity_(state, safeMeta);
+  const rootFolderName = sanitizeDriveFolderName_((rootRecord.edt || '0') + ' - ' + (rootRecord.name || 'Bloque sin nombre'), 'Bloque');
+  const activityFolderName = buildPecActivityRepositoryFolderName_(safeMeta);
+  const ganttRoot = repository.sections['01_Raices_Gantt'];
+  const rootFolder = getOrCreateDriveChildFolder_(ganttRoot, rootFolderName);
+  const activityFolder = getOrCreateDriveChildFolder_(rootFolder, activityFolderName);
+  const supportFolder = getOrCreateDriveChildFolder_(activityFolder, 'Sustentos');
+  const reportFolder = getOrCreateDriveChildFolder_(activityFolder, 'Reportes');
+  const historyFolder = getOrCreateDriveChildFolder_(activityFolder, 'Historial');
+  const rootPath = buildPecRepositoryLogicalPath_(['01_Raices_Gantt', rootFolderName]);
+  const activityPath = buildPecRepositoryLogicalPath_(['01_Raices_Gantt', rootFolderName, activityFolderName]);
+  return {
+    repositoryRoot: repository.root,
+    rootFolder: rootFolder,
+    activityFolder: activityFolder,
+    supportFolder: supportFolder,
+    reportFolder: reportFolder,
+    historyFolder: historyFolder,
+    rootEdt: String(rootRecord.edt || '').trim(),
+    rootName: String(rootRecord.name || '').trim(),
+    rootLabel: String(rootRecord.label || '').trim(),
+    rootPath: rootPath,
+    activityPath: activityPath,
+    supportPath: buildPecRepositoryLogicalPath_(['01_Raices_Gantt', rootFolderName, activityFolderName, 'Sustentos']),
+    reportPath: buildPecRepositoryLogicalPath_(['01_Raices_Gantt', rootFolderName, activityFolderName, 'Reportes']),
+    historyPath: buildPecRepositoryLogicalPath_(['01_Raices_Gantt', rootFolderName, activityFolderName, 'Historial'])
+  };
 }
 
 function getLatestSharedTrackingBackupMeta_() {

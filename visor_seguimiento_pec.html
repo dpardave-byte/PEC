@@ -3055,13 +3055,26 @@ const SERVER_BOOTSTRAP = SERVER_BOOTSTRAP_RESULT.ok && SERVER_BOOTSTRAP_RESULT.v
 let sharedSyncTimer = null;
 let sharedSyncInFlight = false;
 let sharedAttachmentActionInFlight = false;
+let attachmentActionPhaseTimer = null;
 let pendingSharedSyncReason = '';
 let pendingDrawerCloseAfterSharedSave = null;
+let pendingAttachmentConfirmation = null;
 let sharedSyncWatchdogTimer = null;
 let sharedSyncMeta = {
   startedAt: '',
   reason: '',
   recordId: ''
+};
+let lastAttachmentSyncStatus = {
+  status: 'idle',
+  recordId: '',
+  title: '',
+  detail: '',
+  tone: 'info',
+  updatedAt: '',
+  operation: '',
+  fileCount: 0,
+  confirmedRevision: 0
 };
 let sharedPollHandle = null;
 let publicStatePollInFlight = false;
@@ -6328,6 +6341,118 @@ function clearSharedSyncMeta(){
     reason: '',
     recordId: ''
   };
+}
+
+function clearAttachmentActionPhaseTimer(){
+  if(attachmentActionPhaseTimer){
+    clearTimeout(attachmentActionPhaseTimer);
+    attachmentActionPhaseTimer = null;
+  }
+}
+
+function buildAttachmentSyncState(status, options){
+  const safe = options && typeof options === 'object' ? options : {};
+  const recordId = text(safe.recordId || appState.selectedId);
+  const fileCount = Math.max(0, Number(safe.fileCount || 0));
+  const fileLabel = fileCount === 1 ? '1 archivo' : (fileCount ? (fileCount + ' archivo(s)') : 'el sustento');
+  let title = text(safe.title);
+  let detail = text(safe.detail);
+  let tone = text(safe.tone) || 'info';
+  if(!title || !detail){
+    if(status === 'uploading'){
+      title = title || 'Subiendo sustento...';
+      detail = detail || ('Apps Script está subiendo ' + fileLabel + ' a Drive para esta actividad. No cierres la ficha todavía.');
+      tone = 'info';
+    }else if(status === 'registering'){
+      title = title || 'Registrando metadata...';
+      detail = detail || 'Apps Script está registrando fileId, folderId y la metadata del sustento en el visor compartido.';
+      tone = 'info';
+    }else if(status === 'refreshing'){
+      title = title || 'Actualizando repositorio...';
+      detail = detail || 'Se está refrescando la lista confirmada de sustentos desde Apps Script.';
+      tone = 'info';
+    }else if(status === 'confirmed'){
+      title = title || 'Sustento guardado y confirmado';
+      detail = detail || 'Apps Script confirmó el archivo en Drive y registró su metadata en el repositorio compartido.';
+      tone = 'success';
+    }else if(status === 'failed'){
+      title = title || 'No se confirmó el sustento';
+      detail = detail || 'El archivo pudo haberse subido a Drive, pero no se confirmó la metadata en el visor. Actualiza la lista o reintenta.';
+      tone = 'warn';
+    }
+  }
+  return {
+    status: text(status) || 'idle',
+    recordId,
+    title,
+    detail,
+    tone,
+    updatedAt: new Date().toISOString(),
+    operation: text(safe.operation),
+    fileCount,
+    confirmedRevision: Number(safe.confirmedRevision || 0)
+  };
+}
+
+function getAttachmentSyncState(recordId){
+  const safeRecordId = text(recordId);
+  if(!safeRecordId) return {status:'idle'};
+  const state = lastAttachmentSyncStatus && typeof lastAttachmentSyncStatus === 'object' ? lastAttachmentSyncStatus : {status:'idle'};
+  if(text(state.recordId) !== safeRecordId) return {status:'idle'};
+  const ageMs = state.updatedAt ? (Date.now() - new Date(state.updatedAt).getTime()) : 0;
+  if(state.status === 'confirmed' && Number.isFinite(ageMs) && ageMs > 20000){
+    return {status:'idle'};
+  }
+  return state;
+}
+
+function hasPendingAttachmentConfirmation(recordId){
+  if(!pendingAttachmentConfirmation || typeof pendingAttachmentConfirmation !== 'object') return false;
+  const pendingRecordId = text(pendingAttachmentConfirmation.recordId);
+  const safeRecordId = text(recordId || appState.selectedId);
+  if(!safeRecordId) return Boolean(pendingRecordId);
+  return pendingRecordId === safeRecordId;
+}
+
+function setAttachmentSyncState(status, options){
+  clearAttachmentActionPhaseTimer();
+  const next = buildAttachmentSyncState(status, options);
+  lastAttachmentSyncStatus = next;
+  const pendingStatuses = ['uploading', 'registering', 'refreshing'];
+  if(pendingStatuses.includes(next.status)){
+    pendingAttachmentConfirmation = {
+      recordId: next.recordId,
+      status: next.status,
+      operation: next.operation,
+      updatedAt: next.updatedAt
+    };
+  }else if(!pendingAttachmentConfirmation || text(pendingAttachmentConfirmation.recordId) === text(next.recordId)){
+    pendingAttachmentConfirmation = null;
+  }
+  if(next.status === 'uploading'){
+    attachmentActionPhaseTimer = setTimeout(() => {
+      if(!sharedAttachmentActionInFlight) return;
+      if(!hasPendingAttachmentConfirmation(next.recordId)) return;
+      setAttachmentSyncState('registering', {
+        recordId: next.recordId,
+        operation: next.operation,
+        fileCount: next.fileCount
+      });
+      if(text(appState.selectedId) === text(next.recordId)){
+        renderCaseDrawerActionState(next.recordId);
+        renderCaseAttachments(appState.raw.find(item => item.id === next.recordId) || {id:next.recordId});
+      }
+    }, 1200);
+  }
+  if(text(appState.selectedId) === text(next.recordId)){
+    renderCaseDrawerActionState(next.recordId);
+    const drawerOpen = document.getElementById('drawer')?.classList.contains('open');
+    if(drawerOpen){
+      renderCaseAttachments(appState.raw.find(item => item.id === next.recordId) || {id:next.recordId});
+    }else if(next.title || next.detail){
+      setCaseAttachmentFeedback(next.title, next.detail, next.tone);
+    }
+  }
 }
 
 function scheduleSharedSync(reason){
@@ -9873,12 +9998,15 @@ function renderCaseDrawerActionState(recordId){
   const publicBlocked = isPublicReadOnlyChannel();
   const sharedEditBlocked = isSharedBackendMode() && !publicBlocked && !permission.canEditShared;
   const saving = hasPendingDrawerSharedSave(targetId);
-  const attachmentBlocked = Boolean(isSharedBackendMode() && sharedAttachmentActionInFlight && !saving);
+  const attachmentState = getAttachmentSyncState(targetId);
+  const attachmentBlocked = Boolean(isSharedBackendMode() && (sharedAttachmentActionInFlight || hasPendingAttachmentConfirmation(targetId)) && !saving);
   const syncBlocked = Boolean(isSharedBackendMode() && sharedSyncInFlight && !saving);
   const disabledReason = saving
     ? 'Apps Script está guardando esta ficha compartida. Espera la confirmación antes de cerrar o volver a editar.'
     : (attachmentBlocked
-        ? 'Apps Script está cargando o actualizando sustentos de esta ficha. Espera la confirmación antes de guardar o cerrar.'
+        ? (attachmentState.status === 'registering'
+            ? 'Apps Script está confirmando la metadata del sustento en el visor compartido. Espera antes de guardar o cerrar.'
+            : 'Apps Script está cargando o actualizando sustentos de esta ficha. Espera a que termine la carga del sustento antes de guardar o cerrar.')
     : (syncBlocked
         ? 'El visor está sincronizando el estado compartido. Espera unos segundos antes de volver a editar esta ficha.'
     : (publicBlocked
@@ -9889,7 +10017,11 @@ function renderCaseDrawerActionState(recordId){
   const clearBtn = document.getElementById('clearCaseNoteBtn');
   const deleteBtn = document.getElementById('deleteNodeBtn');
   if(saveBtn){
-    saveBtn.textContent = saving ? 'Guardando...' : (attachmentBlocked ? 'Subiendo sustento...' : (syncBlocked ? 'Sincronizando...' : 'Guardar y cerrar'));
+    saveBtn.textContent = saving
+      ? 'Guardando...'
+      : (attachmentBlocked
+          ? (attachmentState.status === 'registering' ? 'Esperando sustento...' : 'Subiendo sustento...')
+          : (syncBlocked ? 'Sincronizando...' : 'Guardar y cerrar'));
     saveBtn.disabled = Boolean(saving || attachmentBlocked || syncBlocked || publicBlocked || sharedEditBlocked);
     saveBtn.title = disabledReason;
     saveBtn.dataset.disabledReason = disabledReason;
@@ -9922,7 +10054,8 @@ function getDrawerActionDiagnostics(){
   const identity = getCurrentActorIdentity();
   const publicBlocked = isPublicReadOnlyChannel();
   const sharedEditBlocked = isSharedBackendMode() && !publicBlocked && !permission.canEditShared;
-  const attachmentBlocked = Boolean(isSharedBackendMode() && sharedAttachmentActionInFlight && !hasPendingDrawerSharedSave(appState.selectedId));
+  const attachmentState = getAttachmentSyncState(appState.selectedId);
+  const attachmentBlocked = Boolean(isSharedBackendMode() && (sharedAttachmentActionInFlight || hasPendingAttachmentConfirmation(appState.selectedId)) && !hasPendingDrawerSharedSave(appState.selectedId));
   const saveBtn = document.getElementById('saveCaseNoteBtn');
   const style = saveBtn ? window.getComputedStyle(saveBtn) : null;
   const rect = saveBtn ? saveBtn.getBoundingClientRect() : null;
@@ -9934,7 +10067,7 @@ function getDrawerActionDiagnostics(){
   else if(publicBlocked) probableCause = 'A. deshabilitado por canal público';
   else if(sharedEditBlocked) probableCause = 'A. deshabilitado por permisos';
   else if(hasPendingDrawerSharedSave()) probableCause = 'B. deshabilitado por guardado compartido en curso';
-  else if(sharedAttachmentActionInFlight) probableCause = 'B. deshabilitado por operación documental en curso';
+  else if(sharedAttachmentActionInFlight || hasPendingAttachmentConfirmation(appState.selectedId)) probableCause = 'B. deshabilitado por operación documental en curso';
   else if(sharedSyncInFlight) probableCause = 'C. deshabilitado por sincronización en curso';
   else if(saveBtn.disabled) probableCause = 'D. deshabilitado por estado local/UI';
   else if(hit && hit !== saveBtn && !saveBtn.contains(hit)) probableCause = 'E. cubierto por otro elemento';
@@ -9959,6 +10092,14 @@ function getDrawerActionDiagnostics(){
     sharedSyncInFlight: Boolean(sharedSyncInFlight),
     sharedAttachmentActionInFlight: Boolean(sharedAttachmentActionInFlight),
     attachmentBlocked: attachmentBlocked,
+    attachmentState: attachmentState,
+    pendingAttachmentConfirmation: pendingAttachmentConfirmation
+      ? {
+          recordId: text(pendingAttachmentConfirmation.recordId),
+          status: text(pendingAttachmentConfirmation.status),
+          operation: text(pendingAttachmentConfirmation.operation)
+        }
+      : null,
     pendingDrawerCloseAfterSharedSave: pendingDrawerCloseAfterSharedSave
       ? {
           recordId: text(pendingDrawerCloseAfterSharedSave.recordId),
@@ -10010,6 +10151,7 @@ function getAttachmentStateDiagnostics(){
   const noteEntry = getCaseNoteEntry(selectedId);
   const attachments = normalizeCaseAttachmentList(noteEntry.attachments);
   const permission = getCurrentPermissionState();
+  const attachmentState = getAttachmentSyncState(selectedId);
   return {
     selectedId,
     currentEdt: text(currentRecord && currentRecord.edt),
@@ -10021,6 +10163,14 @@ function getAttachmentStateDiagnostics(){
     hasUnsyncedSharedChanges: Boolean(appState.hasUnsyncedSharedChanges),
     sharedSyncInFlight: Boolean(sharedSyncInFlight),
     sharedAttachmentActionInFlight: Boolean(sharedAttachmentActionInFlight),
+    pendingAttachmentConfirmation: pendingAttachmentConfirmation
+      ? {
+          recordId: text(pendingAttachmentConfirmation.recordId),
+          status: text(pendingAttachmentConfirmation.status),
+          operation: text(pendingAttachmentConfirmation.operation)
+        }
+      : null,
+    lastAttachmentSyncStatus: attachmentState,
     pendingDrawerCloseAfterSharedSave: pendingDrawerCloseAfterSharedSave
       ? {
           recordId: text(pendingDrawerCloseAfterSharedSave.recordId),
@@ -10041,7 +10191,7 @@ function closeDrawer(force){
     setImportFeedback('Guardado en curso', 'Espera la confirmación de Apps Script antes de cerrar esta ficha.', 'info');
     return;
   }
-  if(!force && sharedAttachmentActionInFlight){
+  if(!force && (sharedAttachmentActionInFlight || hasPendingAttachmentConfirmation(appState.selectedId))){
     setCaseAttachmentFeedback('Sustento en proceso', 'Espera que Apps Script termine la operación documental antes de cerrar esta ficha.', 'warn');
     return;
   }
@@ -10053,7 +10203,7 @@ function supportsSharedCaseAttachments(){
 }
 
 function canMutateCaseAttachments(){
-  return Boolean(supportsSharedCaseAttachments() && canCurrentUserManageAttachments() && !appState.hasUnsyncedSharedChanges && !sharedSyncInFlight && !sharedAttachmentActionInFlight);
+  return Boolean(supportsSharedCaseAttachments() && canCurrentUserManageAttachments() && !appState.hasUnsyncedSharedChanges && !sharedSyncInFlight && !sharedAttachmentActionInFlight && !hasPendingAttachmentConfirmation());
 }
 
 function describeCurrentAttachmentPermissionSummary(permission){
@@ -10332,7 +10482,10 @@ function renderCaseAttachments(record){
   const documentScore = buildCaseDocumentScore(resolvedRecord);
   const permission = getCurrentPermissionState();
   const sharedReady = supportsSharedCaseAttachments();
-  const canRefresh = Boolean(sharedReady && !appState.hasUnsyncedSharedChanges && !sharedSyncInFlight && !sharedAttachmentActionInFlight);
+  const attachmentState = getAttachmentSyncState(resolvedRecord && resolvedRecord.id);
+  const attachmentPending = hasPendingAttachmentConfirmation(resolvedRecord && resolvedRecord.id);
+  const attachmentBusy = Boolean(sharedAttachmentActionInFlight || attachmentPending);
+  const canRefresh = Boolean(sharedReady && !appState.hasUnsyncedSharedChanges && !sharedSyncInFlight && !attachmentBusy);
   const canMutate = canMutateCaseAttachments();
   const permissionSummary = describeCurrentAttachmentPermissionSummary(permission);
   hintHost.textContent = sharedReady
@@ -10347,7 +10500,7 @@ function renderCaseAttachments(record){
     debugHost.style.display = 'none';
     debugHost.innerHTML = '';
   }
-  input.disabled = !sharedReady || !permission.canManageAttachments || sharedAttachmentActionInFlight;
+  input.disabled = !sharedReady || !permission.canManageAttachments || attachmentBusy;
   uploadBtn.disabled = !sharedReady || !canMutate;
   refreshBtn.disabled = !canRefresh;
   input.value = '';
@@ -10362,6 +10515,9 @@ function renderCaseAttachments(record){
           '<span class="doc-score-pill ' + escapeHtml(documentScore.classification) + '">' + escapeHtml(String(documentScore.score)) + '/100 · ' + escapeHtml(describeDocumentScoreClass(documentScore.classification)) + '</span>' +
           (activeAttachments.length ? '<span class="attachment-tag good">Con sustento activo</span>' : '<span class="attachment-tag alert">Sin sustento</span>') +
           (documentScore.missing.length ? '<span class="attachment-tag warn">Sustento incompleto</span>' : '') +
+          (attachmentState.status === 'confirmed' ? '<span class="attachment-tag good">Repositorio confirmado</span>' : '') +
+          (attachmentState.status === 'registering' ? '<span class="attachment-tag warn">Metadata en confirmación</span>' : '') +
+          (attachmentState.status === 'uploading' ? '<span class="attachment-tag warn">Carga en curso</span>' : '') +
         '</div>' +
         '<div class="case-attachment-actions">' +
           '<button type="button" class="secondary" data-attachment-folder-open="' + escapeHtml(folderMeta.url) + '">Abrir carpeta</button>' +
@@ -10376,6 +10532,9 @@ function renderCaseAttachments(record){
           '<span class="doc-score-pill ' + escapeHtml(documentScore.classification) + '">' + escapeHtml(String(documentScore.score)) + '/100 · ' + escapeHtml(describeDocumentScoreClass(documentScore.classification)) + '</span>' +
           '<span class="attachment-tag alert">Sin carpeta Drive</span>' +
           (!activeAttachments.length ? '<span class="attachment-tag alert">Sin sustento</span>' : '') +
+          (attachmentState.status === 'confirmed' ? '<span class="attachment-tag good">Repositorio confirmado</span>' : '') +
+          (attachmentState.status === 'registering' ? '<span class="attachment-tag warn">Metadata en confirmación</span>' : '') +
+          (attachmentState.status === 'uploading' ? '<span class="attachment-tag warn">Carga en curso</span>' : '') +
         '</div>' +
         '<div class="case-attachment-actions">' +
           '<button type="button" class="soft" id="prepareCaseAttachmentFolderBtn"' + (canMutate ? '' : ' disabled') + '>Preparar carpeta del registro</button>' +
@@ -10416,12 +10575,14 @@ function renderCaseAttachments(record){
           : '') +
         '<div class="case-attachment-actions">' +
           (item.url ? '<button type="button" class="secondary" data-attachment-open="' + escapeHtml(item.url) + '">Abrir sustento</button>' : '') +
-          '<button type="button" class="ghost" data-attachment-delete="' + escapeHtml(item.id) + '"' + (normalizeCaseAttachmentStatus(item.status) === 'active' && permission.canRemoveAttachments && !appState.hasUnsyncedSharedChanges && !sharedSyncInFlight && !sharedAttachmentActionInFlight ? '' : ' disabled') + '>Retirar sustento</button>' +
+          '<button type="button" class="ghost" data-attachment-delete="' + escapeHtml(item.id) + '"' + (normalizeCaseAttachmentStatus(item.status) === 'active' && permission.canRemoveAttachments && !appState.hasUnsyncedSharedChanges && !sharedSyncInFlight && !attachmentBusy ? '' : ' disabled') + '>Retirar sustento</button>' +
         '</div>' +
       '</div>'
     )).join('');
   }
-  if(sharedReady){
+  if(sharedReady && attachmentState.status !== 'idle'){
+    setCaseAttachmentFeedback(attachmentState.title, attachmentState.detail, attachmentState.tone);
+  }else if(sharedReady){
     if(permission.canManageAttachments){
       setCaseAttachmentFeedback(
         'Repositorio operativo',
@@ -10492,7 +10653,7 @@ async function uploadCaseAttachments(){
     setCaseAttachmentFeedback(permission.label, permission.detail, 'warn');
     return;
   }
-  if(appState.hasUnsyncedSharedChanges || sharedSyncInFlight){
+  if(appState.hasUnsyncedSharedChanges || sharedSyncInFlight || sharedAttachmentActionInFlight || hasPendingAttachmentConfirmation(appState.selectedId)){
     setCaseAttachmentFeedback('Espera la sincronización compartida', 'Guarda primero la ficha y espera la confirmación de Apps Script antes de subir sustento.', 'warn');
     return;
   }
@@ -10516,13 +10677,18 @@ async function uploadCaseAttachments(){
     setCaseAttachmentFeedback('Carga demasiado pesada', 'La operación completa no puede superar 12 MB. Divide la carga en varios bloques.', 'warn');
     return;
   }
+  const selectedId = appState.selectedId;
+  const selectedRecord = appState.raw.find(item => item.id === selectedId) || {id:selectedId};
+  setAttachmentSyncState('uploading', {
+    recordId: selectedId,
+    operation: 'upload',
+    fileCount: files.length
+  });
   sharedAttachmentActionInFlight = true;
-  renderCaseAttachments(appState.raw.find(item => item.id === appState.selectedId) || {id:appState.selectedId});
-  setCaseAttachmentFeedback('Subiendo sustento', 'Apps Script está cargando ' + files.length + ' archivo(s) de sustento para esta actividad.', 'info');
+  renderCaseAttachments(selectedRecord);
   try{
     const payload = await Promise.all(files.map(readFileAsUploadPayload));
     const documentType = normalizeCaseAttachmentDocumentType(document.getElementById('caseAttachmentDocumentType')?.value);
-    const selectedId = appState.selectedId;
     const identity = getCurrentActorIdentity();
     google.script.run
       .withSuccessHandler(result => {
@@ -10533,27 +10699,45 @@ async function uploadCaseAttachments(){
           refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:selectedId});
         }
         if(result && result.ok && result.state){
+          setAttachmentSyncState('confirmed', {
+            recordId: selectedId,
+            operation: 'upload',
+            fileCount: files.length,
+            confirmedRevision: Number(result.state && result.state.revision || 0),
+            detail: 'Sustento guardado y confirmado en el repositorio compartido. Apps Script confirmó Drive, fileId, folderId y shared_tracking_state.json.'
+          });
           setImportFeedback('Sustentos cargados', text(result.message) || 'El visor compartido registró los archivos de sustento para esta actividad.', 'success');
-          setCaseAttachmentFeedback('Sustentos cargados', text(result.message) || 'El visor compartido registró los archivos de sustento para esta actividad.', 'success');
           return;
         }
+        setAttachmentSyncState('failed', {
+          recordId: selectedId,
+          operation: 'upload',
+          detail: text(result && result.message) || 'El archivo pudo haberse subido a Drive, pero no se confirmó la metadata en el visor. Actualiza la lista o reintenta.'
+        });
         refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:selectedId});
         setImportFeedback('No se cargó el sustento', text(result && result.message) || 'Apps Script no pudo registrar los archivos de sustento.', 'warn');
-        setCaseAttachmentFeedback('No se cargó el sustento', text(result && result.message) || 'Apps Script no pudo registrar los archivos de sustento.', 'warn');
       })
       .withFailureHandler(error => {
         sharedAttachmentActionInFlight = false;
         console.error('No se pudieron cargar los sustento(s).', error);
+        setAttachmentSyncState('failed', {
+          recordId: selectedId,
+          operation: 'upload',
+          detail: 'El archivo pudo haberse subido a Drive, pero no se confirmó la metadata en el visor. Actualiza la lista o reintenta.'
+        });
         refreshDerivedViews({drawerRecordId:appState.selectedId});
         setImportFeedback('No se cargó el sustento', 'Apps Script no pudo registrar los archivos de sustento para esta actividad.', 'warn');
-        setCaseAttachmentFeedback('No se cargó el sustento', 'Apps Script no pudo registrar los archivos de sustento para esta actividad.', 'warn');
       })
       .uploadSharedTrackingAttachments(selectedId, payload.map(item => ({...item, documentType})), identity.actor);
   }catch(error){
     sharedAttachmentActionInFlight = false;
     console.error('No se pudieron preparar los archivos de sustento.', error);
-    renderCaseAttachments(appState.raw.find(item => item.id === appState.selectedId) || {id:appState.selectedId});
-    setCaseAttachmentFeedback('No se preparó el sustento', error && error.message ? error.message : 'No se pudieron leer los archivos seleccionados.', 'warn');
+    setAttachmentSyncState('failed', {
+      recordId: selectedId,
+      operation: 'upload',
+      detail: error && error.message ? error.message : 'No se pudieron leer los archivos seleccionados.'
+    });
+    renderCaseAttachments(selectedRecord);
   }
 }
 
@@ -10563,24 +10747,43 @@ function refreshCurrentCaseAttachments(){
     setCaseAttachmentFeedback('Solo lectura', 'La actualización automática del repositorio requiere abrir la versión compartida de Apps Script.', 'info');
     return;
   }
-  if(appState.hasUnsyncedSharedChanges || sharedSyncInFlight || sharedAttachmentActionInFlight){
+  if(appState.hasUnsyncedSharedChanges || sharedSyncInFlight || sharedAttachmentActionInFlight || hasPendingAttachmentConfirmation(appState.selectedId)){
     setCaseAttachmentFeedback('Espera la sincronización compartida', 'Primero debe terminar el guardado o la carga en curso antes de refrescar el repositorio de sustento.', 'warn');
     return;
   }
   const selectedId = appState.selectedId;
-  setCaseAttachmentFeedback('Actualizando repositorio', 'Se está refrescando la lista de sustento desde Apps Script.', 'info');
+  setAttachmentSyncState('refreshing', {
+    recordId: selectedId,
+    operation: 'refresh'
+  });
+  renderCaseAttachments(appState.raw.find(item => item.id === selectedId) || {id:selectedId});
   google.script.run
     .withSuccessHandler(result => {
       if(!result || !result.ok || !result.state){
+        setAttachmentSyncState('failed', {
+          recordId: selectedId,
+          operation: 'refresh',
+          detail: 'Apps Script no devolvió un estado válido para esta actividad. Actualiza la lista o reintenta.'
+        });
         setCaseAttachmentFeedback('No se actualizó el repositorio', 'Apps Script no devolvió un estado válido para esta actividad.', 'warn');
         return;
       }
       applySharedStateBundle(result.state, {skipRenderHero:true});
       refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:selectedId});
-      setCaseAttachmentFeedback('Repositorio actualizado', 'Se refrescó la lista de sustento desde el estado compartido actual.', 'success');
+      setAttachmentSyncState('confirmed', {
+        recordId: selectedId,
+        operation: 'refresh',
+        confirmedRevision: Number(result.state && result.state.revision || 0),
+        detail: 'La lista visible de sustentos se refrescó desde el backend compartido y quedó confirmada para esta actividad.'
+      });
     })
     .withFailureHandler(error => {
       console.error('No se pudo refrescar el repositorio de sustento.', error);
+      setAttachmentSyncState('failed', {
+        recordId: selectedId,
+        operation: 'refresh',
+        detail: 'Apps Script no pudo refrescar la lista de sustentos para esta actividad.'
+      });
       setCaseAttachmentFeedback('No se actualizó el repositorio', 'Apps Script no pudo refrescar la lista de sustento para esta actividad.', 'warn');
     })
     .getSharedTrackingState();
@@ -10598,14 +10801,19 @@ function ensureCaseAttachmentFolder(){
     setCaseAttachmentFeedback(permission.label, permission.detail, 'warn');
     return;
   }
-  if(appState.hasUnsyncedSharedChanges || sharedSyncInFlight || sharedAttachmentActionInFlight){
+  if(appState.hasUnsyncedSharedChanges || sharedSyncInFlight || sharedAttachmentActionInFlight || hasPendingAttachmentConfirmation(appState.selectedId)){
     setCaseAttachmentFeedback('Espera la sincronización compartida', 'Primero debe terminar el guardado actual antes de preparar la carpeta del registro.', 'warn');
     return;
   }
-  sharedAttachmentActionInFlight = true;
-  renderCaseAttachments(appState.raw.find(item => item.id === appState.selectedId) || {id:appState.selectedId});
-  setCaseAttachmentFeedback('Preparando carpeta', 'Apps Script está preparando la carpeta visible de sustento para esta actividad.', 'info');
   const selectedId = appState.selectedId;
+  setAttachmentSyncState('registering', {
+    recordId: selectedId,
+    operation: 'folder',
+    title: 'Preparando carpeta...',
+    detail: 'Apps Script está preparando la carpeta visible y registrando su metadata para esta actividad.'
+  });
+  sharedAttachmentActionInFlight = true;
+  renderCaseAttachments(appState.raw.find(item => item.id === selectedId) || {id:selectedId});
   const identity = getCurrentActorIdentity();
   google.script.run
     .withSuccessHandler(result => {
@@ -10616,20 +10824,33 @@ function ensureCaseAttachmentFolder(){
         refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:selectedId});
       }
       if(result && result.ok && result.state){
+        setAttachmentSyncState('confirmed', {
+          recordId: selectedId,
+          operation: 'folder',
+          confirmedRevision: Number(result.state && result.state.revision || 0),
+          detail: 'La carpeta visible del registro y su metadata quedaron confirmadas en el repositorio compartido.'
+        });
         setImportFeedback('Carpeta de sustento lista', text(result.message) || 'La carpeta visible del registro quedó preparada en Drive.', 'success');
-        setCaseAttachmentFeedback('Carpeta de sustento lista', text(result.message) || 'La carpeta visible del registro quedó preparada en Drive.', 'success');
         return;
       }
+      setAttachmentSyncState('failed', {
+        recordId: selectedId,
+        operation: 'folder',
+        detail: text(result && result.message) || 'Apps Script no pudo preparar ni confirmar la carpeta de sustento del registro.'
+      });
       refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:selectedId});
       setImportFeedback('No se preparó la carpeta', text(result && result.message) || 'Apps Script no pudo preparar la carpeta de sustento del registro.', 'warn');
-      setCaseAttachmentFeedback('No se preparó la carpeta', text(result && result.message) || 'Apps Script no pudo preparar la carpeta de sustento del registro.', 'warn');
     })
     .withFailureHandler(error => {
       sharedAttachmentActionInFlight = false;
       console.error('No se pudo preparar la carpeta del registro.', error);
+      setAttachmentSyncState('failed', {
+        recordId: selectedId,
+        operation: 'folder',
+        detail: 'Apps Script no pudo preparar ni confirmar la carpeta visible de esta actividad.'
+      });
       refreshDerivedViews({drawerRecordId:selectedId});
       setImportFeedback('No se preparó la carpeta', 'Apps Script no pudo preparar la carpeta visible de sustento para esta actividad.', 'warn');
-      setCaseAttachmentFeedback('No se preparó la carpeta', 'Apps Script no pudo preparar la carpeta visible de sustento para esta actividad.', 'warn');
     })
     .ensureSharedTrackingAttachmentFolder(selectedId, identity.actor);
 }
@@ -10646,7 +10867,7 @@ function removeCaseAttachment(attachmentId){
     setCaseAttachmentFeedback(permission.label, permission.detail, 'warn');
     return;
   }
-  if(appState.hasUnsyncedSharedChanges || sharedSyncInFlight || sharedAttachmentActionInFlight){
+  if(appState.hasUnsyncedSharedChanges || sharedSyncInFlight || sharedAttachmentActionInFlight || hasPendingAttachmentConfirmation(appState.selectedId)){
     setCaseAttachmentFeedback('Espera la sincronización compartida', 'Primero debe terminar el guardado actual antes de retirar sustento de la actividad.', 'warn');
     return;
   }
@@ -10658,10 +10879,15 @@ function removeCaseAttachment(attachmentId){
   if(!window.confirm('¿Deseas retirar el sustento "' + target.name + '" de esta actividad?')) return;
   const removedReason = window.prompt('Motivo de retiro del sustento', 'Retirado desde el visor compartido');
   if(removedReason === null) return;
-  sharedAttachmentActionInFlight = true;
-  renderCaseAttachments(record || {id:appState.selectedId});
-  setCaseAttachmentFeedback('Retirando sustento', 'Apps Script está retirando el archivo seleccionado del repositorio compartido.', 'info');
   const selectedId = appState.selectedId;
+  setAttachmentSyncState('registering', {
+    recordId: selectedId,
+    operation: 'remove',
+    title: 'Retirando sustento...',
+    detail: 'Apps Script está retirando el archivo seleccionado y registrando la auditoría documental.'
+  });
+  sharedAttachmentActionInFlight = true;
+  renderCaseAttachments(record || {id:selectedId});
   const identity = getCurrentActorIdentity();
   google.script.run
     .withSuccessHandler(result => {
@@ -10672,20 +10898,33 @@ function removeCaseAttachment(attachmentId){
         refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:selectedId});
       }
       if(result && result.ok && result.state){
+        setAttachmentSyncState('confirmed', {
+          recordId: selectedId,
+          operation: 'remove',
+          confirmedRevision: Number(result.state && result.state.revision || 0),
+          detail: 'El retiro del sustento quedó confirmado en el repositorio compartido y auditado por Apps Script.'
+        });
         setImportFeedback('Sustento retirado', text(result.message) || 'El archivo de sustento fue retirado del repositorio compartido.', 'success');
-        setCaseAttachmentFeedback('Sustento retirado', text(result.message) || 'El archivo de sustento fue retirado del repositorio compartido.', 'success');
         return;
       }
+      setAttachmentSyncState('failed', {
+        recordId: selectedId,
+        operation: 'remove',
+        detail: text(result && result.message) || 'Apps Script no pudo confirmar el retiro del sustento.'
+      });
       refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:selectedId});
       setImportFeedback('No se retiró el sustento', text(result && result.message) || 'Apps Script no pudo retirar el archivo de sustento.', 'warn');
-      setCaseAttachmentFeedback('No se retiró el sustento', text(result && result.message) || 'Apps Script no pudo retirar el archivo de sustento.', 'warn');
     })
     .withFailureHandler(error => {
       sharedAttachmentActionInFlight = false;
       console.error('No se pudo retirar el sustento.', error);
+      setAttachmentSyncState('failed', {
+        recordId: selectedId,
+        operation: 'remove',
+        detail: 'Apps Script no pudo confirmar el retiro del sustento para esta actividad.'
+      });
       refreshDerivedViews({drawerRecordId:selectedId});
       setImportFeedback('No se retiró el sustento', 'Apps Script no pudo retirar el archivo de sustento de esta actividad.', 'warn');
-      setCaseAttachmentFeedback('No se retiró el sustento', 'Apps Script no pudo retirar el archivo de sustento de esta actividad.', 'warn');
     })
     .deleteSharedTrackingAttachment(selectedId, attachmentId, identity.actor, text(removedReason));
 }
@@ -11012,9 +11251,9 @@ function saveCurrentCase(){
     renderCaseDrawerActionState(appState.selectedId);
     return;
   }
-  if(sharedAttachmentActionInFlight){
+  if(sharedAttachmentActionInFlight || hasPendingAttachmentConfirmation(appState.selectedId)){
     setImportFeedback('Carga documental en curso', 'Espera que Apps Script termine de subir o sincronizar los sustentos antes de guardar la ficha.', 'info');
-    setCaseAttachmentFeedback('Carga documental en curso', 'El repositorio documental todavía se está actualizando en Apps Script. Espera la confirmación antes de guardar y cerrar.', 'warn');
+    setCaseAttachmentFeedback('Carga documental en curso', 'Espera a que termine la carga del sustento y la confirmación de metadata antes de guardar y cerrar la ficha.', 'warn');
     renderCaseDrawerActionState(appState.selectedId);
     return;
   }

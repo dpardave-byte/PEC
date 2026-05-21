@@ -1958,6 +1958,71 @@ function getAuditActionCategory_(action) {
   return 'other';
 }
 
+function inferAuditEventType_(item, action, category, blocked, errored, mutating, actorSource) {
+  const safeAction = String(action || '').trim();
+  const safeSource = String(actorSource || '').trim();
+  if (safeSource === 'system') return 'system_action';
+  if (blocked) return 'attempted_change';
+  if (errored) return 'error';
+  if (safeAction === 'abrir_visor_compartido') return 'access';
+  if (/^(consultar_|ver_)/i.test(safeAction)) return 'view';
+  if (mutating) {
+    if (category === 'attachment') return 'evidence_change';
+    if (category === 'admin' || category === 'report' || category === 'inventory') return 'admin_action';
+    return 'successful_change';
+  }
+  if (category === 'access') return 'access';
+  if (category === 'report' || category === 'inventory') return 'view';
+  return 'unknown';
+}
+
+function humanizeAuditEventType_(eventType) {
+  switch (String(eventType || '').trim()) {
+    case 'access': return 'Acceso al visor';
+    case 'view': return 'Visualización sin cambios';
+    case 'attempted_change': return 'Intento bloqueado o fallido';
+    case 'successful_change': return 'Cambio real exitoso';
+    case 'evidence_change': return 'Cambio documental exitoso';
+    case 'admin_action': return 'Acción administrativa exitosa';
+    case 'system_action': return 'Acción automática del sistema';
+    case 'error': return 'Error técnico';
+    default: return 'Actividad no clasificada';
+  }
+}
+
+function buildAuditEntryResultStatus_(eventType, blocked, errored) {
+  if (blocked || eventType === 'attempted_change') return 'blocked';
+  if (errored || eventType === 'error') return 'error';
+  if (eventType === 'successful_change' || eventType === 'evidence_change' || eventType === 'admin_action' || eventType === 'system_action') {
+    return 'success';
+  }
+  if (eventType === 'access' || eventType === 'view') return 'view';
+  return 'info';
+}
+
+function isAuditSuccessfulChangeEventType_(eventType) {
+  return ['successful_change', 'evidence_change', 'admin_action'].indexOf(String(eventType || '').trim()) >= 0;
+}
+
+function isAuditReadOnlyEventType_(eventType) {
+  const safeEventType = String(eventType || '').trim();
+  return safeEventType === 'access' || safeEventType === 'view';
+}
+
+function buildAuditEntryEntityLabel_(action, category, recordLabels) {
+  const records = Array.isArray(recordLabels) ? recordLabels.filter(Boolean) : [];
+  if (records.length) return formatAuditRecordLabelListText_(records, 3);
+  switch (String(category || '').trim()) {
+    case 'attachment': return 'Repositorio documental';
+    case 'inventory': return 'Inventario del caso';
+    case 'report': return 'Reporte / resumen';
+    case 'admin': return 'Configuración operativa';
+    case 'drawer': return 'Ficha de seguimiento';
+    case 'access': return 'Visor PEC';
+    default: return humanizeAuditAction_(action);
+  }
+}
+
 function isAuditActionBlocked_(item) {
   const safeAction = String(item && item.action || '').trim();
   const safeReasonCode = String(item && item.reasonCode || '').trim().toLowerCase();
@@ -2015,12 +2080,20 @@ function buildAuditEntryChangeSummary_(item) {
   return visible.join(', ') + (hidden > 0 ? ' | +' + hidden + ' más' : '');
 }
 
-function buildAuditEntryResultLabel_(blocked, errored, mutating, category) {
-  if (blocked) return 'Bloqueado';
-  if (errored) return 'Conflicto / error';
-  if (mutating) return 'Cambio exitoso';
-  if (category === 'access') return 'Solo visualización / consulta';
-  return 'Actividad registrada';
+function buildAuditEntryResultLabel_(eventType, resultStatus) {
+  const safeEventType = String(eventType || '').trim();
+  const safeStatus = String(resultStatus || '').trim();
+  if (safeStatus === 'blocked') return 'Intento bloqueado';
+  if (safeStatus === 'error') return 'Fallido / con error';
+  switch (safeEventType) {
+    case 'successful_change': return 'Cambio real exitoso';
+    case 'evidence_change': return 'Cambio documental exitoso';
+    case 'admin_action': return 'Acción administrativa exitosa';
+    case 'system_action': return 'Acción automática ejecutada';
+    case 'access': return 'Acceso registrado';
+    case 'view': return 'Visualización sin cambios';
+    default: return 'Actividad registrada';
+  }
 }
 
 function getAuditPermissionRoleRank_(role) {
@@ -2335,6 +2408,8 @@ function buildAuditDailyReportFromItems_(items, reportDate, timezone, options) {
         reportActions: 0,
         inventoryActions: 0,
         accessActions: 0,
+        viewActions: 0,
+        systemActions: 0,
         readOnlyActions: 0,
         identityMismatchEntries: 0,
         firstSeenAt: '',
@@ -2359,17 +2434,22 @@ function buildAuditDailyReportFromItems_(items, reportDate, timezone, options) {
     const errored = isAuditActionError_(item);
     const changeTotal = getAuditItemChangeTotal_(item);
     const mutating = isAuditActionMutating_(item, category, blocked, errored);
-    const resultLabel = buildAuditEntryResultLabel_(blocked, errored, mutating, category);
+    const eventType = inferAuditEventType_(item, action, category, blocked, errored, mutating, actorSource);
+    const resultStatus = buildAuditEntryResultStatus_(eventType, blocked, errored);
+    const resultLabel = buildAuditEntryResultLabel_(eventType, resultStatus);
     const records = getAuditItemTouchedRecords_(item);
     const recordHints = buildAuditItemRecordHintMap_(item);
     const recordLabels = resolveAuditRecordLabels_(records, recordIndex, recordHints);
     const sections = getAuditItemSections_(item);
     const changeSummary = buildAuditEntryChangeSummary_(item);
+    const entityLabel = buildAuditEntryEntityLabel_(action, category, recordLabels);
     const identityMismatch = hasAuditIdentityMismatch_(declaredActor, actorEmail);
+    const successfulHumanChange = isAuditSuccessfulChangeEventType_(eventType) && actorSource !== 'system';
     bucket.permissionRole = pickPreferredAuditPermissionRole_(bucket.permissionRole, permissionRole);
     bucket.totalEntries += 1;
     bucket.totalChanges += changeTotal;
     bucket.actionsMap.set(action, (bucket.actionsMap.get(action) || 0) + 1);
+    bucket.actionsMap.set('__eventType__:' + eventType, (bucket.actionsMap.get('__eventType__:' + eventType) || 0) + 1);
     bucket.sourcesMap.set(actorSource, (bucket.sourcesMap.get(actorSource) || 0) + 1);
     bucket.resultsMap.set(resultLabel, (bucket.resultsMap.get(resultLabel) || 0) + 1);
     if (actorVerified) bucket.verifiedEntries += 1;
@@ -2384,15 +2464,17 @@ function buildAuditDailyReportFromItems_(items, reportDate, timezone, options) {
     if (!bucket.verifiedEmail && actorEmail) bucket.verifiedEmail = actorEmail;
     if (!bucket.declaredActor && declaredActor) bucket.declaredActor = declaredActor;
     if (identityMismatch) bucket.identityMismatchEntries += 1;
-    if (mutating) bucket.successfulChanges += 1;
+    if (successfulHumanChange) bucket.successfulChanges += 1;
     if (blocked) bucket.blockedAttempts += 1;
     if (errored) bucket.errorEntries += 1;
     if (category === 'attachment') bucket.attachmentActions += 1;
     if (category === 'admin') bucket.adminActions += 1;
     if (category === 'report') bucket.reportActions += 1;
     if (category === 'inventory') bucket.inventoryActions += 1;
-    if (category === 'access') bucket.accessActions += 1;
-    if (!mutating && !blocked && !errored) bucket.readOnlyActions += 1;
+    if (eventType === 'access') bucket.accessActions += 1;
+    if (eventType === 'view') bucket.viewActions += 1;
+    if (eventType === 'system_action') bucket.systemActions += 1;
+    if (isAuditReadOnlyEventType_(eventType)) bucket.readOnlyActions += 1;
     sections.forEach(function(section) {
       bucket.sectionsMap.set(section.name, (bucket.sectionsMap.get(section.name) || 0) + section.count);
     });
@@ -2416,33 +2498,39 @@ function buildAuditDailyReportFromItems_(items, reportDate, timezone, options) {
       changeCount: changeTotal,
       touchedRecordIds: records,
       touchedRecords: recordLabels,
-      sections: sections,
-      resultLabel: resultLabel,
-      blocked: blocked,
-      errored: errored,
-      mutating: mutating,
-      category: category,
-      permissionRole: permissionRole,
-      permissionRoleLabel: humanizeAuditPermissionRole_(permissionRole),
-      identityQuality: identityQuality,
-      identityTypeLabel: humanizeAuditIdentityQuality_(identityQuality),
-      actorEmail: actorEmail,
-      declaredActor: declaredActor,
-      actorSource: actorSource,
-      actorVerified: actorVerified,
-      identityMismatch: identityMismatch
-    });
+        sections: sections,
+        resultLabel: resultLabel,
+        resultStatus: resultStatus,
+        blocked: blocked,
+        errored: errored,
+        mutating: mutating,
+        category: category,
+        eventType: eventType,
+        eventTypeLabel: humanizeAuditEventType_(eventType),
+        entityLabel: entityLabel,
+        permissionRole: permissionRole,
+        permissionRoleLabel: humanizeAuditPermissionRole_(permissionRole),
+        identityQuality: identityQuality,
+        identityTypeLabel: humanizeAuditIdentityQuality_(identityQuality),
+        actorEmail: actorEmail,
+        declaredActor: declaredActor,
+        actorSource: actorSource,
+        actorVerified: actorVerified,
+        isHuman: actorSource !== 'system',
+        isSystem: actorSource === 'system',
+        successfulHumanChange: successfulHumanChange,
+        identityMismatch: identityMismatch
+      });
   });
 
   const actors = Array.from(grouped.values())
     .map(function(bucket) {
       const identity = summarizeAuditActorIdentity_(bucket);
+      const entries = Array.isArray(bucket.entries) ? bucket.entries : [];
       const onlyViewed = Boolean(
-        Number(bucket.accessActions || 0) > 0 &&
-        Number(bucket.successfulChanges || 0) === 0 &&
-        Number(bucket.blockedAttempts || 0) === 0 &&
-        Number(bucket.errorEntries || 0) === 0 &&
-        Number(bucket.attachmentActions || 0) === 0
+        !bucket.isSystem &&
+        entries.length > 0 &&
+        entries.every(function(entry) { return isAuditReadOnlyEventType_(entry.eventType); })
       );
       return {
         actor: bucket.actor,
@@ -2467,6 +2555,8 @@ function buildAuditDailyReportFromItems_(items, reportDate, timezone, options) {
         reportActions: bucket.reportActions,
         inventoryActions: bucket.inventoryActions,
         accessActions: bucket.accessActions,
+        viewActions: bucket.viewActions,
+        systemActions: bucket.systemActions,
         readOnlyActions: bucket.readOnlyActions,
         onlyViewed: onlyViewed,
         firstSeenAt: bucket.firstSeenAt,
@@ -2484,7 +2574,7 @@ function buildAuditDailyReportFromItems_(items, reportDate, timezone, options) {
         identityMismatchEntries: bucket.identityMismatchEntries,
         touchedRecordIds: Array.from(bucket.recordsMap.keys()).slice(0, 18),
         touchedRecords: Array.from(bucket.recordsMap.values()).slice(0, 18),
-        entries: bucket.entries
+        entries: entries
       };
     })
     .sort(function(a, b) {
@@ -2499,6 +2589,7 @@ function buildAuditDailyReportFromItems_(items, reportDate, timezone, options) {
     dateLabel: formatAuditReportDateLabel_(selectedDate, timezone),
     generatedAt: new Date().toISOString(),
     totalActors: actors.length,
+    totalHumanActors: actors.filter(function(actor) { return actor.isHuman; }).length,
     totalEntries: actors.reduce(function(sum, actor) { return sum + Number(actor.totalEntries || 0); }, 0),
     totalChanges: actors.reduce(function(sum, actor) { return sum + Number(actor.totalChanges || 0); }, 0),
     totalTouchedRecords: touchedRecords.size,
@@ -2514,38 +2605,99 @@ function buildAuditDailyReportFromItems_(items, reportDate, timezone, options) {
     totalAdminActions: actors.reduce(function(sum, actor) { return sum + Number(actor.adminActions || 0); }, 0),
     totalReportActions: actors.reduce(function(sum, actor) { return sum + Number(actor.reportActions || 0); }, 0),
     totalInventoryActions: actors.reduce(function(sum, actor) { return sum + Number(actor.inventoryActions || 0); }, 0),
+    totalAccessActions: actors.reduce(function(sum, actor) { return sum + Number(actor.accessActions || 0); }, 0),
+    totalViewActions: actors.reduce(function(sum, actor) { return sum + Number(actor.viewActions || 0); }, 0),
+    totalSystemActionEntries: actors.reduce(function(sum, actor) { return sum + Number(actor.systemActions || 0); }, 0),
     totalIdentityMismatches: actors.reduce(function(sum, actor) { return sum + Number(actor.identityMismatchEntries || 0); }, 0),
     actors: actors
   };
-  report.highlights = actors
+  report.confirmedChanges = actors
     .flatMap(function(actor) {
       return (Array.isArray(actor.entries) ? actor.entries : []).map(function(entry) {
         return {
           actor: actor.actor,
           verifiedEmail: actor.verifiedEmail,
           declaredActor: actor.declaredActor,
+          identityQuality: actor.identityQuality,
           identityTypeLabel: actor.identityTypeLabel,
           permissionRoleLabel: actor.permissionRoleLabel,
           at: entry.at,
           action: entry.action,
           actionLabel: entry.actionLabel || humanizeAuditAction_(entry.action),
+          eventType: entry.eventType,
+          eventTypeLabel: entry.eventTypeLabel,
           resultLabel: entry.resultLabel,
+          resultStatus: entry.resultStatus,
           detail: entry.detail,
           changeSummary: entry.changeSummary,
           touchedRecords: entry.touchedRecords,
+          entityLabel: entry.entityLabel,
           blocked: entry.blocked,
           errored: entry.errored,
           mutating: entry.mutating,
-          category: entry.category
+          category: entry.category,
+          isHuman: actor.isHuman,
+          isSystem: actor.isSystem
         };
       });
     })
     .filter(function(entry) {
-      return entry.blocked || entry.errored || entry.mutating || entry.category === 'attachment' || entry.category === 'report' || entry.category === 'inventory' || entry.category === 'admin';
+      return entry.isHuman && isAuditSuccessfulChangeEventType_(entry.eventType) && entry.resultStatus === 'success';
     })
     .sort(function(a, b) {
       return String(b && b.at || '').localeCompare(String(a && a.at || ''));
+    });
+  report.blockedOrFailedAttempts = actors
+    .flatMap(function(actor) {
+      return (Array.isArray(actor.entries) ? actor.entries : []).map(function(entry) {
+        return Object.assign({
+          actor: actor.actor,
+          verifiedEmail: actor.verifiedEmail,
+          declaredActor: actor.declaredActor,
+          identityQuality: actor.identityQuality,
+          identityTypeLabel: actor.identityTypeLabel,
+          permissionRoleLabel: actor.permissionRoleLabel,
+          isHuman: actor.isHuman,
+          isSystem: actor.isSystem
+        }, entry);
+      });
     })
+    .filter(function(entry) {
+      return entry.isHuman && (entry.eventType === 'attempted_change' || entry.eventType === 'error');
+    })
+    .sort(function(a, b) {
+      return String(b && b.at || '').localeCompare(String(a && a.at || ''));
+    });
+  report.accessViewActors = actors
+    .filter(function(actor) {
+      return actor.isHuman && actor.onlyViewed;
+    })
+    .sort(function(a, b) {
+      return String(b.lastChangeAt || '').localeCompare(String(a.lastChangeAt || '')) || a.actor.localeCompare(b.actor, 'es');
+    });
+  report.systemActions = actors
+    .flatMap(function(actor) {
+      return (Array.isArray(actor.entries) ? actor.entries : []).map(function(entry) {
+        return Object.assign({
+          actor: actor.actor,
+          verifiedEmail: actor.verifiedEmail,
+          declaredActor: actor.declaredActor,
+          identityQuality: actor.identityQuality,
+          identityTypeLabel: actor.identityTypeLabel,
+          permissionRoleLabel: actor.permissionRoleLabel,
+          isHuman: actor.isHuman,
+          isSystem: actor.isSystem
+        }, entry);
+      });
+    })
+    .filter(function(entry) {
+      return entry.isSystem || entry.eventType === 'system_action';
+    })
+    .sort(function(a, b) {
+      return String(b && b.at || '').localeCompare(String(a && a.at || ''));
+    });
+  report.highlights = report.confirmedChanges
+    .concat(report.blockedOrFailedAttempts)
     .slice(0, 18);
   report.identityWarnings = [];
   if (report.totalBlockedAttempts > 0) {
@@ -3470,7 +3622,7 @@ function buildSharedTrackingAdminExecutiveSummaryPreview_(date, options) {
   });
   var snapshot = buildAdminExecutiveSummaryAudienceSnapshot_(report);
   var recipients = config.recipients.slice();
-  var subject = 'PEC | Resumen ejecutivo admin | ' + (report.dateLabel || report.date || normalizedDate) + ' | ' + Number(report.totalActors || 0) + ' identidad(es) auditadas';
+  var subject = 'PEC | Resumen ejecutivo admin | ' + (report.dateLabel || report.date || normalizedDate) + ' | ' + Number((report.confirmedChanges || []).length || 0) + ' cambio(s) real(es) | ' + Number(report.totalActors || 0) + ' actor(es)';
   var preview = {
     ok: true,
     actor: getSharedTrackingActor_(),
@@ -3498,66 +3650,127 @@ function buildSharedTrackingAdminExecutiveSummaryPlainText_(preview) {
   var report = safePreview.report || {};
   var inactive = Array.isArray(safePreview.inactiveAudience) ? safePreview.inactiveAudience : [];
   var expected = Array.isArray(safePreview.expectedAudience) ? safePreview.expectedAudience : [];
-  var actors = Array.isArray(report.actors) ? report.actors : [];
-  var highlights = Array.isArray(report.highlights) ? report.highlights : [];
+  var confirmedChanges = Array.isArray(report.confirmedChanges) ? report.confirmedChanges : [];
+  var blockedEntries = Array.isArray(report.blockedOrFailedAttempts) ? report.blockedOrFailedAttempts : [];
+  var accessActors = Array.isArray(report.accessViewActors) ? report.accessViewActors : [];
+  var systemActions = Array.isArray(report.systemActions) ? report.systemActions : [];
+  var warnings = Array.isArray(report.identityWarnings) ? report.identityWarnings : [];
+  var unverifiedConfirmed = confirmedChanges.filter(function(entry) {
+    return entry.identityQuality !== 'verified_email';
+  });
+  var unverifiedBlocked = blockedEntries.filter(function(entry) {
+    return entry.identityQuality !== 'verified_email';
+  });
+  var unverifiedReadOnly = accessActors.filter(function(actor) {
+    return actor.identityQuality !== 'verified_email';
+  });
   var lines = [
     'Visor de Seguimiento PEC',
     'Resumen ejecutivo admin con corte: ' + (report.dateLabel || report.date || ''),
     'Generado: ' + formatTrackingDateTime_(report.generatedAt),
-    'Usuarios esperados: ' + expected.length,
-    'Identidades auditadas: ' + Number(report.totalActors || 0),
-    'Usuarios sin cambios: ' + inactive.length,
-    'Movimientos auditados: ' + Number(report.totalEntries || 0),
-    'Impactos auditados: ' + Number(report.totalChanges || 0),
-    'Registros tocados: ' + Number(report.totalTouchedRecords || 0),
+    'Actores auditados: ' + Number(report.totalActors || 0) + ' | humanos ' + Number(report.totalHumanActors || 0) + ' | sistema ' + Number(report.totalSystemActors || 0),
+    'Durante el periodo se confirmaron ' + confirmedChanges.length + ' cambio(s) real(es) de usuarios. Además, hubo ' + blockedEntries.length + ' intento(s) bloqueado(s) o fallido(s), ' + accessActors.length + ' actor(es) con accesos o visualizaciones sin cambios y ' + systemActions.length + ' acción(es) automáticas del sistema.',
+    'Usuarios esperados sin actividad auditada: ' + inactive.length + ' de ' + expected.length,
+    'Eventos auditados: ' + Number(report.totalEntries || 0) + ' | accesos ' + Number(report.totalAccessActions || 0) + ' | vistas ' + Number(report.totalViewActions || 0) + ' | errores/conflictos ' + Number(report.totalErrorEntries || 0),
+    'Impactos auditados: ' + Number(report.totalChanges || 0) + ' | Registros o entidades afectadas: ' + Number(report.totalTouchedRecords || 0),
     'Tipo de identidad: verificados ' + Number(report.totalVerifiedActors || 0) + ' | actor declarado ' + Number(report.totalDeclaredActors || 0) + ' | desconocidos ' + Number(report.totalUnknownActors || 0) + ' | sistema ' + Number(report.totalSystemActors || 0),
     'Resultado operativo: cambios exitosos ' + Number(report.totalSuccessfulChanges || 0) + ' | bloqueos ' + Number(report.totalBlockedAttempts || 0) + ' | errores/conflictos ' + Number(report.totalErrorEntries || 0),
     '',
     'Este resumen ejecutivo se envía con respaldo de auditoría y backup para facilitar revisión y eventual reversión manual controlada.',
     ''
   ];
-  if (Array.isArray(report.identityWarnings) && report.identityWarnings.length) {
+  if (warnings.length) {
     lines.push('Advertencias de identidad y control:');
-    report.identityWarnings.forEach(function(item) {
+    warnings.forEach(function(item) {
       lines.push('- ' + item);
     });
     lines.push('');
   }
-  lines.push('Actividad de usuarios y trazabilidad:');
-  actors.forEach(function(actor) {
-    lines.push('- ' + (actor.actor || 'Usuario no identificado') + ' | ' + (actor.identityTypeLabel || 'Sin identidad verificable') + ' | ' + (actor.permissionRoleLabel || 'Rol no especificado') + ' | acciones ' + Number(actor.totalEntries || 0) + ' | registros ' + Number((actor.touchedRecords || []).length) + ' | cambios ' + Number(actor.successfulChanges || 0) + ' | bloqueos/errores ' + (Number(actor.blockedAttempts || 0) + Number(actor.errorEntries || 0)) + ' | última actividad ' + (formatTrackingDateTime_(actor.lastChangeAt) || 'Sin hora'));
-    lines.push('  correo verificado: ' + (actor.verifiedEmail || 'No disponible') + ' | actor declarado: ' + (actor.declaredActor || 'No declarado'));
-    if (actor.onlyViewed) {
-      lines.push('  estado: solo visualización / consulta; no se registraron cambios reales.');
-    }
-  });
+  lines.push('Actividad de usuarios y cambios reales:');
   lines.push('');
-  if (highlights.length) {
-    lines.push('Cambios relevantes del día:');
-    highlights.forEach(function(entry) {
+  lines.push('Cambios reales confirmados:');
+  if (confirmedChanges.length) {
+    confirmedChanges.forEach(function(entry) {
       lines.push('- ' + [
         entry.actor || 'Usuario no identificado',
-        formatTrackingDateTime_(entry.at) || 'Sin hora',
+        entry.identityTypeLabel || 'Sin identidad verificable',
+        entry.permissionRoleLabel || 'Rol no especificado',
         entry.actionLabel || humanizeAuditAction_(entry.action),
+        entry.changeSummary ? ('Cambio: ' + entry.changeSummary) : '',
+        'Registro / entidad: ' + (entry.entityLabel || 'Sin entidad asociada'),
         entry.resultLabel || 'Sin resultado',
-        entry.changeSummary ? ('Campos: ' + entry.changeSummary) : '',
+        formatTrackingDateTime_(entry.at) || 'Sin hora',
         entry.detail || 'Sin detalle.'
       ].filter(Boolean).join(' | '));
     });
-    lines.push('');
+  } else {
+    lines.push('- No se confirmaron cambios reales de usuarios durante el periodo.');
   }
-  var unverifiedActors = actors.filter(function(actor) {
-    return actor.identityQuality === 'declared_actor_only' || actor.identityQuality === 'unknown';
-  });
-  if (unverifiedActors.length) {
-    lines.push('Usuarios sin correo verificado:');
-    unverifiedActors.forEach(function(actor) {
-      lines.push('- ' + (actor.actor || 'Usuario no identificado') + ' | ' + (actor.identityTypeLabel || 'Sin identidad verificable') + ' | cambios ' + Number(actor.successfulChanges || 0) + ' | bloqueos ' + Number(actor.blockedAttempts || 0) + ' | actor declarado ' + (actor.declaredActor || 'No declarado'));
+  lines.push('');
+  lines.push('Intentos bloqueados o fallidos:');
+  if (blockedEntries.length) {
+    blockedEntries.forEach(function(entry) {
+      lines.push('- ' + [
+        entry.actor || 'Usuario no identificado',
+        entry.identityTypeLabel || 'Sin identidad verificable',
+        entry.permissionRoleLabel || 'Rol no especificado',
+        entry.actionLabel || humanizeAuditAction_(entry.action),
+        'Motivo / detalle: ' + (entry.detail || entry.resultLabel || 'Sin detalle.'),
+        'Registro / entidad: ' + (entry.entityLabel || 'Sin entidad asociada'),
+        formatTrackingDateTime_(entry.at) || 'Sin hora'
+      ].filter(Boolean).join(' | '));
     });
+  } else {
+    lines.push('- No se registraron intentos bloqueados ni fallidos de usuarios.');
+  }
+  lines.push('');
+  lines.push('Accesos o visualizaciones sin cambios:');
+  lines.push('Estos eventos no modificaron información del visor.');
+  if (accessActors.length) {
+    accessActors.forEach(function(actor) {
+      lines.push('- ' + [
+        actor.actor || 'Usuario no identificado',
+        actor.identityTypeLabel || 'Sin identidad verificable',
+        'Accesos ' + Number(actor.accessActions || 0),
+        'Vistas ' + Number(actor.viewActions || 0),
+        formatTrackingDateTime_(actor.lastChangeAt) || 'Sin hora'
+      ].filter(Boolean).join(' | '));
+    });
+  } else {
+    lines.push('- No se registraron accesos o visualizaciones puras sin cambios.');
+  }
+  lines.push('');
+  lines.push('Acciones del sistema:');
+  if (systemActions.length) {
+    systemActions.forEach(function(entry) {
+      lines.push('- ' + [
+        entry.actor || 'Sistema / trigger',
+        entry.actionLabel || humanizeAuditAction_(entry.action),
+        entry.resultLabel || 'Sin resultado',
+        'Entidad: ' + (entry.entityLabel || 'Operación del sistema'),
+        formatTrackingDateTime_(entry.at) || 'Sin hora',
+        entry.detail || 'Sin detalle.'
+      ].filter(Boolean).join(' | '));
+    });
+  } else {
+    lines.push('- No se registraron acciones automáticas del sistema en el periodo.');
+  }
+  lines.push('');
+  if (unverifiedConfirmed.length || unverifiedBlocked.length || unverifiedReadOnly.length) {
+    lines.push('Eventos sin correo verificado:');
+    if (unverifiedConfirmed.length) {
+      lines.push('- ALERTA: ' + unverifiedConfirmed.length + ' cambio(s) real(es) exitoso(s) quedaron asociados a identidad no verificada. Requiere revisión de permisos y auditoría.');
+    }
+    if (unverifiedBlocked.length) {
+      lines.push('- Se registraron ' + unverifiedBlocked.length + ' intento(s) bloqueado(s) o fallido(s) sin correo verificado.');
+    }
+    if (unverifiedReadOnly.length) {
+      lines.push('- Se registraron ' + unverifiedReadOnly.length + ' actor(es) sin correo verificado que solo accedieron o visualizaron y no modificaron información.');
+    }
     lines.push('');
   }
   if (inactive.length) {
-    lines.push('Usuarios sin cambios registrados:');
+    lines.push('Usuarios esperados sin actividad auditada:');
     inactive.forEach(function(entry) {
       lines.push('- ' + (entry.actor || entry.email) + ' | ' + entry.email);
     });
@@ -3572,53 +3785,96 @@ function buildSharedTrackingAdminExecutiveSummaryPlainText_(preview) {
 function buildSharedTrackingAdminExecutiveSummaryHtml_(preview) {
   var safePreview = preview && typeof preview === 'object' ? preview : {};
   var report = safePreview.report || {};
-  var actors = Array.isArray(report.actors) ? report.actors : [];
   var inactive = Array.isArray(safePreview.inactiveAudience) ? safePreview.inactiveAudience : [];
   var expected = Array.isArray(safePreview.expectedAudience) ? safePreview.expectedAudience : [];
-  var highlights = Array.isArray(report.highlights) ? report.highlights : [];
+  var confirmedChanges = Array.isArray(report.confirmedChanges) ? report.confirmedChanges : [];
+  var blockedEntries = Array.isArray(report.blockedOrFailedAttempts) ? report.blockedOrFailedAttempts : [];
+  var accessActors = Array.isArray(report.accessViewActors) ? report.accessViewActors : [];
+  var systemActions = Array.isArray(report.systemActions) ? report.systemActions : [];
   var warnings = Array.isArray(report.identityWarnings) ? report.identityWarnings : [];
-  var traceRows = actors.map(function(actor) {
+  var unverifiedConfirmed = confirmedChanges.filter(function(entry) {
+    return entry.identityQuality !== 'verified_email';
+  });
+  var unverifiedBlocked = blockedEntries.filter(function(entry) {
+    return entry.identityQuality !== 'verified_email';
+  });
+  var unverifiedReadOnly = accessActors.filter(function(actor) {
+    return actor.identityQuality !== 'verified_email';
+  });
+  var confirmedRows = confirmedChanges.map(function(entry) {
+    return '<tr>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;vertical-align:top;">' + escapeHtmlEmail_(entry.actor || 'Usuario no identificado') + '<div style="margin-top:4px;color:#4d6379;font-size:12px;">' + escapeHtmlEmail_(entry.verifiedEmail || entry.declaredActor || 'Sin correo verificado') + '</div></td>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;vertical-align:top;">' + escapeHtmlEmail_(entry.identityTypeLabel || 'Sin identidad verificable') + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;vertical-align:top;">' + escapeHtmlEmail_(entry.permissionRoleLabel || 'Rol no especificado') + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;vertical-align:top;"><strong>' + escapeHtmlEmail_(entry.actionLabel || humanizeAuditAction_(entry.action)) + '</strong><div style="margin-top:4px;color:#4d6379;font-size:12px;">' + escapeHtmlEmail_(entry.changeSummary || entry.detail || 'Sin detalle.') + '</div></td>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;vertical-align:top;">' + escapeHtmlEmail_(entry.entityLabel || 'Sin entidad asociada') + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;vertical-align:top;">' + escapeHtmlEmail_(entry.resultLabel || 'Sin resultado') + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;vertical-align:top;">' + escapeHtmlEmail_(formatTrackingDateTime_(entry.at) || 'Sin hora') + '</td>' +
+    '</tr>';
+  }).join('');
+  var confirmedHtml = confirmedChanges.length
+    ? '<div style="margin:0 0 14px;padding:14px;border:1px solid #d7e2ef;border-radius:12px;background:#ffffff;">' +
+        '<h4 style="margin:0 0 8px;font-size:16px;color:#16324f;">Cambios reales confirmados</h4>' +
+        '<table style="border-collapse:collapse;width:100%;font-size:13px;background:#ffffff;">' +
+          '<thead><tr style="background:#edf4fb;color:#16324f;">' +
+            '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Usuario / correo</th>' +
+            '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Identidad</th>' +
+            '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Rol</th>' +
+            '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Cambio</th>' +
+            '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Registro / entidad</th>' +
+            '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Resultado</th>' +
+            '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Hora</th>' +
+          '</tr></thead><tbody>' + confirmedRows + '</tbody></table>' +
+      '</div>'
+    : '<div style="margin:0 0 14px;padding:14px;border:1px solid #d7e2ef;border-radius:12px;background:#f7fbff;color:#4d6379;">No se confirmaron cambios reales de usuarios durante el periodo.</div>';
+  var blockedRows = blockedEntries.map(function(entry) {
+    return '<tr>' +
+      '<td style="padding:6px 8px;border:1px solid #f0d7a7;vertical-align:top;">' + escapeHtmlEmail_(entry.actor || 'Usuario no identificado') + '<div style="margin-top:4px;color:#4d6379;font-size:12px;">' + escapeHtmlEmail_(entry.verifiedEmail || entry.declaredActor || 'Sin correo verificado') + '</div></td>' +
+      '<td style="padding:6px 8px;border:1px solid #f0d7a7;vertical-align:top;">' + escapeHtmlEmail_(entry.identityTypeLabel || 'Sin identidad verificable') + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #f0d7a7;vertical-align:top;">' + escapeHtmlEmail_(entry.actionLabel || humanizeAuditAction_(entry.action)) + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #f0d7a7;vertical-align:top;">' + escapeHtmlEmail_(entry.detail || entry.resultLabel || 'Sin detalle.') + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #f0d7a7;vertical-align:top;">' + escapeHtmlEmail_(entry.entityLabel || 'Sin entidad asociada') + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #f0d7a7;vertical-align:top;">' + escapeHtmlEmail_(formatTrackingDateTime_(entry.at) || 'Sin hora') + '</td>' +
+    '</tr>';
+  }).join('');
+  var blockedHtml = blockedEntries.length
+    ? '<div style="margin:0 0 14px;padding:14px;border:1px solid #f0d7a7;border-radius:12px;background:#fff8e7;">' +
+        '<h4 style="margin:0 0 8px;font-size:16px;color:#6a4a00;">Intentos bloqueados o fallidos</h4>' +
+        '<table style="border-collapse:collapse;width:100%;font-size:13px;background:#ffffff;">' +
+          '<thead><tr style="background:#fff0c8;color:#6a4a00;">' +
+            '<th style="padding:6px 8px;border:1px solid #f0d7a7;text-align:left;">Actor</th>' +
+            '<th style="padding:6px 8px;border:1px solid #f0d7a7;text-align:left;">Identidad</th>' +
+            '<th style="padding:6px 8px;border:1px solid #f0d7a7;text-align:left;">Acción intentada</th>' +
+            '<th style="padding:6px 8px;border:1px solid #f0d7a7;text-align:left;">Motivo</th>' +
+            '<th style="padding:6px 8px;border:1px solid #f0d7a7;text-align:left;">Registro / entidad</th>' +
+            '<th style="padding:6px 8px;border:1px solid #f0d7a7;text-align:left;">Hora</th>' +
+          '</tr></thead><tbody>' + blockedRows + '</tbody></table>' +
+      '</div>'
+    : '<div style="margin:0 0 14px;padding:14px;border:1px solid #d7e2ef;border-radius:12px;background:#f7fbff;color:#4d6379;">No se registraron intentos bloqueados ni fallidos de usuarios.</div>';
+  var accessRows = accessActors.map(function(actor) {
     return '<tr>' +
       '<td style="padding:6px 8px;border:1px solid #d7e2ef;vertical-align:top;">' + escapeHtmlEmail_(actor.actor || 'Usuario no identificado') + '<div style="margin-top:4px;color:#4d6379;font-size:12px;">' + escapeHtmlEmail_(actor.verifiedEmail || actor.declaredActor || 'Sin correo verificado') + '</div></td>' +
       '<td style="padding:6px 8px;border:1px solid #d7e2ef;vertical-align:top;">' + escapeHtmlEmail_(actor.identityTypeLabel || 'Sin identidad verificable') + '</td>' +
-      '<td style="padding:6px 8px;border:1px solid #d7e2ef;vertical-align:top;">' + escapeHtmlEmail_(actor.permissionRoleLabel || 'Rol no especificado') + '</td>' +
-      '<td style="padding:6px 8px;border:1px solid #d7e2ef;text-align:center;">' + escapeHtmlEmail_(String(actor.totalEntries || 0)) + '</td>' +
-      '<td style="padding:6px 8px;border:1px solid #d7e2ef;text-align:center;">' + escapeHtmlEmail_(String((actor.touchedRecords || []).length)) + '</td>' +
-      '<td style="padding:6px 8px;border:1px solid #d7e2ef;text-align:center;">' + escapeHtmlEmail_(String(actor.successfulChanges || 0)) + '</td>' +
-      '<td style="padding:6px 8px;border:1px solid #d7e2ef;text-align:center;">' + escapeHtmlEmail_(String(Number(actor.blockedAttempts || 0) + Number(actor.errorEntries || 0))) + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;text-align:center;">' + escapeHtmlEmail_(String(actor.accessActions || 0)) + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;text-align:center;">' + escapeHtmlEmail_(String(actor.viewActions || 0)) + '</td>' +
       '<td style="padding:6px 8px;border:1px solid #d7e2ef;vertical-align:top;">' + escapeHtmlEmail_(formatTrackingDateTime_(actor.lastChangeAt) || 'Sin hora') + '</td>' +
     '</tr>';
   }).join('');
-  var highlightsHtml = highlights.length
-    ? '<div style="margin:0 0 14px;padding:14px;border:1px solid #d7e2ef;border-radius:12px;background:#ffffff;">' +
-        '<h4 style="margin:0 0 8px;font-size:16px;color:#16324f;">Cambios relevantes</h4>' +
-        '<ul style="margin:0;padding-left:18px;color:#16324f;">' +
-        highlights.map(function(entry) {
-          return '<li style="margin:0 0 8px;">' + escapeHtmlEmail_([
-            entry.actor || 'Usuario no identificado',
-            formatTrackingDateTime_(entry.at) || 'Sin hora',
-            entry.actionLabel || humanizeAuditAction_(entry.action),
-            entry.resultLabel || 'Sin resultado',
-            entry.changeSummary ? ('Campos: ' + entry.changeSummary) : '',
-            entry.detail || 'Sin detalle.'
-          ].filter(Boolean).join(' | ')) + '</li>';
-        }).join('') +
-        '</ul>' +
+  var accessHtml = '<div style="margin:0 0 14px;padding:14px;border:1px solid #d7e2ef;border-radius:12px;background:#ffffff;">' +
+      '<h4 style="margin:0 0 8px;font-size:16px;color:#16324f;">Accesos o visualizaciones sin cambios</h4>' +
+      '<p style="margin:0 0 8px;color:#4d6379;font-size:12px;">Estos eventos no modificaron información del visor.</p>' +
+      (accessActors.length
+        ? '<table style="border-collapse:collapse;width:100%;font-size:13px;background:#ffffff;">' +
+            '<thead><tr style="background:#edf4fb;color:#16324f;">' +
+              '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Actor / correo</th>' +
+              '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Identidad</th>' +
+              '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:center;">Accesos</th>' +
+              '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:center;">Vistas</th>' +
+              '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Última actividad</th>' +
+            '</tr></thead><tbody>' + accessRows + '</tbody></table>'
+        : '<div style="color:#4d6379;">No se registraron accesos o visualizaciones puras sin cambios.</div>') +
       '</div>'
-    : '';
-  var unverifiedActors = actors.filter(function(actor) {
-    return actor.identityQuality === 'declared_actor_only' || actor.identityQuality === 'unknown';
-  });
-  var unverifiedHtml = unverifiedActors.length
-    ? '<div style="margin:0 0 14px;padding:14px;border:1px solid #f0d7a7;border-radius:12px;background:#fff8e7;">' +
-        '<h4 style="margin:0 0 8px;font-size:16px;color:#6a4a00;">Usuarios sin correo verificado</h4>' +
-        '<ul style="margin:0;padding-left:18px;color:#6a4a00;">' +
-        unverifiedActors.map(function(actor) {
-          return '<li>' + escapeHtmlEmail_((actor.actor || 'Usuario no identificado') + ' | ' + (actor.identityTypeLabel || 'Sin identidad verificable') + ' | Cambios ' + Number(actor.successfulChanges || 0) + ' | Bloqueos ' + Number(actor.blockedAttempts || 0) + ' | Actor declarado ' + (actor.declaredActor || 'No declarado')) + '</li>';
-        }).join('') +
-        '</ul>' +
-      '</div>'
-    : '';
+    ;
   var warningsHtml = warnings.length
     ? '<div style="margin:0 0 14px;padding:14px;border:1px solid #f3d7db;border-radius:12px;background:#fff5f6;">' +
         '<h4 style="margin:0 0 8px;font-size:16px;color:#8c2f41;">Advertencias de identidad y control</h4>' +
@@ -3627,55 +3883,67 @@ function buildSharedTrackingAdminExecutiveSummaryHtml_(preview) {
         }).join('') + '</ul>' +
       '</div>'
     : '';
+  var systemRows = systemActions.map(function(entry) {
+    return '<tr>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;vertical-align:top;">' + escapeHtmlEmail_(entry.actor || 'Sistema / trigger') + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;vertical-align:top;">' + escapeHtmlEmail_(entry.actionLabel || humanizeAuditAction_(entry.action)) + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;vertical-align:top;">' + escapeHtmlEmail_(entry.resultLabel || 'Sin resultado') + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;vertical-align:top;">' + escapeHtmlEmail_(entry.entityLabel || 'Operación del sistema') + '</td>' +
+      '<td style="padding:6px 8px;border:1px solid #d7e2ef;vertical-align:top;">' + escapeHtmlEmail_(formatTrackingDateTime_(entry.at) || 'Sin hora') + '</td>' +
+    '</tr>';
+  }).join('');
+  var systemHtml = '<div style="margin:0 0 14px;padding:14px;border:1px solid #d7e2ef;border-radius:12px;background:#ffffff;">' +
+      '<h4 style="margin:0 0 8px;font-size:16px;color:#16324f;">Acciones del sistema</h4>' +
+      (systemActions.length
+        ? '<table style="border-collapse:collapse;width:100%;font-size:13px;background:#ffffff;">' +
+            '<thead><tr style="background:#edf4fb;color:#16324f;">' +
+              '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Proceso</th>' +
+              '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Acción</th>' +
+              '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Resultado</th>' +
+              '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Entidad</th>' +
+              '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Hora</th>' +
+            '</tr></thead><tbody>' + systemRows + '</tbody></table>'
+        : '<div style="color:#4d6379;">No se registraron acciones automáticas del sistema en el periodo.</div>') +
+      '</div>';
+  var unverifiedHtml = (unverifiedConfirmed.length || unverifiedBlocked.length || unverifiedReadOnly.length)
+    ? '<div style="margin:0 0 14px;padding:14px;border:1px solid #f0d7a7;border-radius:12px;background:#fff8e7;">' +
+        '<h4 style="margin:0 0 8px;font-size:16px;color:#6a4a00;">Eventos sin correo verificado</h4>' +
+        '<ul style="margin:0;padding-left:18px;color:#6a4a00;">' +
+          (unverifiedConfirmed.length ? ('<li>ALERTA: ' + escapeHtmlEmail_(String(unverifiedConfirmed.length)) + ' cambio(s) real(es) exitoso(s) quedaron asociados a identidad no verificada.</li>') : '') +
+          (unverifiedBlocked.length ? ('<li>Se registraron ' + escapeHtmlEmail_(String(unverifiedBlocked.length)) + ' intento(s) bloqueado(s) o fallido(s) sin correo verificado.</li>') : '') +
+          (unverifiedReadOnly.length ? ('<li>Se registraron ' + escapeHtmlEmail_(String(unverifiedReadOnly.length)) + ' actor(es) sin correo verificado que solo accedieron o visualizaron y no modificaron información.</li>') : '') +
+        '</ul>' +
+      '</div>'
+    : '';
   var inactiveHtml = inactive.length
     ? '<div style="margin:0 0 14px;padding:14px;border:1px solid #f0d7a7;border-radius:12px;background:#fff8e7;">' +
-        '<h4 style="margin:0 0 8px;font-size:16px;color:#6a4a00;">Usuarios sin cambios registrados</h4>' +
+        '<h4 style="margin:0 0 8px;font-size:16px;color:#6a4a00;">Usuarios esperados sin actividad auditada</h4>' +
         '<ul style="margin:0;padding-left:18px;color:#6a4a00;">' +
         inactive.map(function(entry) {
           return '<li>' + escapeHtmlEmail_(String(entry.actor || entry.email || 'Sin identificar')) + ' | ' + escapeHtmlEmail_(String(entry.email || '')) + '</li>';
         }).join('') +
         '</ul>' +
       '</div>'
-    : '<div style="margin:0 0 14px;padding:14px;border:1px solid #d7e2ef;border-radius:12px;background:#f7fbff;color:#1d5f8f;"><strong>Todos los usuarios esperados registraron actividad hoy.</strong></div>';
-  var detailSections = actors.length
-    ? actors.map(renderSharedTrackingDailyAuditActorSectionHtml_).join('')
-    : '<div style="padding:14px;border:1px solid #d7e2ef;border-radius:12px;background:#ffffff;color:#4d6379;">No se registraron cambios auditados durante el día.</div>';
+    : '<div style="margin:0 0 14px;padding:14px;border:1px solid #d7e2ef;border-radius:12px;background:#f7fbff;color:#1d5f8f;"><strong>Todos los usuarios esperados tuvieron al menos una actividad auditada hoy.</strong></div>';
   return [
     '<div style="font-family:Arial,sans-serif;color:#16324f;line-height:1.5;max-width:980px;">',
     '<h2 style="margin:0 0 10px;font-size:20px;">Visor de Seguimiento PEC</h2>',
     '<p style="margin:0 0 12px;">Se remite el resumen ejecutivo nocturno para administradores con corte del <strong>' + escapeHtmlEmail_(report.dateLabel || report.date || '') + '</strong>.</p>',
-    '<p style="margin:0 0 12px;">Usuarios esperados: <strong>' + escapeHtmlEmail_(String(expected.length || 0)) + '</strong> | Identidades auditadas: <strong>' + escapeHtmlEmail_(String(report.totalActors || 0)) + '</strong> | Usuarios sin cambios: <strong>' + escapeHtmlEmail_(String(inactive.length || 0)) + '</strong></p>',
-    '<p style="margin:0 0 12px;">Movimientos auditados: <strong>' + escapeHtmlEmail_(String(report.totalEntries || 0)) + '</strong> | Impactos: <strong>' + escapeHtmlEmail_(String(report.totalChanges || 0)) + '</strong> | Registros tocados: <strong>' + escapeHtmlEmail_(String(report.totalTouchedRecords || 0)) + '</strong></p>',
+    '<p style="margin:0 0 12px;">Actores auditados: <strong>' + escapeHtmlEmail_(String(report.totalActors || 0)) + '</strong> | Humanos: <strong>' + escapeHtmlEmail_(String(report.totalHumanActors || 0)) + '</strong> | Sistema: <strong>' + escapeHtmlEmail_(String(report.totalSystemActors || 0)) + '</strong></p>',
+    '<p style="margin:0 0 12px;">Durante el periodo se confirmaron <strong>' + escapeHtmlEmail_(String(confirmedChanges.length || 0)) + '</strong> cambio(s) real(es) de usuarios, <strong>' + escapeHtmlEmail_(String(blockedEntries.length || 0)) + '</strong> intento(s) bloqueado(s) o fallido(s), <strong>' + escapeHtmlEmail_(String(accessActors.length || 0)) + '</strong> actor(es) con accesos o vistas sin cambios y <strong>' + escapeHtmlEmail_(String(systemActions.length || 0)) + '</strong> acción(es) automáticas del sistema.</p>',
+    '<p style="margin:0 0 12px;">Usuarios esperados sin actividad auditada: <strong>' + escapeHtmlEmail_(String(inactive.length || 0)) + '</strong> de <strong>' + escapeHtmlEmail_(String(expected.length || 0)) + '</strong>. Eventos auditados: <strong>' + escapeHtmlEmail_(String(report.totalEntries || 0)) + '</strong> | Impactos: <strong>' + escapeHtmlEmail_(String(report.totalChanges || 0)) + '</strong> | Registros o entidades afectadas: <strong>' + escapeHtmlEmail_(String(report.totalTouchedRecords || 0)) + '</strong></p>',
     '<p style="margin:0 0 12px;">Tipos de identidad: <strong>' + escapeHtmlEmail_(String(report.totalVerifiedActors || 0)) + '</strong> verificados | <strong>' + escapeHtmlEmail_(String(report.totalDeclaredActors || 0)) + '</strong> actor declarado | <strong>' + escapeHtmlEmail_(String(report.totalUnknownActors || 0)) + '</strong> desconocidos | <strong>' + escapeHtmlEmail_(String(report.totalSystemActors || 0)) + '</strong> sistema</p>',
     '<p style="margin:0 0 12px;">Resultado operativo: <strong>' + escapeHtmlEmail_(String(report.totalSuccessfulChanges || 0)) + '</strong> cambios exitosos | <strong>' + escapeHtmlEmail_(String(report.totalBlockedAttempts || 0)) + '</strong> bloqueos | <strong>' + escapeHtmlEmail_(String(report.totalErrorEntries || 0)) + '</strong> errores/conflictos</p>',
     '<p style="margin:0 0 12px;color:#4d6379;font-size:12px;">Generado: ' + escapeHtmlEmail_(formatTrackingDateTime_(report.generatedAt) || report.generatedAt || '') + '</p>',
     '<p style="margin:0 0 14px;padding:10px 12px;border:1px solid #d7e2ef;background:#f7fbff;color:#16324f;border-radius:8px;">Se adjuntan la auditoría del día y el backup compartido más reciente como base para revisión y eventual reversión manual controlada.</p>',
     warningsHtml,
-    '<div style="margin:0 0 14px;padding:14px;border:1px solid #d7e2ef;border-radius:12px;background:#ffffff;">' +
-      '<h4 style="margin:0 0 8px;font-size:16px;color:#16324f;">Actividad de usuarios y trazabilidad</h4>' +
-      '<table style="border-collapse:collapse;width:100%;font-size:13px;background:#ffffff;">' +
-        '<thead><tr style="background:#edf4fb;color:#16324f;">' +
-          '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Usuario / correo</th>' +
-          '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Tipo de identidad</th>' +
-          '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Rol</th>' +
-          '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:center;">Acciones</th>' +
-          '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:center;">Registros</th>' +
-          '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:center;">Cambios exitosos</th>' +
-          '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:center;">Bloqueos / errores</th>' +
-          '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">Última actividad</th>' +
-        '</tr></thead><tbody>' +
-        (traceRows || '<tr><td colspan="8" style="padding:8px;border:1px solid #d7e2ef;">Sin actividad auditada.</td></tr>') +
-      '</tbody></table>' +
-    '</div>',
-    highlightsHtml,
+    confirmedHtml,
+    blockedHtml,
+    accessHtml,
+    systemHtml,
     unverifiedHtml,
     inactiveHtml,
     '<p style="margin:18px 0 0;"><a href="' + escapeHtmlEmail_(safePreview.webappUrl) + '" style="display:inline-block;padding:10px 16px;border-radius:8px;background:#1d5f8f;color:#ffffff;text-decoration:none;font-weight:600;">Abrir visor compartido</a></p>',
-    '<div style="margin:18px 0 0;padding:16px;border-radius:14px;background:#f7fbff;border:1px solid #d7e2ef;">',
-    '<h3 style="margin:0 0 6px;font-size:17px;color:#16324f;">Detalle por usuario y acción</h3>',
-    '<p style="margin:0 0 14px;color:#4d6379;font-size:13px;">Se presenta el detalle de auditoría por actor, identidad, acciones y registros tocados durante la jornada.</p>',
-    detailSections,
-    '</div>',
     '<p style="margin:16px 0 0;color:#4d6379;font-size:12px;">Este mensaje fue generado automáticamente por el Visor de Seguimiento PEC.</p>',
     '</div>'
   ].join('');
@@ -3740,11 +4008,15 @@ function dispatchSharedTrackingAdminExecutiveSummaryEmail_(options) {
     declaredActor: actorMeta.declaredActor,
     action: 'enviar_resumen_ejecutivo_admin',
     origin: String(safeOptions.origin || 'sendSharedTrackingAdminExecutiveSummaryEmail').trim(),
-    detail: 'Resumen ejecutivo admin enviado para ' + (preview.report.dateLabel || preview.report.date) + ' | Usuarios con cambios: ' + Number(preview.report.totalActors || 0) + ' | Usuarios sin cambios: ' + Number((preview.inactiveAudience || []).length || 0),
+    detail: 'Resumen ejecutivo admin enviado para ' + (preview.report.dateLabel || preview.report.date) + ' | Cambios reales confirmados: ' + Number((preview.report.confirmedChanges || []).length || 0) + ' | Intentos bloqueados/fallidos: ' + Number((preview.report.blockedOrFailedAttempts || []).length || 0) + ' | Accesos/vistas sin cambios: ' + Number((preview.report.accessViewActors || []).length || 0) + ' | Acciones del sistema: ' + Number((preview.report.systemActions || []).length || 0),
     summary: {
       total: Number(preview.report.totalEntries || 0),
       totalActors: Number(preview.report.totalActors || 0),
-      inactiveUsers: Number((preview.inactiveAudience || []).length || 0),
+      confirmedHumanChanges: Number((preview.report.confirmedChanges || []).length || 0),
+      blockedOrFailedAttempts: Number((preview.report.blockedOrFailedAttempts || []).length || 0),
+      accessViewActors: Number((preview.report.accessViewActors || []).length || 0),
+      systemActions: Number((preview.report.systemActions || []).length || 0),
+      inactiveAudience: Number((preview.inactiveAudience || []).length || 0),
       recipients: preview.effectiveRecipients.length,
       effectiveRecipients: preview.effectiveRecipients,
       reportDate: preview.report.date,

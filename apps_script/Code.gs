@@ -98,6 +98,7 @@ const PANEL_PUBLIC_VISOR_GUIDE_URL = 'https://dpardave-byte.github.io/PEC/guia-r
 
 function doGet(e) {
   const params = e && e.parameter ? e.parameter : {};
+  ensureUserDailyEmailTriggerShutdown_();
   ensureOperationalDailyReportDelivery_();
   ensureOperationalAdminExecutiveSummaryDelivery_();
   if (params.view === 'visor') {
@@ -2748,6 +2749,7 @@ function getSharedTrackingDailyReportDeliveryStatus() {
       message: 'No autorizado para revisar el recordatorio operativo matutino.'
     };
   }
+  ensureUserDailyEmailTriggerShutdown_();
   const config = getDailyAuditReportConfig_();
   const triggers = getDailyAuditReportTriggers_();
   const recipients = config.mode === 'TEST_REDIRECT' ? config.testRecipients : config.to;
@@ -3268,6 +3270,19 @@ function resetDailyAuditReportWeekdayTrigger_() {
     sendHour: OPERATIONAL_DEFAULTS.dailyReportSendHour
   });
   if (!saved || !saved.ok) return saved;
+  if (saved.disabled) {
+    var shutdown = ensureUserDailyEmailTriggerShutdown_();
+    return {
+      ok: true,
+      actor: getSharedTrackingActor_(),
+      admin: true,
+      saved: saved,
+      disabled: true,
+      shutdown: shutdown,
+      sendHour: OPERATIONAL_DEFAULTS.dailyReportSendHour,
+      message: saved.disableReason || 'Los envíos diarios a usuarios están desactivados institucionalmente.'
+    };
+  }
   var trigger = createDailyAuditReportTrigger();
   return {
     ok: Boolean(trigger && trigger.ok),
@@ -4220,6 +4235,7 @@ function getDueTrackingNotificationStatus() {
       message: 'No autorizado para revisar la configuración de alertas por correo.'
     };
   }
+  ensureUserDailyEmailTriggerShutdown_();
   var config = getTrackingNotificationConfig_();
   var emailDirectory = getTrackingNotificationEmailDirectory_();
   var emailMap = getTrackingNotificationEmailMap_();
@@ -4489,6 +4505,20 @@ function activateLiveDueTrackingNotificationsAndSendNow_() {
     realSendConfirmed: true
   });
   if (!saved.ok) return saved;
+  if (saved.disabled) {
+    var shutdown = ensureUserDailyEmailTriggerShutdown_();
+    return {
+      ok: true,
+      actor: String(getSharedTrackingActor_() || 'admin_manual').trim(),
+      admin: true,
+      disabled: true,
+      previousMode: before.mode,
+      currentMode: saved.mode,
+      realSendConfirmed: saved.realSendConfirmed,
+      shutdown: shutdown,
+      message: saved.disableReason || 'Los envíos diarios a usuarios están desactivados institucionalmente.'
+    };
+  }
   var trigger = createDailyNotificationTrigger();
   var dispatch = dispatchDueTrackingEmails_({
     actor: getSharedTrackingActor_() || 'admin_manual',
@@ -5440,6 +5470,36 @@ function isUserDailyEmailDeliveryEnabled_() {
   return getUserDailyEmailPolicy_().enabled;
 }
 
+function ensureUserDailyEmailTriggerShutdown_() {
+  var policy = getUserDailyEmailPolicy_();
+  if (policy.enabled) {
+    return {
+      ok: true,
+      enabled: true,
+      removedDailyReportTriggers: 0,
+      removedDueTrackingTriggers: 0
+    };
+  }
+  var removedDailyReportTriggers = 0;
+  getDailyAuditReportTriggers_().forEach(function(trigger) {
+    ScriptApp.deleteTrigger(trigger);
+    removedDailyReportTriggers += 1;
+  });
+  var removedDueTrackingTriggers = 0;
+  getDueTrackingNotificationTriggers_().forEach(function(trigger) {
+    ScriptApp.deleteTrigger(trigger);
+    removedDueTrackingTriggers += 1;
+  });
+  return {
+    ok: true,
+    enabled: false,
+    removedDailyReportTriggers: removedDailyReportTriggers,
+    removedDueTrackingTriggers: removedDueTrackingTriggers,
+    removedTotal: removedDailyReportTriggers + removedDueTrackingTriggers,
+    reason: policy.reason
+  };
+}
+
 function getTrackingNotificationConfig_() {
   var properties = PropertiesService.getScriptProperties();
   var userDailyEmailPolicy = getUserDailyEmailPolicy_();
@@ -5543,7 +5603,10 @@ function getAdminExecutiveSummaryConfig_() {
 
 function ensureOperationalDailyReportDelivery_() {
   const config = getDailyAuditReportConfig_();
-  if (!config.userDailyEmailsEnabled) return;
+  if (!config.userDailyEmailsEnabled) {
+    ensureUserDailyEmailTriggerShutdown_();
+    return;
+  }
   const recipients = config.mode === 'TEST_REDIRECT' ? config.testRecipients : config.to;
   if (config.mode !== 'REAL' || !config.realSendConfirmed || !recipients.length) return;
   if (!getDailyAuditReportTriggers_().length) {

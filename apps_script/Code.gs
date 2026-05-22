@@ -164,7 +164,10 @@ function doGet(e) {
     });
   }
   if (params.action === 'visor_send_access_guide_now') {
-    var sendAccessGuideStatus = sendSharedVisorAccessGuideEmail_();
+    var sendAccessGuideStatus = sendSharedVisorAccessGuideEmail_({
+      reason: String(params.reason || '').trim(),
+      legacyUrl: String(params.legacyUrl || params.previousUrl || '').trim()
+    });
     if (params.callback || String(params.format || '').trim().toLowerCase() === 'json') {
       return outputPayload_(sendAccessGuideStatus, params);
     }
@@ -172,6 +175,41 @@ function doGet(e) {
       actionLabel: 'Acceso y guía del visor PEC',
       successTitle: 'Correo de acceso enviado',
       failureTitle: 'No se pudo enviar el correo de acceso'
+    });
+  }
+  if (params.action === 'visor_shared_webapp_access_status') {
+    var sharedWebAppAccessStatus = getSharedVisorWebAppAccessStatus_();
+    if (params.callback || String(params.format || '').trim().toLowerCase() === 'json') {
+      return outputPayload_(sharedWebAppAccessStatus, params);
+    }
+    return buildSharedTrackingActionHtml_(sharedWebAppAccessStatus, getTrackingWebAppUrl_(), {
+      actionLabel: 'Política de enlace compartido del visor PEC',
+      successTitle: 'Estado del enlace compartido consultado',
+      failureTitle: 'No se pudo consultar el estado del enlace compartido'
+    });
+  }
+  if (params.action === 'visor_rotate_shared_webapp_url') {
+    var rotateSharedWebAppStatus = rotateSharedVisorWebAppUrl_(params.url || params.webappUrl, {
+      sendAccessGuide: String(params.sendGuide || params.notify || '1').trim() !== '0'
+    });
+    if (params.callback || String(params.format || '').trim().toLowerCase() === 'json') {
+      return outputPayload_(rotateSharedWebAppStatus, params);
+    }
+    return buildSharedTrackingActionHtml_(rotateSharedWebAppStatus, getTrackingWebAppUrl_(), {
+      actionLabel: 'Rotación de enlace compartido del visor PEC',
+      successTitle: 'Enlace compartido actualizado',
+      failureTitle: 'No se pudo actualizar el enlace compartido'
+    });
+  }
+  if (params.action === 'visor_confirm_legacy_webapp_disabled') {
+    var legacyDisabledStatus = confirmSharedVisorLegacyWebAppDisabled_(params.url || params.webappUrl);
+    if (params.callback || String(params.format || '').trim().toLowerCase() === 'json') {
+      return outputPayload_(legacyDisabledStatus, params);
+    }
+    return buildSharedTrackingActionHtml_(legacyDisabledStatus, getTrackingWebAppUrl_(), {
+      actionLabel: 'Cierre de acceso legacy del visor PEC',
+      successTitle: 'Acceso legacy marcado como deshabilitado',
+      failureTitle: 'No se pudo registrar el cierre del acceso legacy'
     });
   }
   if (params.action === 'visor_due_tracking_status') {
@@ -2806,6 +2844,7 @@ function getSharedTrackingAdminExecutiveSummaryStatus() {
   var triggers = getAdminExecutiveSummaryTriggers_();
   var markerState = readOperationalMarkerState_('ADMIN_SUMMARY');
   var audience = buildSharedTrackingOperationalAudience_();
+  var sharedVisorAccess = getSharedVisorWebAppAccessStatus_();
   return {
     ok: true,
     actor: getSharedTrackingActor_(),
@@ -2826,8 +2865,11 @@ function getSharedTrackingAdminExecutiveSummaryStatus() {
     expectedAudienceCount: audience.length,
     expectedAudience: audience,
     webappUrl: getTrackingWebAppUrl_(),
+    sharedVisorAccess: sharedVisorAccess,
     message: config.recipients.length
-      ? 'Resumen ejecutivo admin listo para enviarse a los administradores con respaldo de auditoría y backup.'
+      ? (sharedVisorAccess.announcementPending || sharedVisorAccess.legacyDisablePending
+        ? 'Resumen ejecutivo admin listo, pero el enlace compartido requiere notificación o cierre de acceso legacy.'
+        : 'Resumen ejecutivo admin listo para enviarse a los administradores con respaldo de auditoría y backup.')
       : 'No se detectaron correos administradores para enviar el resumen ejecutivo nocturno.'
   };
 }
@@ -4159,7 +4201,7 @@ function sendDueTrackingEmails() {
 
 // Correo manual de orientación para que el equipo DGPPCS entre al visor con el
 // enlace compartido y una guía ligera alojada en GitHub Pages.
-function sendSharedVisorAccessGuideEmail_() {
+function sendSharedVisorAccessGuideEmail_(options) {
   if (!isSharedTrackingAdmin_()) {
     return {
       ok: false,
@@ -4168,13 +4210,8 @@ function sendSharedVisorAccessGuideEmail_() {
       message: 'No autorizado para enviar la guía de acceso al visor.'
     };
   }
-  var emailDirectory = getTrackingNotificationEmailDirectory_();
-  var emailMap = getTrackingNotificationEmailMap_();
-  var recipients = Array.from(new Set(
-    emailDirectory.map(function(entry) { return String(entry && entry.email || '').trim().toLowerCase(); })
-      .concat(getTrackingNotificationDgppcsRecipients_(emailMap))
-      .filter(Boolean)
-  ));
+  var safeOptions = options && typeof options === 'object' ? options : {};
+  var recipients = getSharedVisorAccessGuideRecipients_();
   if (!recipients.length) {
     return {
       ok: false,
@@ -4185,44 +4222,197 @@ function sendSharedVisorAccessGuideEmail_() {
       message: 'No hay correos configurados para enviar la guía de acceso al visor.'
     };
   }
-  var webappUrl = getTrackingWebAppUrl_();
+  var actor = String(getSharedTrackingActor_() || 'admin_manual').trim();
+  var webappUrl = ensureSharedVisorViewUrl_(safeOptions.webappUrl || getTrackingWebAppUrl_());
   var guideUrl = PANEL_PUBLIC_VISOR_GUIDE_URL;
   var sentAt = new Date();
   var generatedAtLabel = formatTrackingDateTime_(sentAt);
-  var subject = 'PEC | Acceso al visor compartido y guía rápida de uso';
-  var htmlBody = buildSharedVisorAccessGuideHtml_(webappUrl, guideUrl, generatedAtLabel);
-  var plainBody = buildSharedVisorAccessGuidePlainText_(webappUrl, guideUrl, generatedAtLabel);
+  var legacyUrl = ensureSharedVisorViewUrl_(safeOptions.legacyUrl || '');
+  var reason = String(safeOptions.reason || '').trim().toLowerCase();
+  var isUrlRotation = reason === 'url_rotation' || (
+    legacyUrl &&
+    normalizeSharedVisorWebAppBaseUrl_(legacyUrl) !== normalizeSharedVisorWebAppBaseUrl_(webappUrl)
+  );
+  var subject = isUrlRotation
+    ? 'PEC | Nuevo enlace del visor compartido y guía rápida'
+    : 'PEC | Acceso al visor compartido y guía rápida de uso';
+  var htmlBody = buildSharedVisorAccessGuideHtml_(webappUrl, guideUrl, generatedAtLabel, {
+    isUrlRotation: isUrlRotation
+  });
+  var plainBody = buildSharedVisorAccessGuidePlainText_(webappUrl, guideUrl, generatedAtLabel, {
+    isUrlRotation: isUrlRotation
+  });
   recipients.forEach(function(recipient) {
     MailApp.sendEmail(recipient, subject, plainBody, {
       htmlBody: htmlBody,
       name: 'Visor de Seguimiento PEC'
     });
   });
+  markOperationalDelivery_('ACCESS_GUIDE', 'sendSharedVisorAccessGuideEmail', recipients, sentAt.toISOString());
+  markSharedVisorWebAppAnnouncement_(webappUrl, actor);
   appendSharedTrackingAudit_({
     at: sentAt.toISOString(),
-    actor: String(getSharedTrackingActor_() || 'admin_manual').trim(),
+    actor: actor,
     action: 'enviar_guia_acceso_visor',
     origin: 'sendSharedVisorAccessGuideEmail',
-    detail: 'Guía de acceso al visor enviada | Destinatarios: ' + recipients.length,
+    detail: (isUrlRotation ? 'Nuevo enlace del visor comunicado' : 'Guía de acceso al visor enviada') + ' | Destinatarios: ' + recipients.length,
     summary: {
       total: recipients.length,
       recipients: recipients,
       webappUrl: webappUrl,
-      guideUrl: guideUrl
+      guideUrl: guideUrl,
+      reason: reason || 'manual',
+      previousWebappUrl: legacyUrl,
+      canonicalDeploymentId: extractSharedVisorDeploymentId_(webappUrl)
     },
     recipients: recipients,
     effectiveRecipients: recipients
   });
   return {
     ok: true,
-    actor: String(getSharedTrackingActor_() || 'admin_manual').trim(),
+    actor: actor,
     admin: true,
     sentAt: sentAt.toISOString(),
     sentCount: recipients.length,
     recipients: recipients,
     webappUrl: webappUrl,
     guideUrl: guideUrl,
-    message: 'Se envió el acceso al visor y la guía rápida a los correos DGPPCS configurados.'
+    reason: reason || 'manual',
+    previousWebappUrl: legacyUrl,
+    canonicalDeploymentId: extractSharedVisorDeploymentId_(webappUrl),
+    urlChanged: Boolean(isUrlRotation),
+    message: isUrlRotation
+      ? 'Se envió el nuevo enlace canónico del visor y la guía rápida a los correos DGPPCS configurados.'
+      : 'Se envió el acceso al visor y la guía rápida a los correos DGPPCS configurados.'
+  };
+}
+
+function rotateSharedVisorWebAppUrl_(webappUrl, options) {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para cambiar la URL compartida del visor.'
+    };
+  }
+  var safeOptions = options && typeof options === 'object' ? options : {};
+  var nextUrl = ensureSharedVisorViewUrl_(webappUrl);
+  if (!isCanonicalSharedVisorUrl_(nextUrl)) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: true,
+      message: 'La URL propuesta no corresponde a un Web App válido de Apps Script.'
+    };
+  }
+  var actor = String(getSharedTrackingActor_() || 'admin_manual').trim();
+  var previousUrl = getTrackingWebAppUrl_();
+  var changed = normalizeSharedVisorWebAppBaseUrl_(previousUrl) !== normalizeSharedVisorWebAppBaseUrl_(nextUrl);
+  var props = PropertiesService.getScriptProperties();
+  var keys = getSharedVisorWebAppPolicyKeys_();
+  setOrDeleteScriptProperty_(props, 'PEC_VISOR_WEBAPP_URL', nextUrl);
+  if (changed) {
+    setOrDeleteScriptProperty_(props, keys.pendingLegacyUrl, previousUrl);
+    setOrDeleteScriptProperty_(props, keys.pendingLegacyDeploymentId, extractSharedVisorDeploymentId_(previousUrl));
+    setOrDeleteScriptProperty_(props, keys.lastRotationAt, new Date().toISOString());
+    setOrDeleteScriptProperty_(props, keys.lastRotationBy, actor);
+    props.deleteProperty(keys.legacyDisabledAt);
+    props.deleteProperty(keys.legacyDisabledBy);
+    props.deleteProperty(keys.legacyDisabledUrl);
+  }
+  var notification = null;
+  if (safeOptions.sendAccessGuide !== false) {
+    notification = sendSharedVisorAccessGuideEmail_({
+      webappUrl: nextUrl,
+      legacyUrl: changed ? previousUrl : '',
+      reason: changed ? 'url_rotation' : 'manual_refresh'
+    });
+  }
+  appendSharedTrackingAudit_({
+    at: new Date().toISOString(),
+    actor: actor,
+    action: 'actualizar_url_compartida_visor',
+    origin: 'rotateSharedVisorWebAppUrl',
+    detail: 'URL compartida del visor actualizada' + (changed ? ' | Rotación con enlace legacy pendiente de retiro.' : ' | Sin cambio de deployment.'),
+    summary: {
+      previousWebappUrl: previousUrl,
+      webappUrl: nextUrl,
+      changed: changed,
+      sendAccessGuide: safeOptions.sendAccessGuide !== false
+    },
+    webappUrl: nextUrl
+  });
+  return {
+    ok: true,
+    actor: actor,
+    admin: true,
+    changed: changed,
+    previousWebappUrl: previousUrl,
+    webappUrl: nextUrl,
+    canonicalDeploymentId: extractSharedVisorDeploymentId_(nextUrl),
+    notification: notification,
+    sharedVisorAccess: getSharedVisorWebAppAccessStatus_(),
+    message: changed
+      ? 'La URL canónica del visor quedó actualizada. El nuevo enlace fue preparado para notificación y el acceso legacy debe deshabilitarse operativamente.'
+      : 'La URL canónica del visor quedó confirmada sin cambiar el deployment.'
+  };
+}
+
+function confirmSharedVisorLegacyWebAppDisabled_(webappUrl) {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para registrar el cierre del acceso legacy del visor.'
+    };
+  }
+  var safeUrl = ensureSharedVisorViewUrl_(webappUrl);
+  if (!safeUrl) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: true,
+      message: 'Indica la URL legacy que fue deshabilitada.'
+    };
+  }
+  var actor = String(getSharedTrackingActor_() || 'admin_manual').trim();
+  var props = PropertiesService.getScriptProperties();
+  var keys = getSharedVisorWebAppPolicyKeys_();
+  var pendingLegacyUrl = ensureSharedVisorViewUrl_(props.getProperty(keys.pendingLegacyUrl) || '');
+  if (pendingLegacyUrl && normalizeSharedVisorWebAppBaseUrl_(pendingLegacyUrl) !== normalizeSharedVisorWebAppBaseUrl_(safeUrl)) {
+    return {
+      ok: false,
+      actor: actor,
+      admin: true,
+      pendingLegacyUrl: pendingLegacyUrl,
+      message: 'La URL legacy indicada no coincide con la pendiente de deshabilitación registrada.'
+    };
+  }
+  setOrDeleteScriptProperty_(props, keys.legacyDisabledUrl, safeUrl);
+  setOrDeleteScriptProperty_(props, keys.legacyDisabledAt, new Date().toISOString());
+  setOrDeleteScriptProperty_(props, keys.legacyDisabledBy, actor);
+  appendSharedTrackingAudit_({
+    at: new Date().toISOString(),
+    actor: actor,
+    action: 'confirmar_cierre_acceso_legacy_visor',
+    origin: 'confirmSharedVisorLegacyWebAppDisabled',
+    detail: 'Se confirmó el retiro operativo del acceso legacy al visor compartido.',
+    summary: {
+      legacyWebappUrl: safeUrl,
+      legacyDeploymentId: extractSharedVisorDeploymentId_(safeUrl)
+    },
+    webappUrl: safeUrl
+  });
+  return {
+    ok: true,
+    actor: actor,
+    admin: true,
+    legacyWebappUrl: safeUrl,
+    legacyDeploymentId: extractSharedVisorDeploymentId_(safeUrl),
+    sharedVisorAccess: getSharedVisorWebAppAccessStatus_(),
+    message: 'Se registró que el acceso legacy del visor compartido ya fue deshabilitado.'
   };
 }
 
@@ -4290,7 +4480,8 @@ function getSharedTrackingOperationalControlStatus() {
   var dueTracking = getDueTrackingNotificationStatus();
   var adminSummary = getSharedTrackingAdminExecutiveSummaryStatus();
   var backend = getSharedTrackingBackendMeta_();
-  var products = buildSharedTrackingOperationalProducts_(dailyReport, dueTracking);
+  var sharedVisorAccess = getSharedVisorWebAppAccessStatus_();
+  var products = buildSharedTrackingOperationalProducts_(dailyReport, dueTracking, sharedVisorAccess);
   var actorMeta = buildAuditActorMeta_(resolveSharedTrackingPermissionContext_(''));
   appendSharedTrackingAudit_({
     at: new Date().toISOString(),
@@ -4317,7 +4508,10 @@ function getSharedTrackingOperationalControlStatus() {
     adminSummary && adminSummary.ok !== false &&
     dailyReport.dispatchEnabled &&
     dueTracking.dispatchEnabled &&
-    adminSummary.triggerEnabled
+    adminSummary.triggerEnabled &&
+    sharedVisorAccess &&
+    !sharedVisorAccess.announcementPending &&
+    !sharedVisorAccess.legacyDisablePending
   );
   return {
     ok: true,
@@ -4327,17 +4521,24 @@ function getSharedTrackingOperationalControlStatus() {
     dailyReport: dailyReport,
     dueTracking: dueTracking,
     adminSummary: adminSummary,
+    sharedVisorAccess: sharedVisorAccess,
     products: products,
     controlReady: controlReady,
     message: controlReady
-      ? 'Centro de control operativo listo para recordatorio matutino, resumen admin y correos automáticos.'
-      : 'Centro de control operativo con puntos por revisar antes del siguiente corte automático.'
+      ? 'Centro de control operativo listo para recordatorio matutino, resumen admin, correos automáticos y enlace compartido vigente.'
+      : 'Centro de control operativo con puntos por revisar antes del siguiente corte automático o rotación de enlace.'
   };
 }
 
-function buildSharedTrackingOperationalProducts_(dailyReport, dueTracking) {
+function buildSharedTrackingOperationalProducts_(dailyReport, dueTracking, sharedVisorAccess) {
   var dailyReady = Boolean(dailyReport && dailyReport.ok !== false && dailyReport.dispatchEnabled);
   var dueReady = Boolean(dueTracking && dueTracking.ok !== false && dueTracking.dispatchEnabled);
+  var accessReady = Boolean(sharedVisorAccess && !sharedVisorAccess.announcementPending && !sharedVisorAccess.legacyDisablePending);
+  var accessStatus = sharedVisorAccess && sharedVisorAccess.legacyDisablePending
+    ? 'Requiere retirar acceso legacy'
+    : (sharedVisorAccess && sharedVisorAccess.announcementPending
+      ? 'Requiere enviar enlace actualizado'
+      : (accessReady ? 'Operativo' : 'Revisar'));
   return [
     {
       key: 'daily_audit_report',
@@ -4362,6 +4563,14 @@ function buildSharedTrackingOperationalProducts_(dailyReport, dueTracking) {
       source: 'Filtros, fichas y seguimiento del visor',
       output: 'Pendientes, responsables, alertas y presión operativa por seguimiento.',
       status: dueTracking && dueTracking.disabled ? 'Desactivado' : (dueReady ? 'Lista para operación' : 'Lista con revisión pendiente')
+    },
+    {
+      key: 'shared_visor_access',
+      title: 'Enlace canónico del visor compartido',
+      cadence: 'Bajo cambio de deployment',
+      source: 'URL canónica del Web App, guía de acceso y control de deployments legacy',
+      output: 'Difusión del enlace vigente a usuarios y retiro operativo de accesos pasados cuando cambie la URL.',
+      status: accessStatus
     }
   ];
 }
@@ -5264,9 +5473,16 @@ function buildDueTrackingEmailPlainText_(person, items, generatedAt, webappUrl, 
   ].filter(Boolean).join('\n');
 }
 
-function buildSharedVisorAccessGuideHtml_(webappUrl, guideUrl, generatedAtLabel) {
+function buildSharedVisorAccessGuideHtml_(webappUrl, guideUrl, generatedAtLabel, options) {
+  var safeOptions = options && typeof options === 'object' ? options : {};
   var safeVisorUrl = ensureSharedVisorViewUrl_(webappUrl || getTrackingWebAppUrl_());
   var safeGuideUrl = String(guideUrl || PANEL_PUBLIC_VISOR_GUIDE_URL).trim();
+  var rotationNotice = safeOptions.isUrlRotation
+    ? '<div style="padding:14px 16px;border-left:4px solid #dc2626;background:#fef2f2;border-radius:12px;margin-bottom:18px;">'
+      + '<b>Nuevo enlace operativo</b>'
+      + '<div style="margin-top:8px;">Usa únicamente el enlace incluido en este correo. Si conservas un acceso anterior del visor compartido, déjalo de usar porque el acceso legacy será retirado del servicio operativo.</div>'
+      + '</div>'
+    : '';
   return ''
     + '<div style="font-family:Arial,Helvetica,sans-serif;color:#1f2937;line-height:1.6;background:#f5f7fb;padding:24px;">'
     + '<div style="max-width:760px;margin:0 auto;background:#ffffff;border:1px solid #dbe5f0;border-radius:16px;overflow:hidden;">'
@@ -5277,6 +5493,7 @@ function buildSharedVisorAccessGuideHtml_(webappUrl, guideUrl, generatedAtLabel)
     + '</div>'
     + '<div style="padding:22px 24px;">'
     + '<p style="margin:0 0 14px;">Fecha de envío: <b>' + escapeHtmlEmail_(generatedAtLabel) + '</b></p>'
+    + rotationNotice
     + '<div style="padding:14px 16px;border-left:4px solid #1d4ed8;background:#eff6ff;border-radius:12px;margin-bottom:18px;">'
     + '<b>Cómo entrar</b>'
     + '<ol style="margin:10px 0 0 18px;padding:0;">'
@@ -5308,13 +5525,16 @@ function buildSharedVisorAccessGuideHtml_(webappUrl, guideUrl, generatedAtLabel)
     + '</div></div></div>';
 }
 
-function buildSharedVisorAccessGuidePlainText_(webappUrl, guideUrl, generatedAtLabel) {
+function buildSharedVisorAccessGuidePlainText_(webappUrl, guideUrl, generatedAtLabel, options) {
+  var safeOptions = options && typeof options === 'object' ? options : {};
   var safeVisorUrl = ensureSharedVisorViewUrl_(webappUrl || getTrackingWebAppUrl_());
   var safeGuideUrl = String(guideUrl || PANEL_PUBLIC_VISOR_GUIDE_URL).trim();
   return [
     'ACCESO AL VISOR COMPARTIDO PEC',
     'Fecha de envio: ' + generatedAtLabel,
     '',
+    safeOptions.isUrlRotation ? 'IMPORTANTE: Usa solo este nuevo enlace del visor compartido. Si conservas un acceso anterior, dejalo de usar porque el acceso legacy sera retirado del servicio operativo.' : '',
+    safeOptions.isUrlRotation ? '' : '',
     'Como entrar:',
     '1. Abre el visor compartido desde este enlace: ' + safeVisorUrl,
     '2. Si Google solicita autenticacion, ingresa con tu cuenta institucional autorizada.',
@@ -5538,6 +5758,16 @@ function splitEmailList_(value) {
     });
 }
 
+function getSharedVisorAccessGuideRecipients_() {
+  var emailDirectory = getTrackingNotificationEmailDirectory_();
+  var emailMap = getTrackingNotificationEmailMap_();
+  return Array.from(new Set(
+    emailDirectory.map(function(entry) { return String(entry && entry.email || '').trim().toLowerCase(); })
+      .concat(getTrackingNotificationDgppcsRecipients_(emailMap))
+      .filter(Boolean)
+  ));
+}
+
 function getSharedTrackingAdminEmailList_() {
   const configured = splitEmailList_(PropertiesService.getScriptProperties().getProperty('PEC_VISOR_ADMIN_EMAILS') || '');
   return Array.from(new Set(configured.concat(splitEmailList_(OPERATIONAL_DEFAULTS.sharedTrackingAdminEmails.join(';')))));
@@ -5716,8 +5946,100 @@ function ensureSharedVisorViewUrl_(url) {
   return raw + (raw.indexOf('?') >= 0 ? '&view=visor' : '?view=visor');
 }
 
+function normalizeSharedVisorWebAppBaseUrl_(url) {
+  return String(url || '')
+    .trim()
+    .replace(/#.*/, '')
+    .replace(/\?.*$/, '')
+    .replace(/\/+$/, '');
+}
+
 function isCanonicalSharedVisorUrl_(url) {
-  return String(url || '').trim().toLowerCase().indexOf(SHARED_VISOR_CANONICAL_WEBAPP_BASE.toLowerCase()) === 0;
+  var base = normalizeSharedVisorWebAppBaseUrl_(url);
+  return /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/i.test(base);
+}
+
+function extractSharedVisorDeploymentId_(url) {
+  var match = normalizeSharedVisorWebAppBaseUrl_(url).match(/\/macros\/s\/([^\/?#]+)\/exec$/i);
+  return match ? String(match[1] || '').trim() : '';
+}
+
+function getSharedVisorWebAppPolicyKeys_() {
+  return {
+    lastAnnouncedUrl: 'PEC_VISOR_LAST_ANNOUNCED_WEBAPP_URL',
+    lastAnnouncedDeploymentId: 'PEC_VISOR_LAST_ANNOUNCED_WEBAPP_DEPLOYMENT_ID',
+    pendingLegacyUrl: 'PEC_VISOR_PENDING_LEGACY_WEBAPP_URL',
+    pendingLegacyDeploymentId: 'PEC_VISOR_PENDING_LEGACY_WEBAPP_DEPLOYMENT_ID',
+    legacyDisabledUrl: 'PEC_VISOR_LEGACY_WEBAPP_DISABLED_URL',
+    legacyDisabledAt: 'PEC_VISOR_LEGACY_WEBAPP_DISABLED_AT',
+    legacyDisabledBy: 'PEC_VISOR_LEGACY_WEBAPP_DISABLED_BY',
+    lastRotationAt: 'PEC_VISOR_LAST_WEBAPP_ROTATION_AT',
+    lastRotationBy: 'PEC_VISOR_LAST_WEBAPP_ROTATION_BY'
+  };
+}
+
+function markSharedVisorWebAppAnnouncement_(webappUrl, actor) {
+  var props = PropertiesService.getScriptProperties();
+  var keys = getSharedVisorWebAppPolicyKeys_();
+  var safeUrl = ensureSharedVisorViewUrl_(webappUrl);
+  setOrDeleteScriptProperty_(props, keys.lastAnnouncedUrl, safeUrl);
+  setOrDeleteScriptProperty_(props, keys.lastAnnouncedDeploymentId, extractSharedVisorDeploymentId_(safeUrl));
+  if (actor) setOrDeleteScriptProperty_(props, keys.lastRotationBy, actor);
+}
+
+function getSharedVisorWebAppAccessStatus_() {
+  if (!isSharedTrackingAdmin_()) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: false,
+      message: 'No autorizado para revisar la política del enlace compartido.'
+    };
+  }
+  var props = PropertiesService.getScriptProperties();
+  var keys = getSharedVisorWebAppPolicyKeys_();
+  var canonicalUrl = getTrackingWebAppUrl_();
+  var recipients = getSharedVisorAccessGuideRecipients_();
+  var lastAnnouncedUrl = ensureSharedVisorViewUrl_(props.getProperty(keys.lastAnnouncedUrl) || '');
+  var pendingLegacyUrl = ensureSharedVisorViewUrl_(props.getProperty(keys.pendingLegacyUrl) || '');
+  var legacyDisabledUrl = ensureSharedVisorViewUrl_(props.getProperty(keys.legacyDisabledUrl) || '');
+  var markerState = readOperationalMarkerState_('ACCESS_GUIDE');
+  var canonicalBase = normalizeSharedVisorWebAppBaseUrl_(canonicalUrl);
+  var announcementPending = !lastAnnouncedUrl || normalizeSharedVisorWebAppBaseUrl_(lastAnnouncedUrl) !== canonicalBase;
+  var legacyDisablePending = Boolean(
+    pendingLegacyUrl &&
+    normalizeSharedVisorWebAppBaseUrl_(pendingLegacyUrl) !== canonicalBase &&
+    normalizeSharedVisorWebAppBaseUrl_(legacyDisabledUrl) !== normalizeSharedVisorWebAppBaseUrl_(pendingLegacyUrl)
+  );
+  return {
+    ok: true,
+    actor: getSharedTrackingActor_(),
+    admin: true,
+    canonicalUrl: canonicalUrl,
+    canonicalDeploymentId: extractSharedVisorDeploymentId_(canonicalUrl),
+    recipients: recipients,
+    recipientsCount: recipients.length,
+    lastAnnouncedUrl: lastAnnouncedUrl,
+    lastAnnouncedDeploymentId: String(props.getProperty(keys.lastAnnouncedDeploymentId) || '').trim(),
+    announcementPending: announcementPending,
+    pendingLegacyUrl: pendingLegacyUrl,
+    pendingLegacyDeploymentId: String(props.getProperty(keys.pendingLegacyDeploymentId) || '').trim(),
+    legacyDisabledUrl: legacyDisabledUrl,
+    legacyDisabledAt: String(props.getProperty(keys.legacyDisabledAt) || '').trim(),
+    legacyDisabledBy: String(props.getProperty(keys.legacyDisabledBy) || '').trim(),
+    legacyDisablePending: legacyDisablePending,
+    lastRotationAt: String(props.getProperty(keys.lastRotationAt) || '').trim(),
+    lastRotationBy: String(props.getProperty(keys.lastRotationBy) || '').trim(),
+    lastGuideDeliveryAt: markerState.lastDeliveryAt,
+    lastGuideDeliveryOrigin: markerState.lastDeliveryOrigin,
+    lastGuideRecipientsCount: markerState.lastDeliveryRecipients.length,
+    lastGuideRecipients: markerState.lastDeliveryRecipients,
+    message: legacyDisablePending
+      ? 'El nuevo enlace ya puede comunicarse, pero todavía debe retirarse el acceso legacy del deployment anterior.'
+      : (announcementPending
+        ? 'La URL canónica cambió o aún no fue comunicada a los usuarios del visor.'
+        : 'La URL canónica del visor ya fue comunicada y no hay acceso legacy pendiente de retiro.')
+  };
 }
 
 function getTrackingWebAppUrl_() {

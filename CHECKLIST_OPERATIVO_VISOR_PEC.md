@@ -53,6 +53,13 @@ Uso recomendado:
 - snapshots y backup operativo;
 - acceso con cuenta Google autorizada cuando el despliegue redirige a Sign-In.
 
+Si cambia la URL base del Web App compartido:
+
+1. actualizar la URL canónica del visor;
+2. reenviar el acceso al nuevo enlace a los correos operativos;
+3. retirar el deployment legacy anterior para que no siga accesible;
+4. no asumir que una nueva versión dentro del mismo deployment cambia la URL, porque normalmente el enlace `exec` permanece igual.
+
 ## 2. Carga e importación de información
 
 ### Leer Excel o CSV
@@ -237,6 +244,16 @@ Acciones esperadas:
 3. Si es GitHub Pages, recargar con `?v=<commit>`.
 4. Si es Apps Script, esperar el polling periódico o refrescar la página.
 5. Si el backend falla, revisar el mensaje de fallback local.
+
+## 7.1 Qué hacer si cambia el enlace del Web App compartido
+
+1. Confirmar cuál será la nueva URL canónica `.../exec?view=visor`.
+2. Comunicar el nuevo enlace a los usuarios por el correo de acceso del visor.
+3. Retirar el deployment anterior si el cambio implicó una nueva URL base.
+4. Confirmar en el centro operativo que:
+   - no queda aviso pendiente de guía/enlace;
+   - no queda acceso legacy pendiente de retiro.
+5. Probar el nuevo enlace con `?view=visor` y cuenta autorizada.
 
 ## 8. Qué hacer si hay conflicto o concurrencia
 

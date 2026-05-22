@@ -6484,6 +6484,89 @@ function applySharedStateBundle(bundle, options){
   if(!(options && options.skipRenderHero)) renderHero();
 }
 
+function buildCurrentCaseExpectedSaveSnapshot(recordId){
+  const targetId = text(recordId || appState.selectedId);
+  const noteEntry = getCaseNoteEntry(targetId);
+  const editEntry = appState.edits && appState.edits[targetId] && typeof appState.edits[targetId] === 'object'
+    ? {...appState.edits[targetId]}
+    : null;
+  return {
+    recordId: targetId,
+    expectedRevisionMin: Number(appState.remoteRevision || 0) + 1,
+    alias: text(appState.aliases && appState.aliases[targetId]),
+    note: text(noteEntry.note),
+    action: text(noteEntry.action),
+    edit: editEntry
+  };
+}
+
+function normalizeSharedSaveComparisonValue(value){
+  if(value == null) return '';
+  if(typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return text(value);
+}
+
+function validateSharedCaseSaveResult(state, snapshot){
+  const safeSnapshot = snapshot && typeof snapshot === 'object' ? snapshot : null;
+  if(!safeSnapshot || !text(safeSnapshot.recordId)){
+    return {ok:true};
+  }
+  const normalizedState = normalizeSharedStateBundle(state);
+  const currentRevision = Number(normalizedState.revision || 0);
+  if(currentRevision < Number(safeSnapshot.expectedRevisionMin || 0)){
+    return {
+      ok:false,
+      message:'Apps Script respondió sin confirmar una nueva revisión del estado compartido para esta ficha.'
+    };
+  }
+  const persistedEdit = normalizedState.edits && normalizedState.edits[safeSnapshot.recordId] && typeof normalizedState.edits[safeSnapshot.recordId] === 'object'
+    ? normalizedState.edits[safeSnapshot.recordId]
+    : null;
+  const expectedEdit = safeSnapshot.edit && typeof safeSnapshot.edit === 'object' ? safeSnapshot.edit : null;
+  const fields = Array.from(new Set([]
+    .concat(expectedEdit ? Object.keys(expectedEdit) : [])
+    .concat(persistedEdit ? Object.keys(persistedEdit) : [])
+  ));
+  for(const field of fields){
+    const expectedValue = normalizeSharedSaveComparisonValue(expectedEdit ? expectedEdit[field] : '');
+    const persistedValue = normalizeSharedSaveComparisonValue(persistedEdit ? persistedEdit[field] : '');
+    if(expectedValue !== persistedValue){
+      return {
+        ok:false,
+        message:'Apps Script respondió, pero el campo "' + field + '" no volvió con el valor esperado en la ficha compartida.'
+      };
+    }
+  }
+  const persistedNoteEntry = normalizedState.notes && normalizedState.notes[safeSnapshot.recordId]
+    ? normalizedState.notes[safeSnapshot.recordId]
+    : {note:'', action:''};
+  if(normalizeSharedSaveComparisonValue(safeSnapshot.note) !== normalizeSharedSaveComparisonValue(persistedNoteEntry.note)){
+    return {
+      ok:false,
+      message:'Apps Script respondió, pero el comentario local no quedó confirmado en el estado compartido.'
+    };
+  }
+  if(normalizeSharedSaveComparisonValue(safeSnapshot.action) !== normalizeSharedSaveComparisonValue(persistedNoteEntry.action)){
+    return {
+      ok:false,
+      message:'Apps Script respondió, pero el próximo paso no quedó confirmado en el estado compartido.'
+    };
+  }
+  const persistedAlias = text(normalizedState.aliases && normalizedState.aliases[safeSnapshot.recordId]);
+  if(normalizeSharedSaveComparisonValue(safeSnapshot.alias) !== normalizeSharedSaveComparisonValue(persistedAlias)){
+    return {
+      ok:false,
+      message:'Apps Script respondió, pero el título visible no quedó confirmado en el estado compartido.'
+    };
+  }
+  return {
+    ok:true,
+    revision: currentRevision,
+    savedAt: text(normalizedState.savedAt),
+    savedBy: text(normalizedState.savedBy)
+  };
+}
+
 function clearSharedSyncWatchdog(){
   if(sharedSyncWatchdogTimer){
     clearTimeout(sharedSyncWatchdogTimer);
@@ -6643,12 +6726,17 @@ function setAttachmentSyncState(status, options){
   }
 }
 
-function scheduleSharedSync(reason){
+function scheduleSharedSync(reason, options){
   if(isPublicReadOnlyChannel()) return;
   if(!isSharedBackendMode()) return;
+  const immediate = Boolean(options && options.immediate);
   pendingSharedSyncReason = text(reason) || pendingSharedSyncReason || 'actualizacion';
   appState.hasUnsyncedSharedChanges = true;
   if(sharedSyncTimer) clearTimeout(sharedSyncTimer);
+  if(immediate){
+    flushSharedSync();
+    return;
+  }
   sharedSyncTimer = setTimeout(flushSharedSync, 350);
 }
 
@@ -6737,6 +6825,25 @@ function flushSharedSync(){
         return;
       }
       if(result && result.ok && result.state){
+        const confirmation = pendingDrawerSave && pendingDrawerSave.expectedSnapshot
+          ? validateSharedCaseSaveResult(result.state, pendingDrawerSave.expectedSnapshot)
+          : {ok:true};
+        if(!confirmation.ok){
+          appState.hasUnsyncedSharedChanges = true;
+          const savedRecordId = pendingDrawerSave && text(pendingDrawerSave.recordId) ? text(pendingDrawerSave.recordId) : text(selectedId);
+          pendingDrawerCloseAfterSharedSave = null;
+          const detail = text(confirmation.message) || 'Apps Script respondió, pero la ficha recargada no reflejó los cambios esperados.';
+          setSharedError(detail, 'conflict');
+          setImportFeedback('Guardado no confirmado', detail + ' La ficha sigue abierta para revisar y volver a intentar.', 'warn');
+          if(savedRecordId){
+            refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:savedRecordId});
+            setCaseAttachmentFeedback('Guardado no confirmado', detail, 'warn');
+          }
+          renderOperationsStatus();
+          renderCaseDrawerActionState(savedRecordId);
+          if(pendingSharedSyncReason) flushSharedSync();
+          return;
+        }
         applySharedStateBundle(result.state, {skipRenderHero:true});
         renderHero();
         initFilters();
@@ -11888,17 +11995,16 @@ function saveCurrentCase(){
   if(isSharedBackendMode()){
     pendingDrawerCloseAfterSharedSave = {
       recordId: reopenId,
-      expandedSnapshot
+      expandedSnapshot,
+      expectedSnapshot: buildCurrentCaseExpectedSaveSnapshot(reopenId)
     };
     setImportFeedback(
       'Guardando ficha',
       'Apps Script está sincronizando esta ficha. El drawer se cerrará cuando confirme el guardado compartido.',
       'info'
     );
-    refreshDerivedViews({rebuildFilters:true, reapplyFilters:true, drawerRecordId:reopenId});
-    revealRecordInGantt(reopenId, {instant:true});
     renderCaseDrawerActionState(reopenId);
-    scheduleSharedSync('guardar_ficha');
+    scheduleSharedSync('guardar_ficha', {immediate:true});
     return;
   }
   closeDrawer(true);

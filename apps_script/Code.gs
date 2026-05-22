@@ -80,6 +80,7 @@ const OPERATIONAL_DEFAULTS = {
   sharedTrackingAdminEmails: ['dpardave@gmail.com'],
   sharedTrackingOperationalEmails: [],
   dgppcsSummaryRecipients: ['mmelletp@yahoo.com'],
+  enableUserDailyEmails: false,
   dailyReportMode: 'REAL',
   dailyReportSendHour: 9,
   adminSummarySendHour: 21,
@@ -2751,6 +2752,7 @@ function getSharedTrackingDailyReportDeliveryStatus() {
   const triggers = getDailyAuditReportTriggers_();
   const recipients = config.mode === 'TEST_REDIRECT' ? config.testRecipients : config.to;
   const markerState = readOperationalMarkerState_('DAILY_REPORT');
+  const dispatchEnabled = Boolean(config.userDailyEmailsEnabled && config.mode === 'REAL' && config.realSendConfirmed && recipients.length);
   return {
     ok: true,
     actor: getSharedTrackingActor_(),
@@ -2770,6 +2772,9 @@ function getSharedTrackingDailyReportDeliveryStatus() {
     scheduleLabel: 'Lunes a viernes | ' + String(config.sendHour).padStart(2, '0') + ':00',
     triggerCount: triggers.length,
     triggerEnabled: triggers.length > 0,
+    dispatchEnabled: dispatchEnabled,
+    disabled: !config.userDailyEmailsEnabled,
+    disableReason: config.disableReason || '',
     lastExecutionAt: markerState.lastExecutionAt,
     lastExecutionOrigin: markerState.lastExecutionOrigin,
     lastDeliveryAt: markerState.lastDeliveryAt,
@@ -2778,7 +2783,9 @@ function getSharedTrackingDailyReportDeliveryStatus() {
     lastDeliveryRecipientsCount: markerState.lastDeliveryRecipients.length,
     hasConfiguredRecipients: config.to.length > 0,
     webappUrl: getTrackingWebAppUrl_(),
-    message: recipients.length
+    message: !config.userDailyEmailsEnabled
+      ? (config.disableReason || 'Los envíos diarios a usuarios están desactivados institucionalmente.')
+      : recipients.length
       ? ('Recordatorio operativo matutino preparado para ' + recipients.join(', ') + (config.usingAdminFallback ? ' usando PEC_VISOR_ADMIN_EMAILS.' : '.'))
       : 'Configura los destinatarios del recordatorio matutino antes del envío operativo.'
   };
@@ -2899,14 +2906,19 @@ function updateSharedTrackingDailyReportConfig(config) {
   const testRecipients = Object.prototype.hasOwnProperty.call(input, 'testRecipients')
     ? splitEmailList_(input.testRecipients)
     : current.testRecipients.slice();
-  const realSendConfirmed = Object.prototype.hasOwnProperty.call(input, 'realSendConfirmed')
+  let realSendConfirmed = Object.prototype.hasOwnProperty.call(input, 'realSendConfirmed')
     ? String(input.realSendConfirmed).trim().toUpperCase() === 'TRUE' || input.realSendConfirmed === true || String(input.realSendConfirmed).trim().toUpperCase() === 'SI'
     : current.realSendConfirmed;
+  let safeMode = mode;
+  if (!isUserDailyEmailDeliveryEnabled_()) {
+    safeMode = 'PREVIEW_ONLY';
+    realSendConfirmed = false;
+  }
   const sendHour = normalizeDailyAuditReportSendHour_(
     Object.prototype.hasOwnProperty.call(input, 'sendHour') ? input.sendHour : current.sendHour
   );
   const properties = PropertiesService.getScriptProperties();
-  setOrDeleteScriptProperty_(properties, 'PEC_VISOR_DAILY_REPORT_MODE', mode);
+  setOrDeleteScriptProperty_(properties, 'PEC_VISOR_DAILY_REPORT_MODE', safeMode);
   setOrDeleteScriptProperty_(properties, 'PEC_VISOR_DAILY_REPORT_TO', to.join(';'));
   setOrDeleteScriptProperty_(properties, 'PEC_VISOR_DAILY_REPORT_CC', cc.join(';'));
   setOrDeleteScriptProperty_(properties, 'PEC_VISOR_DAILY_REPORT_TEST_RECIPIENTS', testRecipients.join(';'));
@@ -2922,11 +2934,11 @@ function updateSharedTrackingDailyReportConfig(config) {
     declaredActor: actorMeta.declaredActor,
     action: 'configurar_reporte_diario',
     origin: 'updateSharedTrackingDailyReportConfig',
-    detail: 'Configuración del recordatorio operativo matutino actualizada | Modo: ' + mode + ' | Destinatarios: ' + (to.join(', ') || 'usar admins') + ' | Hora: ' + String(sendHour).padStart(2, '0') + ':00',
+    detail: 'Configuración del recordatorio operativo matutino actualizada | Modo: ' + safeMode + ' | Destinatarios: ' + (to.join(', ') || 'usar admins') + ' | Hora: ' + String(sendHour).padStart(2, '0') + ':00',
     summary: {
       total: 1,
       bySection: { dailyReportDelivery: 1 },
-      mode: mode,
+      mode: safeMode,
       recipients: to,
       cc: cc,
       testRecipients: testRecipients,
@@ -3023,6 +3035,19 @@ function createDailyAuditReportTrigger() {
     };
   }
   const config = getDailyAuditReportConfig_();
+  if (!config.userDailyEmailsEnabled) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: true,
+      created: false,
+      disabled: true,
+      mode: config.mode,
+      realSendConfirmed: config.realSendConfirmed,
+      sendHour: config.sendHour,
+      message: config.disableReason || 'Los envíos diarios a usuarios están desactivados institucionalmente.'
+    };
+  }
   if (config.mode !== 'REAL') {
     return {
       ok: false,
@@ -3162,6 +3187,18 @@ function deleteAdminExecutiveSummaryTriggers() {
 }
 
 function runDailyAuditReportEmail_() {
+  var config = getDailyAuditReportConfig_();
+  if (!config.userDailyEmailsEnabled) {
+    return {
+      ok: true,
+      actor: getSharedTrackingActor_() || 'trigger_reporte_diario',
+      admin: true,
+      skipped: true,
+      disabled: true,
+      mode: config.mode,
+      message: config.disableReason || 'Los envíos diarios a usuarios están desactivados institucionalmente.'
+    };
+  }
   if (!isOperationalWeekday_(new Date())) {
     markOperationalExecution_('DAILY_REPORT', 'trigger_diario_reporte');
     return {
@@ -3252,6 +3289,26 @@ function dispatchSharedTrackingDailyAuditReportEmail_(options) {
   );
   if (!preview.ok) return preview;
   markOperationalExecution_('DAILY_REPORT', String(options && options.origin || 'sendSharedTrackingDailyAuditReportEmail').trim());
+  if (!preview.userDailyEmailsEnabled) {
+    return {
+      ok: true,
+      actor: String(options && options.actor || getSharedTrackingActor_() || 'admin_manual').trim(),
+      admin: isSharedTrackingAdmin_(),
+      sent: false,
+      disabled: true,
+      mode: preview.mode,
+      recipients: preview.recipients,
+      effectiveRecipients: preview.effectiveRecipients,
+      cc: preview.cc,
+      testRecipients: preview.testRecipients,
+      realSendConfirmed: preview.realSendConfirmed,
+      sendHour: preview.sendHour,
+      reportDate: preview.report.date,
+      report: preview.report,
+      subject: preview.subject,
+      message: preview.disableReason || 'Los envíos diarios a usuarios están desactivados institucionalmente.'
+    };
+  }
   if (preview.mode === 'PREVIEW_ONLY') {
     return {
       ok: true,
@@ -3417,13 +3474,17 @@ function buildSharedTrackingDailyAuditEmailPreview_(date, options) {
     admin: isSharedTrackingAdmin_(),
     preview: true,
     mode: config.mode,
+    configuredMode: config.configuredMode,
     recipients: config.to.slice(),
     effectiveRecipients: recipients,
     to: recipients.join(','),
     cc: config.cc.slice(),
     testRecipients: config.testRecipients.slice(),
     realSendConfirmed: config.realSendConfirmed,
+    configuredRealSendConfirmed: config.configuredRealSendConfirmed,
     sendHour: config.sendHour,
+    userDailyEmailsEnabled: config.userDailyEmailsEnabled,
+    disableReason: config.disableReason,
     webappUrl: getTrackingWebAppUrl_(),
     report: report,
     subject: subject,
@@ -4165,6 +4226,7 @@ function getDueTrackingNotificationStatus() {
   var dgppcsRecipients = getTrackingNotificationDgppcsRecipients_(emailMap);
   var triggers = getDueTrackingNotificationTriggers_();
   var markerState = readOperationalMarkerState_('DUE_TRACKING');
+  var dispatchEnabled = Boolean(config.userDailyEmailsEnabled && isLiveDueTrackingNotificationMode_(config));
   return {
     ok: true,
     actor: getSharedTrackingActor_(),
@@ -4182,13 +4244,18 @@ function getDueTrackingNotificationStatus() {
     scheduleLabel: 'Lunes a viernes | ' + String(OPERATIONAL_DEFAULTS.weekdayAutoSendHour).padStart(2, '0') + ':00',
     triggerCount: triggers.length,
     triggerEnabled: triggers.length > 0,
+    dispatchEnabled: dispatchEnabled,
+    disabled: !config.userDailyEmailsEnabled,
+    disableReason: config.disableReason || '',
     lastExecutionAt: markerState.lastExecutionAt,
     lastExecutionOrigin: markerState.lastExecutionOrigin,
     lastDeliveryAt: markerState.lastDeliveryAt,
     lastDeliveryOrigin: markerState.lastDeliveryOrigin,
     lastDeliveryRecipients: markerState.lastDeliveryRecipients,
     lastDeliveryRecipientsCount: markerState.lastDeliveryRecipients.length,
-    message: isLiveDueTrackingNotificationMode_(config)
+    message: !config.userDailyEmailsEnabled
+      ? (config.disableReason || 'Los envíos diarios a usuarios están desactivados institucionalmente.')
+      : isLiveDueTrackingNotificationMode_(config)
       ? 'El envío operativo está listo para despacho real a los responsables DGPPCS.'
       : 'El envío operativo no está listo para despacho real. Revisa el modo y la confirmación REAL.'
   };
@@ -4232,8 +4299,8 @@ function getSharedTrackingOperationalControlStatus() {
     dailyReport && dailyReport.ok !== false &&
     dueTracking && dueTracking.ok !== false &&
     adminSummary && adminSummary.ok !== false &&
-    dailyReport.triggerEnabled &&
-    dueTracking.triggerEnabled &&
+    dailyReport.dispatchEnabled &&
+    dueTracking.dispatchEnabled &&
     adminSummary.triggerEnabled
   );
   return {
@@ -4253,8 +4320,8 @@ function getSharedTrackingOperationalControlStatus() {
 }
 
 function buildSharedTrackingOperationalProducts_(dailyReport, dueTracking) {
-  var dailyReady = Boolean(dailyReport && dailyReport.ok !== false && dailyReport.triggerEnabled);
-  var dueReady = Boolean(dueTracking && dueTracking.ok !== false && dueTracking.triggerEnabled);
+  var dailyReady = Boolean(dailyReport && dailyReport.ok !== false && dailyReport.dispatchEnabled);
+  var dueReady = Boolean(dueTracking && dueTracking.ok !== false && dueTracking.dispatchEnabled);
   return [
     {
       key: 'daily_audit_report',
@@ -4262,7 +4329,7 @@ function buildSharedTrackingOperationalProducts_(dailyReport, dueTracking) {
       cadence: 'Diario',
       source: 'Auditoría central del visor compartido',
       output: 'Resumen por usuario, impactos, registros tocados y trazabilidad del día.',
-      status: dailyReady ? 'Operativo' : 'Revisar'
+      status: dailyReport && dailyReport.disabled ? 'Desactivado' : (dailyReady ? 'Operativo' : 'Revisar')
     },
     {
       key: 'weekly_executive_report',
@@ -4278,7 +4345,7 @@ function buildSharedTrackingOperationalProducts_(dailyReport, dueTracking) {
       cadence: 'Diario',
       source: 'Filtros, fichas y seguimiento del visor',
       output: 'Pendientes, responsables, alertas y presión operativa por seguimiento.',
-      status: dueReady ? 'Lista para operación' : 'Lista con revisión pendiente'
+      status: dueTracking && dueTracking.disabled ? 'Desactivado' : (dueReady ? 'Lista para operación' : 'Lista con revisión pendiente')
     }
   ];
 }
@@ -4379,6 +4446,10 @@ function updateDueTrackingNotificationConfig_(input) {
   var realSendConfirmed = Object.prototype.hasOwnProperty.call(safeInput, 'realSendConfirmed')
     ? (safeInput.realSendConfirmed === true || String(safeInput.realSendConfirmed).trim().toUpperCase() === 'SI' || String(safeInput.realSendConfirmed).trim().toUpperCase() === 'TRUE')
     : current.realSendConfirmed;
+  if (!isUserDailyEmailDeliveryEnabled_()) {
+    mode = 'PREVIEW_ONLY';
+    realSendConfirmed = false;
+  }
   var properties = PropertiesService.getScriptProperties();
   setOrDeleteScriptProperty_(properties, 'PEC_VISOR_NOTIFY_MODE', mode);
   setOrDeleteScriptProperty_(properties, 'PEC_VISOR_NOTIFY_TEST_RECIPIENTS', testRecipients.join(';'));
@@ -4448,6 +4519,18 @@ function createDailyNotificationTrigger() {
     };
   }
   var config = getTrackingNotificationConfig_();
+  if (!config.userDailyEmailsEnabled) {
+    return {
+      ok: false,
+      actor: getSharedTrackingActor_(),
+      admin: true,
+      created: false,
+      disabled: true,
+      mode: config.mode,
+      realSendConfirmed: config.realSendConfirmed,
+      message: config.disableReason || 'Los envíos diarios a usuarios están desactivados institucionalmente.'
+    };
+  }
   if (config.mode !== 'REAL') {
     return {
       ok: false,
@@ -4523,6 +4606,19 @@ function deleteNotificationTriggers() {
 
 function runDailyDueTrackingNotifications_() {
   var config = getTrackingNotificationConfig_();
+  if (!config.userDailyEmailsEnabled) {
+    return {
+      ok: true,
+      actor: String(getSharedTrackingActor_() || 'trigger_diario').trim(),
+      admin: true,
+      skipped: true,
+      disabled: true,
+      mode: config.mode,
+      testRecipients: config.testRecipients.slice(),
+      realSendConfirmed: config.realSendConfirmed,
+      message: config.disableReason || 'Los envíos diarios a usuarios están desactivados institucionalmente.'
+    };
+  }
   if (!isOperationalWeekday_(new Date())) {
     markOperationalExecution_('DUE_TRACKING', 'trigger_diario_alertas');
     var skippedWeekendAt = new Date().toISOString();
@@ -4605,6 +4701,34 @@ function dispatchDueTrackingEmails_(options) {
   var preview = buildDueTrackingNotifications_({ preview: false, includeHtml: true });
   if (!preview.ok) return preview;
   markOperationalExecution_('DUE_TRACKING', String(safeOptions.origin || 'sendDueTrackingEmails').trim());
+  if (!preview.userDailyEmailsEnabled) {
+    return {
+      ok: true,
+      actor: String(safeOptions.actor || getSharedTrackingActor_() || 'admin_manual').trim(),
+      admin: isSharedTrackingAdmin_(),
+      preview: false,
+      skipped: true,
+      disabled: true,
+      mode: preview.mode,
+      testRecipients: preview.testRecipients,
+      realSendConfirmed: preview.realSendConfirmed,
+      sentCount: 0,
+      notifiedActivities: 0,
+      groups: preview.groups.map(function(group) {
+        return {
+          person: group.person,
+          to: group.to,
+          realTo: group.realTo,
+          itemCount: group.items.length,
+          subject: group.subject
+        };
+      }),
+      missingEmails: preview.missingEmails,
+      cc: preview.cc,
+      webappUrl: preview.webappUrl,
+      message: preview.disableReason || 'Los envíos diarios a usuarios están desactivados institucionalmente.'
+    };
+  }
   if (isAutomaticDueTrackingOrigin_(safeOptions) && !isLiveDueTrackingNotificationMode_(preview)) {
     return {
       ok: false,
@@ -4897,8 +5021,12 @@ function buildDueTrackingNotifications_(options) {
     admin: isSharedTrackingAdmin_(),
     preview: Boolean(settings.preview),
     mode: config.mode,
+    configuredMode: config.configuredMode,
     testRecipients: config.testRecipients,
     realSendConfirmed: config.realSendConfirmed,
+    configuredRealSendConfirmed: config.configuredRealSendConfirmed,
+    userDailyEmailsEnabled: config.userDailyEmailsEnabled,
+    disableReason: config.disableReason,
     generatedAt: generatedAt,
     generatedAtLabel: generatedAtLabel,
     totalActivities: alertItems.length,
@@ -5294,20 +5422,46 @@ function resolveTrackingNotificationRecipients_(config, realEmail) {
   }).filter(Boolean)));
 }
 
+function getUserDailyEmailPolicy_() {
+  var properties = PropertiesService.getScriptProperties();
+  var propertyKey = 'PEC_VISOR_ENABLE_USER_DAILY_EMAILS';
+  var raw = String(properties.getProperty(propertyKey) || '').trim().toUpperCase();
+  var enabled = raw ? raw === 'SI' : Boolean(OPERATIONAL_DEFAULTS.enableUserDailyEmails);
+  return {
+    enabled: enabled,
+    propertyKey: propertyKey,
+    reason: enabled
+      ? ''
+      : 'Los envíos diarios a usuarios están desactivados institucionalmente.'
+  };
+}
+
+function isUserDailyEmailDeliveryEnabled_() {
+  return getUserDailyEmailPolicy_().enabled;
+}
+
 function getTrackingNotificationConfig_() {
   var properties = PropertiesService.getScriptProperties();
+  var userDailyEmailPolicy = getUserDailyEmailPolicy_();
   var rawMode = String(properties.getProperty('PEC_VISOR_NOTIFY_MODE') || '').trim().toUpperCase();
   var allowed = { PREVIEW_ONLY: true, TEST_REDIRECT: true, REAL: true };
-  var mode = allowed[rawMode] ? rawMode : 'PREVIEW_ONLY';
+  var configuredMode = allowed[rawMode] ? rawMode : 'PREVIEW_ONLY';
+  var mode = userDailyEmailPolicy.enabled ? configuredMode : 'PREVIEW_ONLY';
   var testRecipients = String(properties.getProperty('PEC_VISOR_NOTIFY_TEST_RECIPIENTS') || '')
     .split(/[;,]/)
     .map(function(item) { return String(item || '').trim(); })
     .filter(Boolean);
-  var realSendConfirmed = String(properties.getProperty('PEC_VISOR_CONFIRM_REAL_SEND') || '').trim().toUpperCase() === 'SI';
+  var configuredRealSendConfirmed = String(properties.getProperty('PEC_VISOR_CONFIRM_REAL_SEND') || '').trim().toUpperCase() === 'SI';
+  var realSendConfirmed = userDailyEmailPolicy.enabled ? configuredRealSendConfirmed : false;
   return {
     mode: mode,
+    configuredMode: configuredMode,
     testRecipients: Array.from(new Set(testRecipients)),
-    realSendConfirmed: realSendConfirmed
+    realSendConfirmed: realSendConfirmed,
+    configuredRealSendConfirmed: configuredRealSendConfirmed,
+    userDailyEmailsEnabled: userDailyEmailPolicy.enabled,
+    disableReason: userDailyEmailPolicy.reason,
+    gatePropertyKey: userDailyEmailPolicy.propertyKey
   };
 }
 
@@ -5344,9 +5498,11 @@ function setOrDeleteScriptProperty_(properties, key, value) {
 
 function getDailyAuditReportConfig_() {
   var properties = PropertiesService.getScriptProperties();
+  var userDailyEmailPolicy = getUserDailyEmailPolicy_();
   var rawMode = String(properties.getProperty('PEC_VISOR_DAILY_REPORT_MODE') || '').trim().toUpperCase();
   var allowed = { PREVIEW_ONLY: true, TEST_REDIRECT: true, REAL: true };
-  var mode = allowed[rawMode] ? rawMode : OPERATIONAL_DEFAULTS.dailyReportMode;
+  var configuredMode = allowed[rawMode] ? rawMode : OPERATIONAL_DEFAULTS.dailyReportMode;
+  var mode = userDailyEmailPolicy.enabled ? configuredMode : 'PREVIEW_ONLY';
   var configuredTo = splitEmailList_(properties.getProperty('PEC_VISOR_DAILY_REPORT_TO') || '');
   var cc = splitEmailList_(properties.getProperty('PEC_VISOR_DAILY_REPORT_CC') || '');
   var testRecipients = splitEmailList_(properties.getProperty('PEC_VISOR_DAILY_REPORT_TEST_RECIPIENTS') || '');
@@ -5354,10 +5510,12 @@ function getDailyAuditReportConfig_() {
   var usingAdminFallback = !configuredTo.length && adminRecipients.length > 0;
   var to = usingAdminFallback ? adminRecipients.slice() : configuredTo.slice();
   var rawConfirm = String(properties.getProperty('PEC_VISOR_DAILY_REPORT_CONFIRM_REAL_SEND') || '').trim().toUpperCase();
-  var realSendConfirmed = rawConfirm ? rawConfirm === 'SI' : Boolean(OPERATIONAL_DEFAULTS.dailyReportConfirmRealSend);
+  var configuredRealSendConfirmed = rawConfirm ? rawConfirm === 'SI' : Boolean(OPERATIONAL_DEFAULTS.dailyReportConfirmRealSend);
+  var realSendConfirmed = userDailyEmailPolicy.enabled ? configuredRealSendConfirmed : false;
   var sendHour = normalizeDailyAuditReportSendHour_(properties.getProperty('PEC_VISOR_DAILY_REPORT_HOUR'));
   return {
     mode: mode,
+    configuredMode: configuredMode,
     to: to,
     configuredTo: configuredTo,
     adminRecipients: adminRecipients,
@@ -5365,7 +5523,11 @@ function getDailyAuditReportConfig_() {
     cc: cc,
     testRecipients: testRecipients,
     realSendConfirmed: realSendConfirmed,
-    sendHour: sendHour
+    configuredRealSendConfirmed: configuredRealSendConfirmed,
+    sendHour: sendHour,
+    userDailyEmailsEnabled: userDailyEmailPolicy.enabled,
+    disableReason: userDailyEmailPolicy.reason,
+    gatePropertyKey: userDailyEmailPolicy.propertyKey
   };
 }
 
@@ -5381,6 +5543,7 @@ function getAdminExecutiveSummaryConfig_() {
 
 function ensureOperationalDailyReportDelivery_() {
   const config = getDailyAuditReportConfig_();
+  if (!config.userDailyEmailsEnabled) return;
   const recipients = config.mode === 'TEST_REDIRECT' ? config.testRecipients : config.to;
   if (config.mode !== 'REAL' || !config.realSendConfirmed || !recipients.length) return;
   if (!getDailyAuditReportTriggers_().length) {

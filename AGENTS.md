@@ -266,3 +266,31 @@ Cuando la tarea sea compleja, debe dividirla en pasos y avanzar de forma control
 No debe modificar archivos hasta haber explicado primero el plan de trabajo, salvo que el usuario le pida expresamente ejecutar cambios directamente.
 
 Para el visor PEC, Codex debe recordar siempre que el objetivo no es solo que algo se vea bien, sino que el visor funcione como herramienta ejecutiva para seguimiento, alertas, Gantt, fichas por caso, responsables, fases, bloques y reportes.
+
+---
+
+## 15. Continuidad entre equipos
+
+Este repositorio debe poder continuar entre Windows, Mac y Codex Cloud sin depender del estado local de una sola máquina.
+
+Reglas:
+
+- La fuente de verdad del proyecto es el repositorio Git, no la carpeta `.codex`.
+- El contexto operativo vivo debe quedar dentro del proyecto.
+- Este archivo `AGENTS.md` define reglas estables.
+- El archivo `docs/HANDOFF_PEC.md` debe usarse para estado actual, decisiones recientes, URLs operativas, diferencias repo vs Apps Script y siguientes pasos.
+- Antes de continuar trabajo en otra máquina, Codex debe leer:
+  - `AGENTS.md`
+  - `docs/HANDOFF_PEC.md`
+  - `CHECKLIST_OPERATIVO_VISOR_PEC.md`
+- No sincronizar entre máquinas como si fuera estado compartido:
+  - `.codex/`
+  - credenciales locales
+  - `*.sqlite`
+  - caches
+  - temporales
+  - sesiones activas
+- Si el proyecto usa Apps Script, recordar siempre que:
+  - `git push` no publica el Web App;
+  - el handoff debe indicar la última versión/deployment verificado;
+  - cualquier diferencia entre repo y Web App debe quedar escrita en `docs/HANDOFF_PEC.md`.

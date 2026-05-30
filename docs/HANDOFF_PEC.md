@@ -36,7 +36,7 @@ Este archivo conserva el estado operativo del proyecto para continuidad entre Wi
 ### Apps Script
 
 - Deployment activo verificado por `clasp deployments`:
-  - `AKfycbwDO41v2ncg7p2rjvEjTCICeu8fJoAySOgSNAPe5arZnkK-gYtCH-FioX-jexhfW0k0 @98`
+  - `AKfycbwDO41v2ncg7p2rjvEjTCICeu8fJoAySOgSNAPe5arZnkK-gYtCH-FioX-jexhfW0k0 @99`
 - Deployment legacy adicional publicado:
   - `AKfycbxLpfDE3-ttlXKlGgKto16_2RuLk5w1Kbpclf_BFtMQBdfUQZrZQomANDaZzIaeR2Yq @18`
 - Drive Loader histórico:
@@ -61,11 +61,15 @@ Este archivo conserva el estado operativo del proyecto para continuidad entre Wi
    - marcar el enlace anterior como legacy;
    - retirar el deployment viejo si la URL base cambió.
 
-## Cambios locales pendientes de publicación al 2026-05-30
+## Cambios publicados en Apps Script al 2026-05-30
 
-- `apps_script/Code.gs` queda actualizado localmente con bloqueo global de envíos por correo, bloqueo de creación de triggers de correo, retiro lógico de sustentos, `LockService` para mutaciones documentales, `treePath` documental e inventario exportable de sustentos.
-- `apps_script/Visor.html` y `visor_seguimiento_pec.html` quedan actualizados localmente para mostrar la política de correos bloqueados, deshabilitar botones de envío/creación de triggers y conservar `treePath`.
-- Estos cambios todavía no están publicados en el Web App de Apps Script hasta copiar `apps_script/Code.gs` y `apps_script/Visor.html`, guardar y crear nueva versión del deployment.
+- Commit GitHub publicado: `ab2511a` `fix: disable PEC email sends and harden support inventory flow`.
+- Versión Apps Script creada: `99` con la misma descripción del commit.
+- Deployment activo actualizado con `clasp redeploy`:
+  - `AKfycbwDO41v2ncg7p2rjvEjTCICeu8fJoAySOgSNAPe5arZnkK-gYtCH-FioX-jexhfW0k0 @99`
+- `apps_script/Code.gs` quedó publicado con bloqueo global de envíos por correo, bloqueo de creación de triggers de correo, retiro lógico de sustentos, `LockService` para mutaciones documentales, `treePath` documental e inventario exportable de sustentos.
+- `apps_script/Visor.html` quedó publicado para mostrar la política de correos bloqueados, deshabilitar botones de envío/creación de triggers y conservar `treePath`.
+- Verificación HTTP básica: la URL canónica `?view=visor` responde con redirección a autenticación Google, coherente con el acceso protegido del Web App.
 
 ## Diferencia crítica repo vs Apps Script
 

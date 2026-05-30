@@ -80,16 +80,45 @@ const OPERATIONAL_DEFAULTS = {
   sharedTrackingAdminEmails: ['dpardave@gmail.com'],
   sharedTrackingOperationalEmails: [],
   dgppcsSummaryRecipients: ['mmelletp@yahoo.com'],
+  disableAllEmailSends: true,
   enableUserDailyEmails: false,
-  dailyReportMode: 'REAL',
+  dailyReportMode: 'PREVIEW_ONLY',
   dailyReportSendHour: 9,
   adminSummarySendHour: 21,
-  dailyReportConfirmRealSend: true,
+  dailyReportConfirmRealSend: false,
   weekdayAutoSendHour: 18,
   actorEmailDirectory: {
     'pec@vivienda.gob.pe': 'Marjorie Mellet'
   }
 };
+
+function isAllEmailSendsDisabled_() {
+  var raw = String(PropertiesService.getScriptProperties().getProperty('PEC_VISOR_DISABLE_ALL_EMAIL_SENDS') || '').trim().toUpperCase();
+  if (raw) return raw !== 'NO';
+  return Boolean(OPERATIONAL_DEFAULTS.disableAllEmailSends);
+}
+
+function getAllEmailSendsDisabledMessage_() {
+  return 'Envios por correo deshabilitados por politica operativa. Se mantienen vistas previas, reportes y eliminacion de triggers, pero no se despacha ningun correo.';
+}
+
+function buildEmailSendDisabledStatus_(options) {
+  var safe = options && typeof options === 'object' ? options : {};
+  return Object.assign({
+    ok: true,
+    actor: String(safe.actor || getSharedTrackingActor_() || 'sistema').trim(),
+    admin: isSharedTrackingAdmin_(),
+    sent: false,
+    skipped: true,
+    disabled: true,
+    emailDisabled: true,
+    created: false,
+    triggerCreationBlocked: true,
+    recipients: [],
+    effectiveRecipients: [],
+    message: getAllEmailSendsDisabledMessage_()
+  }, safe.extra || {});
+}
 
 const SHARED_VISOR_CANONICAL_WEBAPP_BASE = 'https://script.google.com/macros/s/AKfycbwDO41v2ncg7p2rjvEjTCICeu8fJoAySOgSNAPe5arZnkK-gYtCH-FioX-jexhfW0k0/exec';
 const PANEL_PUBLIC_URL = 'https://dpardave-byte.github.io/PEC/';
@@ -1426,7 +1455,26 @@ function saveSharedTrackingState(bundle, actorName, action) {
   });
 }
 
+function withSharedTrackingAttachmentMutationLock_(origin, callback) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) {
+    return {
+      ok: false,
+      locked: true,
+      conflict: true,
+      origin: String(origin || 'mutacion_sustento').trim(),
+      message: 'Otra operacion documental sigue en curso. Actualiza el visor e intenta nuevamente en unos segundos.'
+    };
+  }
+  try {
+    return callback();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function uploadSharedTrackingAttachments(recordId, uploads, actorName) {
+  return withSharedTrackingAttachmentMutationLock_('cargar_sustento', function() {
   const previous = loadSharedTrackingState_();
   const actorInfo = resolveSharedTrackingPermissionContext_(actorName);
   if (!actorInfo.canManageAttachments) {
@@ -1528,8 +1576,17 @@ function uploadSharedTrackingAttachments(recordId, uploads, actorName) {
       size: Number(upload.size || file.getSize() || 0),
       fileId: file.getId(),
       url: file.getUrl(),
+      folderId: String(folderMeta && folderMeta.folderId || '').trim(),
+      folderUrl: String(folderMeta && folderMeta.url || '').trim(),
+      logicalPath: String(folderMeta && folderMeta.logicalPath || '').trim(),
+      treePath: String(folderMeta && (folderMeta.treePath || folderMeta.logicalPath) || '').trim(),
+      documentType: String(upload.documentType || 'unknown').trim() || 'unknown',
+      status: 'active',
       uploadedAt: uploadedAt,
-      uploadedBy: actorInfo.actor
+      uploadedBy: actorInfo.actor,
+      uploadedByEmail: String(actorInfo.email || '').trim(),
+      actorSource: String(actorInfo.source || '').trim(),
+      actorVerified: Boolean(actorInfo.verified)
     };
   });
   const nextNotes = Object.assign({}, previous.notes || {});
@@ -1555,9 +1612,11 @@ function uploadSharedTrackingAttachments(recordId, uploads, actorName) {
       : 'Se cargaron ' + uploaded.length + ' sustento(s) en ' + (recordMeta.label || safeRecordId) + '.',
     backend: getSharedTrackingBackendMeta_(actorInfo)
   });
+  });
 }
 
 function ensureSharedTrackingAttachmentFolder(recordId, actorName) {
+  return withSharedTrackingAttachmentMutationLock_('preparar_carpeta_sustento', function() {
   const previous = loadSharedTrackingState_();
   const actorInfo = resolveSharedTrackingPermissionContext_(actorName);
   if (!actorInfo.canManageAttachments) {
@@ -1619,9 +1678,11 @@ function ensureSharedTrackingAttachmentFolder(recordId, actorName) {
     message: 'La carpeta de sustento quedó preparada para ' + (recordMeta.label || safeRecordId) + '.',
     backend: getSharedTrackingBackendMeta_(actorInfo)
   });
+  });
 }
 
 function deleteSharedTrackingAttachment(recordId, attachmentId, actorName) {
+  return withSharedTrackingAttachmentMutationLock_('retirar_sustento', function() {
   const previous = loadSharedTrackingState_();
   const actorInfo = resolveSharedTrackingPermissionContext_(actorName);
   if (!actorInfo.canManageAttachments) {
@@ -1666,21 +1727,21 @@ function deleteSharedTrackingAttachment(recordId, attachmentId, actorName) {
       backend: getSharedTrackingBackendMeta_(actorInfo)
     });
   }
-  const removed = attachments[targetIndex];
-  if (removed && removed.fileId) {
-    try {
-      DriveApp.getFileById(String(removed.fileId)).setTrashed(true);
-    } catch (error) {}
-  }
-  attachments.splice(targetIndex, 1);
+  const removedAt = new Date().toISOString();
+  const removed = Object.assign({}, attachments[targetIndex], {
+    status: 'removed',
+    removedAt: removedAt,
+    removedBy: actorInfo.actor,
+    removedByEmail: String(actorInfo.email || '').trim(),
+    removedReason: 'Retiro logico desde el visor PEC',
+    actorSource: String(actorInfo.source || '').trim(),
+    actorVerified: Boolean(actorInfo.verified)
+  });
+  attachments[targetIndex] = removed;
   const nextNotes = Object.assign({}, previous.notes || {});
-  if (attachments.length || String(noteEntry.note || '').trim() || String(noteEntry.action || '').trim() || hasSharedTrackingAttachmentFolderMeta_(noteEntry.attachmentFolder)) {
-    nextNotes[safeRecordId] = Object.assign({}, noteEntry, {
-      attachments: normalizeSharedTrackingAttachmentList_(attachments)
-    });
-  } else {
-    delete nextNotes[safeRecordId];
-  }
+  nextNotes[safeRecordId] = Object.assign({}, noteEntry, {
+    attachments: normalizeSharedTrackingAttachmentList_(attachments)
+  });
   const next = normalizeSharedTrackingStateBundle_(Object.assign({}, previous, { notes: nextNotes }), previous);
   next.revision = Number(previous.revision || 0) + 1;
   next.savedAt = new Date().toISOString();
@@ -1697,6 +1758,167 @@ function deleteSharedTrackingAttachment(recordId, attachmentId, actorName) {
     message: 'Se retiró el sustento ' + String(removed && removed.name || 'seleccionado') + ' de ' + (recordMeta.label || safeRecordId) + '.',
     backend: getSharedTrackingBackendMeta_(actorInfo)
   });
+  });
+}
+
+function exportSharedTrackingSupportInventory(format, recordId) {
+  const actorInfo = resolveSharedTrackingPermissionContext_('');
+  const state = loadSharedTrackingState_();
+  if (!actorInfo.canExportSupportInventory) {
+    return buildSharedTrackingPermissionDeniedEnvelope_(
+      state,
+      actorInfo,
+      'No se pudo autorizar la exportacion del inventario documental.',
+      {
+        action: 'intento_exportar_inventario_sustentos_bloqueado',
+        origin: 'exportar_inventario_sustentos'
+      }
+    );
+  }
+  const safeFormat = String(format || 'json').trim().toLowerCase();
+  const targetRecordId = String(recordId || '').trim();
+  const rows = buildSharedTrackingSupportInventoryRows_(state, targetRecordId);
+  const generatedAt = new Date().toISOString();
+  const suffix = targetRecordId ? ('_' + sanitizeSharedTrackingPathSegment_(targetRecordId)) : '_global';
+  let content = '';
+  let mimeType = 'application/json';
+  let extension = 'json';
+  if (safeFormat === 'csv') {
+    content = buildSharedTrackingSupportInventoryCsv_(rows);
+    mimeType = 'text/csv';
+    extension = 'csv';
+  } else if (safeFormat === 'html') {
+    content = buildSharedTrackingSupportInventoryHtml_(rows, {
+      generatedAt: generatedAt,
+      recordId: targetRecordId
+    });
+    mimeType = 'text/html';
+    extension = 'html';
+  } else {
+    content = JSON.stringify({
+      generatedAt: generatedAt,
+      actor: actorInfo.actor,
+      actorEmail: actorInfo.email,
+      scope: targetRecordId ? 'record' : 'global',
+      recordId: targetRecordId,
+      total: rows.length,
+      rows: rows
+    }, null, 2);
+  }
+  appendSharedTrackingAudit_({
+    at: generatedAt,
+    actor: actorInfo.actor,
+    actorEmail: actorInfo.email,
+    actorSource: actorInfo.source,
+    actorVerified: actorInfo.verified,
+    declaredActor: actorInfo.declaredActor,
+    action: 'exportar_inventario_sustentos',
+    origin: 'exportSharedTrackingSupportInventory',
+    detail: 'Inventario documental exportado | Formato: ' + extension.toUpperCase() + ' | Alcance: ' + (targetRecordId || 'global') + ' | Filas: ' + rows.length,
+    summary: {
+      total: rows.length,
+      format: extension,
+      recordId: targetRecordId
+    }
+  });
+  return {
+    ok: true,
+    actor: actorInfo.actor,
+    actorVerified: actorInfo.verified,
+    actorSource: actorInfo.source,
+    declaredActor: actorInfo.declaredActor,
+    content: content,
+    mimeType: mimeType,
+    fileName: 'inventario_sustentos_pec' + suffix + '_' + generatedAt.slice(0, 10) + '.' + extension,
+    total: rows.length,
+    backend: getSharedTrackingBackendMeta_(actorInfo)
+  };
+}
+
+function buildSharedTrackingSupportInventoryRows_(state, targetRecordId) {
+  const safeState = state && typeof state === 'object' ? state : buildDefaultSharedTrackingState_();
+  const notes = safeState.notes && typeof safeState.notes === 'object' ? safeState.notes : {};
+  const rows = [];
+  Object.keys(notes).sort().forEach(function(recordId) {
+    if (targetRecordId && recordId !== targetRecordId) return;
+    const recordMeta = getSharedTrackingRecordMetaForState_(safeState, recordId);
+    const noteEntry = normalizeSharedTrackingNoteEntry_(notes[recordId]);
+    const folderMeta = normalizeSharedTrackingAttachmentFolderMeta_(noteEntry.attachmentFolder) || {};
+    const attachments = normalizeSharedTrackingAttachmentList_(noteEntry.attachments);
+    if (!attachments.length && hasSharedTrackingAttachmentFolderMeta_(folderMeta)) {
+      rows.push(buildSharedTrackingSupportInventoryRow_(recordMeta, folderMeta, null));
+      return;
+    }
+    attachments.forEach(function(attachment) {
+      rows.push(buildSharedTrackingSupportInventoryRow_(recordMeta, folderMeta, attachment));
+    });
+  });
+  return rows;
+}
+
+function buildSharedTrackingSupportInventoryRow_(recordMeta, folderMeta, attachment) {
+  const safeRecord = recordMeta && typeof recordMeta === 'object' ? recordMeta : {};
+  const safeFolder = folderMeta && typeof folderMeta === 'object' ? folderMeta : {};
+  const safeAttachment = attachment && typeof attachment === 'object' ? attachment : {};
+  const treePath = String(safeAttachment.treePath || safeAttachment.logicalPath || safeFolder.treePath || safeFolder.logicalPath || '').trim();
+  return {
+    recordId: String(safeRecord.id || safeFolder.recordId || '').trim(),
+    edt: String(safeRecord.edt || '').trim(),
+    actividad: String(safeRecord.activity || safeRecord.label || '').trim(),
+    folderId: String(safeAttachment.folderId || safeFolder.folderId || '').trim(),
+    folderUrl: String(safeAttachment.folderUrl || safeFolder.url || '').trim(),
+    logicalPath: String(safeAttachment.logicalPath || safeFolder.logicalPath || treePath).trim(),
+    treePath: treePath,
+    fileName: String(safeAttachment.name || '').trim(),
+    fileId: String(safeAttachment.fileId || '').trim(),
+    fileUrl: String(safeAttachment.url || '').trim(),
+    mimeType: String(safeAttachment.mimeType || '').trim(),
+    sizeBytes: Number(safeAttachment.size || 0),
+    documentType: String(safeAttachment.documentType || 'unknown').trim() || 'unknown',
+    status: String(safeAttachment.status || (safeAttachment.name ? 'active' : 'folder_only')).trim(),
+    uploadedAt: String(safeAttachment.uploadedAt || '').trim(),
+    uploadedBy: String(safeAttachment.uploadedBy || '').trim(),
+    uploadedByEmail: String(safeAttachment.uploadedByEmail || '').trim(),
+    removedAt: String(safeAttachment.removedAt || '').trim(),
+    removedBy: String(safeAttachment.removedBy || '').trim(),
+    removedReason: String(safeAttachment.removedReason || '').trim()
+  };
+}
+
+function buildSharedTrackingSupportInventoryCsv_(rows) {
+  const headers = [
+    'recordId', 'edt', 'actividad', 'folderId', 'folderUrl', 'logicalPath', 'treePath',
+    'fileName', 'fileId', 'fileUrl', 'mimeType', 'sizeBytes', 'documentType', 'status',
+    'uploadedAt', 'uploadedBy', 'uploadedByEmail', 'removedAt', 'removedBy', 'removedReason'
+  ];
+  const lines = [headers.join(',')];
+  rows.forEach(function(row) {
+    lines.push(headers.map(function(header) {
+      return csvEscape_(row[header]);
+    }).join(','));
+  });
+  return lines.join('\n');
+}
+
+function buildSharedTrackingSupportInventoryHtml_(rows, options) {
+  const safeOptions = options || {};
+  const headers = ['recordId', 'edt', 'actividad', 'documentType', 'status', 'fileName', 'treePath', 'uploadedAt', 'uploadedBy', 'removedAt'];
+  const bodyRows = rows.map(function(row) {
+    return '<tr>' + headers.map(function(header) {
+      return '<td style="padding:6px 8px;border:1px solid #d7e2ef;vertical-align:top;">' + escapeHtmlEmail_(row[header] || '') + '</td>';
+    }).join('') + '</tr>';
+  }).join('');
+  return [
+    '<!doctype html><html><head><meta charset="utf-8"><title>Inventario de sustentos PEC</title></head>',
+    '<body style="font-family:Arial,sans-serif;color:#16324f;">',
+    '<h1>Inventario de sustentos PEC</h1>',
+    '<p>Generado: ' + escapeHtmlEmail_(safeOptions.generatedAt || '') + ' | Alcance: ' + escapeHtmlEmail_(safeOptions.recordId || 'global') + ' | Filas: ' + rows.length + '</p>',
+    '<table style="border-collapse:collapse;width:100%;font-size:12px;"><thead><tr style="background:#edf4fb;">',
+    headers.map(function(header) { return '<th style="padding:6px 8px;border:1px solid #d7e2ef;text-align:left;">' + escapeHtmlEmail_(header) + '</th>'; }).join(''),
+    '</tr></thead><tbody>',
+    bodyRows || '<tr><td colspan="' + headers.length + '" style="padding:10px;border:1px solid #d7e2ef;">Sin sustentos registrados para el alcance seleccionado.</td></tr>',
+    '</tbody></table></body></html>'
+  ].join('');
 }
 
 function getSharedTrackingAudit(limit) {
@@ -3046,6 +3268,15 @@ function sendSharedTrackingDailyAuditReportEmail(date) {
       message: 'No autorizado para enviar el recordatorio operativo matutino por correo.'
     };
   }
+  if (isAllEmailSendsDisabled_()) {
+    return buildEmailSendDisabledStatus_({
+      actor: getSharedTrackingActor_() || 'admin_manual',
+      extra: {
+        reportDate: date,
+        origin: 'envio_manual_reporte_diario'
+      }
+    });
+  }
   return dispatchSharedTrackingDailyAuditReportEmail_({
     actor: getSharedTrackingActor_() || 'admin_manual',
     origin: 'envio_manual_reporte_diario',
@@ -3062,6 +3293,15 @@ function sendSharedTrackingAdminExecutiveSummaryEmail(date) {
       message: 'No autorizado para enviar el resumen ejecutivo admin.'
     };
   }
+  if (isAllEmailSendsDisabled_()) {
+    return buildEmailSendDisabledStatus_({
+      actor: getSharedTrackingActor_() || 'admin_manual',
+      extra: {
+        reportDate: date,
+        origin: 'envio_manual_resumen_admin'
+      }
+    });
+  }
   return dispatchSharedTrackingAdminExecutiveSummaryEmail_({
     actor: getSharedTrackingActor_() || 'admin_manual',
     origin: 'envio_manual_resumen_admin',
@@ -3077,6 +3317,16 @@ function createDailyAuditReportTrigger() {
       admin: false,
       message: 'No autorizado para crear el trigger del recordatorio operativo matutino.'
     };
+  }
+  if (isAllEmailSendsDisabled_()) {
+    return buildEmailSendDisabledStatus_({
+      actor: getSharedTrackingActor_(),
+      extra: {
+        admin: true,
+        created: false,
+        message: getAllEmailSendsDisabledMessage_() + ' No se creo el trigger del recordatorio matutino.'
+      }
+    });
   }
   const config = getDailyAuditReportConfig_();
   if (!config.userDailyEmailsEnabled) {
@@ -3179,6 +3429,16 @@ function createAdminExecutiveSummaryTrigger() {
       message: 'No autorizado para crear el trigger del resumen ejecutivo admin.'
     };
   }
+  if (isAllEmailSendsDisabled_()) {
+    return buildEmailSendDisabledStatus_({
+      actor: getSharedTrackingActor_(),
+      extra: {
+        admin: true,
+        created: false,
+        message: getAllEmailSendsDisabledMessage_() + ' No se creo el trigger nocturno admin.'
+      }
+    });
+  }
   var config = getAdminExecutiveSummaryConfig_();
   if (!config.recipients.length) {
     return {
@@ -3232,6 +3492,17 @@ function deleteAdminExecutiveSummaryTriggers() {
 
 function runDailyAuditReportEmail_() {
   var config = getDailyAuditReportConfig_();
+  if (isAllEmailSendsDisabled_()) {
+    return buildEmailSendDisabledStatus_({
+      actor: getSharedTrackingActor_() || 'trigger_reporte_diario',
+      extra: {
+        admin: true,
+        mode: config.mode,
+        sendHour: config.sendHour,
+        origin: 'trigger_diario_reporte'
+      }
+    });
+  }
   if (!config.userDailyEmailsEnabled) {
     return {
       ok: true,
@@ -3261,6 +3532,15 @@ function runDailyAuditReportEmail_() {
 }
 
 function runNightlyAdminExecutiveSummaryEmail_() {
+  if (isAllEmailSendsDisabled_()) {
+    return buildEmailSendDisabledStatus_({
+      actor: getSharedTrackingActor_() || 'trigger_nocturno_admin',
+      extra: {
+        admin: true,
+        origin: 'trigger_nocturno_admin'
+      }
+    });
+  }
   if (!isOperationalWeekday_(new Date())) {
     markOperationalExecution_('ADMIN_SUMMARY', 'trigger_nocturno_admin');
     var skippedWeekendAt = new Date().toISOString();
@@ -3308,6 +3588,17 @@ function resetDailyAuditReportWeekdayTrigger_() {
       message: 'No autorizado para reconfigurar el recordatorio operativo matutino.'
     };
   }
+  if (isAllEmailSendsDisabled_()) {
+    var shutdown = ensureUserDailyEmailTriggerShutdown_();
+    return buildEmailSendDisabledStatus_({
+      actor: getSharedTrackingActor_(),
+      extra: {
+        admin: true,
+        shutdown: shutdown,
+        message: getAllEmailSendsDisabledMessage_() + ' Se eliminaron triggers existentes si estaban presentes.'
+      }
+    });
+  }
   var saved = updateSharedTrackingDailyReportConfig({
     sendHour: OPERATIONAL_DEFAULTS.dailyReportSendHour
   });
@@ -3346,6 +3637,23 @@ function dispatchSharedTrackingDailyAuditReportEmail_(options) {
   );
   if (!preview.ok) return preview;
   markOperationalExecution_('DAILY_REPORT', String(options && options.origin || 'sendSharedTrackingDailyAuditReportEmail').trim());
+  if (isAllEmailSendsDisabled_()) {
+    return buildEmailSendDisabledStatus_({
+      actor: String(options && options.actor || getSharedTrackingActor_() || 'admin_manual').trim(),
+      extra: {
+        mode: preview.mode,
+        recipients: preview.recipients,
+        effectiveRecipients: preview.effectiveRecipients,
+        cc: preview.cc,
+        testRecipients: preview.testRecipients,
+        realSendConfirmed: preview.realSendConfirmed,
+        sendHour: preview.sendHour,
+        reportDate: preview.report.date,
+        report: preview.report,
+        subject: preview.subject
+      }
+    });
+  }
   if (!preview.userDailyEmailsEnabled) {
     return {
       ok: true,
@@ -4077,6 +4385,20 @@ function dispatchSharedTrackingAdminExecutiveSummaryEmail_(options) {
   var preview = buildSharedTrackingAdminExecutiveSummaryPreview_(safeOptions.reportDate, { includeHtml: true });
   if (!preview.ok) return preview;
   markOperationalExecution_('ADMIN_SUMMARY', String(safeOptions.origin || 'sendSharedTrackingAdminExecutiveSummaryEmail').trim());
+  if (isAllEmailSendsDisabled_()) {
+    return buildEmailSendDisabledStatus_({
+      actor: String(safeOptions.actor || getSharedTrackingActor_() || 'admin_manual').trim(),
+      extra: {
+        sendHour: preview.sendHour,
+        recipients: preview.recipients,
+        effectiveRecipients: preview.effectiveRecipients,
+        reportDate: preview.report.date,
+        report: preview.report,
+        inactiveAudience: preview.inactiveAudience,
+        subject: preview.subject
+      }
+    });
+  }
   if (!preview.to) {
     return {
       ok: false,
@@ -4193,6 +4515,14 @@ function sendDueTrackingEmails() {
       message: 'No autorizado para enviar alertas por correo.'
     };
   }
+  if (isAllEmailSendsDisabled_()) {
+    return buildEmailSendDisabledStatus_({
+      actor: getSharedTrackingActor_() || 'admin_manual',
+      extra: {
+        origin: 'envio_manual_alertas'
+      }
+    });
+  }
   return dispatchDueTrackingEmails_({
     actor: getSharedTrackingActor_() || 'admin_manual',
     origin: 'envio_manual_alertas'
@@ -4209,6 +4539,16 @@ function sendSharedVisorAccessGuideEmail_(options) {
       admin: false,
       message: 'No autorizado para enviar la guía de acceso al visor.'
     };
+  }
+  if (isAllEmailSendsDisabled_()) {
+    return buildEmailSendDisabledStatus_({
+      actor: getSharedTrackingActor_() || 'admin_manual',
+      extra: {
+        origin: 'sendSharedVisorAccessGuideEmail',
+        sentCount: 0,
+        message: getAllEmailSendsDisabledMessage_() + ' No se envio la guia de acceso.'
+      }
+    });
   }
   var safeOptions = options && typeof options === 'object' ? options : {};
   var recipients = getSharedVisorAccessGuideRecipients_();
@@ -4757,6 +5097,16 @@ function createDailyNotificationTrigger() {
       message: 'No autorizado para crear triggers de notificacion.'
     };
   }
+  if (isAllEmailSendsDisabled_()) {
+    return buildEmailSendDisabledStatus_({
+      actor: getSharedTrackingActor_(),
+      extra: {
+        admin: true,
+        created: false,
+        message: getAllEmailSendsDisabledMessage_() + ' No se creo el trigger de alertas operativas.'
+      }
+    });
+  }
   var config = getTrackingNotificationConfig_();
   if (!config.userDailyEmailsEnabled) {
     return {
@@ -4845,6 +5195,18 @@ function deleteNotificationTriggers() {
 
 function runDailyDueTrackingNotifications_() {
   var config = getTrackingNotificationConfig_();
+  if (isAllEmailSendsDisabled_()) {
+    return buildEmailSendDisabledStatus_({
+      actor: String(getSharedTrackingActor_() || 'trigger_diario').trim(),
+      extra: {
+        admin: true,
+        mode: config.mode,
+        testRecipients: config.testRecipients.slice(),
+        realSendConfirmed: config.realSendConfirmed,
+        origin: 'trigger_diario_alertas'
+      }
+    });
+  }
   if (!config.userDailyEmailsEnabled) {
     return {
       ok: true,
@@ -4940,6 +5302,31 @@ function dispatchDueTrackingEmails_(options) {
   var preview = buildDueTrackingNotifications_({ preview: false, includeHtml: true });
   if (!preview.ok) return preview;
   markOperationalExecution_('DUE_TRACKING', String(safeOptions.origin || 'sendDueTrackingEmails').trim());
+  if (isAllEmailSendsDisabled_()) {
+    return buildEmailSendDisabledStatus_({
+      actor: String(safeOptions.actor || getSharedTrackingActor_() || 'admin_manual').trim(),
+      extra: {
+        preview: false,
+        mode: preview.mode,
+        testRecipients: preview.testRecipients,
+        realSendConfirmed: preview.realSendConfirmed,
+        sentCount: 0,
+        notifiedActivities: 0,
+        groups: preview.groups.map(function(group) {
+          return {
+            person: group.person,
+            to: group.to,
+            realTo: group.realTo,
+            itemCount: group.items.length,
+            subject: group.subject
+          };
+        }),
+        missingEmails: preview.missingEmails,
+        cc: preview.cc,
+        webappUrl: preview.webappUrl
+      }
+    });
+  }
   if (!preview.userDailyEmailsEnabled) {
     return {
       ok: true,
@@ -5673,6 +6060,13 @@ function resolveTrackingNotificationRecipients_(config, realEmail) {
 }
 
 function getUserDailyEmailPolicy_() {
+  if (isAllEmailSendsDisabled_()) {
+    return {
+      enabled: false,
+      propertyKey: 'PEC_VISOR_DISABLE_ALL_EMAIL_SENDS',
+      reason: getAllEmailSendsDisabledMessage_()
+    };
+  }
   var properties = PropertiesService.getScriptProperties();
   var propertyKey = 'PEC_VISOR_ENABLE_USER_DAILY_EMAILS';
   var raw = String(properties.getProperty(propertyKey) || '').trim().toUpperCase();
@@ -5892,6 +6286,7 @@ function recreateDailyAuditReportTrigger_() {
     ScriptApp.deleteTrigger(trigger);
     removed += 1;
   });
+  if (isAllEmailSendsDisabled_()) return removed;
   ScriptApp.newTrigger('runDailyAuditReportEmail_')
     .timeBased()
     .everyDays(1)
@@ -5918,6 +6313,7 @@ function recreateAdminExecutiveSummaryTrigger_() {
     ScriptApp.deleteTrigger(trigger);
     removed += 1;
   });
+  if (isAllEmailSendsDisabled_()) return removed;
   ScriptApp.newTrigger('runNightlyAdminExecutiveSummaryEmail_')
     .timeBased()
     .everyDays(1)
@@ -6191,6 +6587,8 @@ function normalizeSharedTrackingAttachmentFolderMeta_(value) {
     name: name,
     recordId: String(raw.recordId || '').trim(),
     recordLabel: String(raw.recordLabel || '').trim(),
+    logicalPath: String(raw.logicalPath || raw.treePath || '').trim(),
+    treePath: String(raw.treePath || raw.logicalPath || '').trim(),
     createdAt: String(raw.createdAt || '').trim(),
     updatedAt: String(raw.updatedAt || '').trim()
   };
@@ -6225,8 +6623,21 @@ function normalizeSharedTrackingAttachmentMeta_(value) {
     size: isFinite(size) && size > 0 ? Math.round(size) : 0,
     fileId: String(raw.fileId || '').trim(),
     url: String(raw.url || '').trim(),
+    folderId: String(raw.folderId || '').trim(),
+    folderUrl: String(raw.folderUrl || raw.urlFolder || '').trim(),
+    logicalPath: String(raw.logicalPath || raw.treePath || '').trim(),
+    treePath: String(raw.treePath || raw.logicalPath || '').trim(),
+    documentType: String(raw.documentType || 'unknown').trim() || 'unknown',
+    status: String(raw.status || 'active').trim() || 'active',
     uploadedAt: String(raw.uploadedAt || '').trim(),
-    uploadedBy: String(raw.uploadedBy || '').trim()
+    uploadedBy: String(raw.uploadedBy || '').trim(),
+    uploadedByEmail: String(raw.uploadedByEmail || '').trim(),
+    actorSource: String(raw.actorSource || '').trim(),
+    actorVerified: Boolean(raw.actorVerified),
+    removedAt: String(raw.removedAt || '').trim(),
+    removedBy: String(raw.removedBy || '').trim(),
+    removedByEmail: String(raw.removedByEmail || '').trim(),
+    removedReason: String(raw.removedReason || '').trim()
   };
 }
 
@@ -6241,6 +6652,7 @@ function normalizeSharedTrackingUploadPayload_(uploads) {
       name: name,
       mimeType: String(raw.mimeType || 'application/octet-stream').trim() || 'application/octet-stream',
       size: isFinite(size) && size > 0 ? Math.round(size) : 0,
+      documentType: String(raw.documentType || 'unknown').trim() || 'unknown',
       contentBase64: contentBase64
     };
   }).filter(Boolean);
@@ -6389,6 +6801,7 @@ function buildSharedTrackingAttachmentFolderMeta_(folder, recordMeta) {
   const safeFolder = folder || null;
   const meta = recordMeta && typeof recordMeta === 'object' ? recordMeta : {};
   if (!safeFolder) return null;
+  const treePath = buildSharedTrackingAttachmentTreePath_(meta);
   var createdAt = '';
   try {
     createdAt = safeFolder.getDateCreated ? safeFolder.getDateCreated().toISOString() : '';
@@ -6399,9 +6812,45 @@ function buildSharedTrackingAttachmentFolderMeta_(folder, recordMeta) {
     name: String(safeFolder.getName() || '').trim(),
     recordId: String(meta.id || '').trim(),
     recordLabel: String(meta.label || '').trim(),
+    edt: String(meta.edt || '').trim(),
+    activityName: String(meta.activity || '').trim(),
+    logicalPath: treePath,
+    treePath: treePath,
     createdAt: createdAt,
     updatedAt: ''
   };
+}
+
+function buildSharedTrackingAttachmentTreePath_(recordMeta) {
+  const meta = recordMeta && typeof recordMeta === 'object' ? recordMeta : {};
+  const edt = String(meta.edt || '').trim();
+  const recordId = String(meta.id || 'record').trim();
+  const activity = String(meta.activity || meta.label || '').trim();
+  const root = edt ? edt.split('.')[0] : 'sin_edt';
+  const rootLabel = root === '4' ? 'Inicio de Efectividad del Prestamo' : ('Bloque ' + root);
+  const recordSegment = [
+    edt ? ('EDT_' + sanitizeSharedTrackingPathSegment_(edt)) : 'EDT_sin_codigo',
+    sanitizeSharedTrackingPathSegment_(recordId),
+    sanitizeSharedTrackingPathSegment_(activity).slice(0, 80)
+  ].filter(Boolean).join('__');
+  return [
+    'PEC - Programa Economia Circular',
+    '_VisorSeguimientoPEC',
+    'attachments',
+    String(root).padStart(2, '0') + '_' + sanitizeSharedTrackingPathSegment_(rootLabel),
+    recordSegment || sanitizeSharedTrackingPathSegment_(recordId)
+  ].join('/');
+}
+
+function sanitizeSharedTrackingPathSegment_(value) {
+  return String(value == null ? '' : value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\\\/:*?"<>|]+/g, '_')
+    .replace(/\s+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 120);
 }
 
 function buildSharedTrackingAttachmentFolderName_(recordMeta) {
@@ -6579,6 +7028,7 @@ function resolveSharedTrackingPermissionContext_(clientActorName) {
     isOperational: isOperational,
     canEditShared: Boolean(isAdmin || isOperational),
     canManageAttachments: Boolean(isAdmin || isOperational),
+    canExportSupportInventory: Boolean(isAdmin || isOperational),
     canViewSensitiveAudit: Boolean(isAdmin),
     permissionRole: permissionRole,
     reasonCode: reasonCode,
@@ -6682,6 +7132,7 @@ function getSharedTrackingBackendMeta_(actorInfo) {
     admin: Boolean(permission.isAdmin),
     canEditShared: Boolean(permission.canEditShared),
     canManageAttachments: Boolean(permission.canManageAttachments),
+    canExportSupportInventory: Boolean(permission.canExportSupportInventory),
     canViewSensitiveAudit: Boolean(permission.canViewSensitiveAudit),
     permissionRole: String(permission.permissionRole || 'viewer').trim() || 'viewer',
     permissionReasonCode: String(permission.reasonCode || '').trim(),

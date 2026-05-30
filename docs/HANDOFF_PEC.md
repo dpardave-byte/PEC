@@ -61,6 +61,12 @@ Este archivo conserva el estado operativo del proyecto para continuidad entre Wi
    - marcar el enlace anterior como legacy;
    - retirar el deployment viejo si la URL base cambió.
 
+## Cambios locales pendientes de publicación al 2026-05-30
+
+- `apps_script/Code.gs` queda actualizado localmente con bloqueo global de envíos por correo, bloqueo de creación de triggers de correo, retiro lógico de sustentos, `LockService` para mutaciones documentales, `treePath` documental e inventario exportable de sustentos.
+- `apps_script/Visor.html` y `visor_seguimiento_pec.html` quedan actualizados localmente para mostrar la política de correos bloqueados, deshabilitar botones de envío/creación de triggers y conservar `treePath`.
+- Estos cambios todavía no están publicados en el Web App de Apps Script hasta copiar `apps_script/Code.gs` y `apps_script/Visor.html`, guardar y crear nueva versión del deployment.
+
 ## Diferencia crítica repo vs Apps Script
 
 - `git push` actualiza GitHub y el contexto compartido del proyecto.

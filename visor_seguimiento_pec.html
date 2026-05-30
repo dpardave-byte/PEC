@@ -2983,6 +2983,13 @@ const DOCUMENT_TYPE_ALIASES = {
   'excel / sheet': 'Otro',
   'plano': 'Otro'
 };
+const EMAIL_SENDS_DISABLED_BY_POLICY = true;
+const EMAIL_SEND_DISABLED_MESSAGE = 'Envios por correo deshabilitados por politica operativa. Puedes revisar vistas previas, guardar configuracion y eliminar triggers existentes, pero no enviar ni crear triggers nuevos.';
+
+function isEmailSendDisabledByPolicy(){
+  return EMAIL_SENDS_DISABLED_BY_POLICY;
+}
+
 const appState = {
   raw: [],
   matched: [],
@@ -3183,7 +3190,8 @@ function normalizeCaseAttachmentMeta(value){
     folderId: text(raw.folderId),
     folderUrl: text(raw.folderUrl),
     url: text(raw.url),
-    logicalPath: text(raw.logicalPath),
+    logicalPath: text(raw.logicalPath || raw.treePath),
+    treePath: text(raw.treePath || raw.logicalPath),
     documentType: normalizeCaseAttachmentDocumentType(raw.documentType),
     status: normalizeCaseAttachmentStatus(raw.status),
     uploadedAt: text(raw.uploadedAt),
@@ -3248,6 +3256,7 @@ function mergeCaseAttachmentMeta(currentValue, nextValue){
     folderUrl: text(next.folderUrl || current.folderUrl),
     url: text(next.url || current.url),
     logicalPath: text(next.logicalPath || current.logicalPath),
+    treePath: text(next.treePath || current.treePath || next.logicalPath || current.logicalPath),
     documentType: rankCaseAttachmentDocumentType(next.documentType) >= rankCaseAttachmentDocumentType(current.documentType)
       ? normalizeCaseAttachmentDocumentType(next.documentType)
       : normalizeCaseAttachmentDocumentType(current.documentType),
@@ -3281,7 +3290,8 @@ function normalizeCaseAttachmentFolderMeta(value){
     rootEdt: text(raw.rootEdt),
     rootName: text(raw.rootName),
     activityName: text(raw.activityName),
-    logicalPath: text(raw.logicalPath),
+    logicalPath: text(raw.logicalPath || raw.treePath),
+    treePath: text(raw.treePath || raw.logicalPath),
     supportFolderId: text(raw.supportFolderId),
     supportFolderUrl: text(raw.supportFolderUrl),
     supportLogicalPath: text(raw.supportLogicalPath),
@@ -5996,18 +6006,20 @@ function renderDailyAuditDeliveryState(state){
   const effectiveRecipients = Array.isArray(state.effectiveRecipients) ? state.effectiveRecipients : [];
   const cc = Array.isArray(state.cc) ? state.cc : [];
   const testRecipients = Array.isArray(state.testRecipients) ? state.testRecipients : [];
+  const emailSendsDisabled = isEmailSendDisabledByPolicy();
   metaHost.textContent = [
     'Modo: ' + (text(state.mode) || 'PREVIEW_ONLY'),
     'Hora matutina: ' + formatDeliveryHourLabel(state.sendHour),
     'Trigger: ' + (state.triggerEnabled ? 'Activo' : 'Inactivo')
   ].join(' | ');
-  summaryHost.textContent = text(state.message) || (
+  summaryHost.textContent = emailSendsDisabled ? EMAIL_SEND_DISABLED_MESSAGE : (text(state.message) || (
     effectiveRecipients.length
       ? ('Destino efectivo: ' + effectiveRecipients.join(', '))
       : 'Sin destinatarios configurados para el recordatorio operativo matutino.'
-  );
-  badgeHost.textContent = text(state.mode) || 'PREVIEW_ONLY';
+  ));
+  badgeHost.textContent = emailSendsDisabled ? 'Correos bloqueados' : (text(state.mode) || 'PREVIEW_ONLY');
   const tags = [];
+  if(emailSendsDisabled) tags.push('Envios por correo: deshabilitados');
   tags.push('Actor actual: ' + (text(getCurrentActorIdentity().actor) || 'Sin identificar'));
   tags.push('Identidad: ' + describeCurrentActorIdentity(getCurrentActorIdentity()));
   tags.push('Destinatarios configurados: ' + (configuredRecipients.length ? configuredRecipients.join(', ') : 'Sin configurar'));
@@ -6018,7 +6030,7 @@ function renderDailyAuditDeliveryState(state){
   tags.push('Confirmación REAL: ' + (state.realSendConfirmed ? 'SI' : 'NO'));
   tags.push('Trigger diario: ' + (state.triggerCount || 0));
   tagsHost.innerHTML = tags.map(item => '<span>' + escapeHtml(item) + '</span>').join('');
-  const canSend = Boolean(isSharedBackendMode());
+  const canSend = Boolean(isSharedBackendMode()) && !emailSendsDisabled;
   if(sendBtn) sendBtn.disabled = !canSend || (!effectiveRecipients.length && text(state.mode) !== 'PREVIEW_ONLY');
   if(createBtn) createBtn.disabled = !canSend || text(state.mode) !== 'REAL' || !state.realSendConfirmed || !effectiveRecipients.length;
   if(deleteBtn) deleteBtn.disabled = !canSend || !state.triggerEnabled;
@@ -6126,25 +6138,27 @@ function renderAdminNightlySummaryState(state){
   }
   const recipients = Array.isArray(state.recipients) ? state.recipients : [];
   const expectedAudience = Array.isArray(state.expectedAudience) ? state.expectedAudience : [];
+  const emailSendsDisabled = isEmailSendDisabledByPolicy();
   metaHost.textContent = [
     'Hora nocturna: ' + formatDeliveryHourLabel(state.sendHour),
     'Trigger: ' + (state.triggerEnabled ? 'Activo' : 'Inactivo'),
     'Admins destino: ' + recipients.length
   ].join(' | ');
-  summaryHost.textContent = text(state.message) || (
+  summaryHost.textContent = emailSendsDisabled ? EMAIL_SEND_DISABLED_MESSAGE : (text(state.message) || (
     recipients.length
       ? ('Resumen admin preparado para ' + recipients.join(', '))
       : 'Sin administradores configurados para el resumen ejecutivo nocturno.'
-  );
-  badgeHost.textContent = state.triggerEnabled ? 'Operativo' : 'Revisar';
+  ));
+  badgeHost.textContent = emailSendsDisabled ? 'Correos bloqueados' : (state.triggerEnabled ? 'Operativo' : 'Revisar');
   const tags = [];
+  if(emailSendsDisabled) tags.push('Envios por correo: deshabilitados');
   tags.push('Actor actual: ' + (text(getCurrentActorIdentity().actor) || 'Sin identificar'));
   tags.push('Identidad: ' + describeCurrentActorIdentity(getCurrentActorIdentity()));
   tags.push('Admins destino: ' + (recipients.length ? recipients.join(', ') : 'Sin configurar'));
   tags.push('Usuarios esperados: ' + Number(expectedAudience.length || 0));
   tags.push('Trigger nocturno: ' + (state.triggerCount || 0));
   tagsHost.innerHTML = tags.map(item => '<span>' + escapeHtml(item) + '</span>').join('');
-  const canSend = Boolean(isSharedBackendMode());
+  const canSend = Boolean(isSharedBackendMode()) && !emailSendsDisabled;
   if(sendBtn) sendBtn.disabled = !canSend || !recipients.length;
   if(createBtn) createBtn.disabled = !canSend || !recipients.length;
   if(deleteBtn) deleteBtn.disabled = !canSend || !state.triggerEnabled;

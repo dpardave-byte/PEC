@@ -124,9 +124,13 @@ const SHARED_VISOR_CANONICAL_WEBAPP_BASE = 'https://script.google.com/macros/s/A
 const PANEL_PUBLIC_URL = 'https://dpardave-byte.github.io/PEC/';
 const PANEL_PUBLIC_VISOR_URL = 'https://dpardave-byte.github.io/PEC/visor_seguimiento_pec.html';
 const PANEL_PUBLIC_VISOR_GUIDE_URL = 'https://dpardave-byte.github.io/PEC/guia-rapida-visor-pec-dgppcs.html';
+const SHARED_VISOR_ACCESS_DISABLED = true;
 
 function doGet(e) {
   const params = e && e.parameter ? e.parameter : {};
+  if (isSharedVisorDisabledRequest_(params)) {
+    return renderSharedVisorUnavailable_(params);
+  }
   ensureUserDailyEmailTriggerShutdown_();
   ensureOperationalDailyReportDelivery_();
   ensureOperationalAdminExecutiveSummaryDelivery_();
@@ -1351,6 +1355,80 @@ function renderSharedVisor_(params) {
   return template
     .evaluate()
     .setTitle('Visor de Seguimiento PEC')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function isSharedVisorAccessDisabled_() {
+  var raw = String(PropertiesService.getScriptProperties().getProperty('PEC_VISOR_ACCESS_DISABLED') || '').trim().toUpperCase();
+  if (raw) return raw !== 'NO';
+  return Boolean(SHARED_VISOR_ACCESS_DISABLED);
+}
+
+function isSharedVisorDisabledRequest_(params) {
+  if (!isSharedVisorAccessDisabled_()) return false;
+  var safe = params && typeof params === 'object' ? params : {};
+  var view = String(safe.view || '').trim().toLowerCase();
+  var action = String(safe.action || '').trim();
+  return view === 'visor' || /^visor_/i.test(action);
+}
+
+function buildSharedVisorUnavailableStatus_(params) {
+  var safe = params && typeof params === 'object' ? params : {};
+  return {
+    ok: false,
+    unavailable: true,
+    disabled: true,
+    code: 'PEC_VISOR_UNAVAILABLE',
+    view: String(safe.view || '').trim(),
+    action: String(safe.action || '').trim(),
+    message: 'El Visor PEC no está disponible. El acceso por enlace web, GitHub Pages o archivo local fue deshabilitado por decisión operativa.',
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function renderSharedVisorUnavailable_(params) {
+  var status = buildSharedVisorUnavailableStatus_(params);
+  var wantsJson = params && (
+    params.callback ||
+    String(params.format || '').trim().toLowerCase() === 'json' ||
+    /^visor_/i.test(String(params.action || '').trim())
+  );
+  if (wantsJson) {
+    return outputPayload_(status, params || {});
+  }
+  var html = [
+    '<!doctype html>',
+    '<html lang="es">',
+    '<head>',
+    '<meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width,initial-scale=1">',
+    '<title>Visor PEC no disponible</title>',
+    '<style>',
+    ':root{color-scheme:light;}',
+    '*{box-sizing:border-box}',
+    'html,body{margin:0;min-height:100%;font-family:"Segoe UI",Arial,sans-serif;background:#f3f6f9;color:#102132;}',
+    'body{min-height:100vh;display:grid;place-items:center;padding:24px;}',
+    '.box{width:min(720px,100%);background:#fff;border:1px solid #d7e0ea;border-radius:14px;box-shadow:0 18px 44px rgba(16,33,50,.10);padding:28px;}',
+    '.tag{display:inline-flex;align-items:center;min-height:28px;padding:0 10px;border-radius:999px;background:#fbe9e9;color:#9b1c29;font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:.08em;}',
+    'h1{margin:16px 0 8px;color:#102132;font-size:clamp(28px,4vw,42px);line-height:1.05;}',
+    'p{margin:0 0 12px;color:#4d6379;font-size:16px;line-height:1.5;}',
+    '.meta{margin-top:18px;padding:12px 14px;border-radius:10px;background:#f7fbff;border:1px solid #d7e0ea;color:#36546f;font-size:13px;}',
+    '</style>',
+    '</head>',
+    '<body>',
+    '<main class="box" role="alert" aria-live="assertive">',
+    '<span class="tag">No disponible</span>',
+    '<h1>Visor PEC deshabilitado</h1>',
+    '<p>El acceso al Visor PEC mediante enlace web, GitHub Pages o archivo local fue deshabilitado por decisión operativa.</p>',
+    '<p>Si necesitas información del programa, solicita un canal autorizado actualizado al equipo responsable.</p>',
+    '<div class="meta">Código: ' + escapeHtmlEmail_(status.code) + ' · Fecha: ' + escapeHtmlEmail_(formatTrackingDateTime_(status.updatedAt) || status.updatedAt) + '</div>',
+    '</main>',
+    '</body>',
+    '</html>'
+  ].join('');
+  return HtmlService
+    .createHtmlOutput(html)
+    .setTitle('Visor PEC no disponible')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 

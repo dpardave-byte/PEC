@@ -569,9 +569,66 @@ tbody tr:hover td{background:#f8fbfe}
   .assign-grid,.analytics-grid{grid-template-columns:1fr}
   .analytics-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+body.visor-disabled{
+  min-height:100vh;
+  display:grid;
+  place-items:center;
+  padding:24px;
+  background:#f3f6f9;
+}
+body.visor-disabled .app{display:none !important}
+.visor-unavailable-screen{
+  width:min(720px,100%);
+  background:#fff;
+  border:1px solid #d7e0ea;
+  border-radius:14px;
+  box-shadow:0 18px 44px rgba(16,33,50,.10);
+  padding:28px;
+}
+.visor-unavailable-tag{
+  display:inline-flex;
+  align-items:center;
+  min-height:28px;
+  padding:0 10px;
+  border-radius:999px;
+  background:#fbe9e9;
+  color:#9b1c29;
+  font-weight:800;
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+.visor-unavailable-screen h1{
+  margin:16px 0 8px;
+  color:#102132;
+  font-size:clamp(28px,4vw,42px);
+  line-height:1.05;
+}
+.visor-unavailable-screen p{
+  margin:0 0 12px;
+  color:#4d6379;
+  font-size:16px;
+  line-height:1.5;
+}
+.visor-unavailable-meta{
+  margin-top:18px;
+  padding:12px 14px;
+  border-radius:10px;
+  background:#f7fbff;
+  border:1px solid #d7e0ea;
+  color:#36546f;
+  font-size:13px;
+}
 </style>
 </head>
-<body>
+<body class="visor-disabled">
+<main class="visor-unavailable-screen" role="alert" aria-live="assertive">
+  <span class="visor-unavailable-tag">No disponible</span>
+  <h1>Visor PEC deshabilitado</h1>
+  <p>El acceso al Visor PEC mediante enlace web, GitHub Pages o archivo local fue deshabilitado por decisión operativa.</p>
+  <p>Si necesitas información del programa, solicita un canal autorizado actualizado al equipo responsable.</p>
+  <div class="visor-unavailable-meta">Código: PEC_VISOR_UNAVAILABLE</div>
+</main>
 <div class="app">
   <section class="topbar">
     <div class="hero">
@@ -12670,7 +12727,13 @@ function initFilters(){
   initSearchSuggestions();
 }
 
+const VISOR_ACCESS_DISABLED_BY_POLICY = true;
+
 function init(){
+  if(VISOR_ACCESS_DISABLED_BY_POLICY){
+    document.body.classList.add('visor-disabled');
+    return;
+  }
   if(isPublicReadOnlyChannel()){
     ensureServerInfo();
     hydrateData();

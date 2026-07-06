@@ -36,7 +36,7 @@ Este archivo conserva el estado operativo del proyecto para continuidad entre Wi
 ### Apps Script
 
 - Deployment activo verificado por `clasp deployments`:
-  - `AKfycbwDO41v2ncg7p2rjvEjTCICeu8fJoAySOgSNAPe5arZnkK-gYtCH-FioX-jexhfW0k0 @99`
+  - `AKfycbwDO41v2ncg7p2rjvEjTCICeu8fJoAySOgSNAPe5arZnkK-gYtCH-FioX-jexhfW0k0 @100`
 - Deployment legacy adicional publicado:
   - `AKfycbxLpfDE3-ttlXKlGgKto16_2RuLk5w1Kbpclf_BFtMQBdfUQZrZQomANDaZzIaeR2Yq @18`
 - Drive Loader histórico:
@@ -44,9 +44,9 @@ Este archivo conserva el estado operativo del proyecto para continuidad entre Wi
 
 ### URLs operativas
 
-- Visor compartido canónico esperado:
+- Ruta histórica del visor compartido, actualmente deshabilitada:
   - `https://script.google.com/macros/s/AKfycbwDO41v2ncg7p2rjvEjTCICeu8fJoAySOgSNAPe5arZnkK-gYtCH-FioX-jexhfW0k0/exec?view=visor`
-- GitHub Pages público:
+- Ruta histórica de GitHub Pages, actualmente deshabilitada:
   - `https://dpardave-byte.github.io/PEC/visor_seguimiento_pec.html`
 - Guía rápida pública:
   - `https://dpardave-byte.github.io/PEC/guia-rapida-visor-pec-dgppcs.html`
@@ -60,6 +60,7 @@ Este archivo conserva el estado operativo del proyecto para continuidad entre Wi
    - comunicar el enlace nuevo;
    - marcar el enlace anterior como legacy;
    - retirar el deployment viejo si la URL base cambió.
+5. Al 2026-07-05, el acceso al Visor PEC por URL web, GitHub Pages o archivo local queda deshabilitado por decisión operativa. Cualquier enlace del visor debe mostrar mensaje de no disponibilidad.
 
 ## Cambios publicados en Apps Script al 2026-05-30
 
@@ -70,6 +71,15 @@ Este archivo conserva el estado operativo del proyecto para continuidad entre Wi
 - `apps_script/Code.gs` quedó publicado con bloqueo global de envíos por correo, bloqueo de creación de triggers de correo, retiro lógico de sustentos, `LockService` para mutaciones documentales, `treePath` documental e inventario exportable de sustentos.
 - `apps_script/Visor.html` quedó publicado para mostrar la política de correos bloqueados, deshabilitar botones de envío/creación de triggers y conservar `treePath`.
 - Verificación HTTP básica: la URL canónica `?view=visor` responde con redirección a autenticación Google, coherente con el acceso protegido del Web App.
+
+## Bloqueo operativo del visor al 2026-07-05
+
+- Versión Apps Script creada: `100` con descripción `disable PEC visor access by URL`.
+- Deployment activo actualizado con `clasp redeploy`:
+  - `AKfycbwDO41v2ncg7p2rjvEjTCICeu8fJoAySOgSNAPe5arZnkK-gYtCH-FioX-jexhfW0k0 @100`
+- `apps_script/Code.gs` bloquea solicitudes `?view=visor` y acciones `visor_*` con respuesta `PEC_VISOR_UNAVAILABLE`.
+- `apps_script/Visor.html` y `visor_seguimiento_pec.html` muestran pantalla fija `Visor PEC deshabilitado` y detienen la inicialización del visor para enlaces Apps Script, GitHub Pages o archivo local.
+- Para reactivar el visor en el futuro se debe revertir este cambio o definir explícitamente una política nueva y publicar otra versión Apps Script.
 
 ## Diferencia crítica repo vs Apps Script
 

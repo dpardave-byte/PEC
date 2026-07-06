@@ -38,7 +38,7 @@ Este archivo conserva el estado operativo del proyecto para continuidad entre Wi
 - Deployment activo verificado por `clasp deployments`:
   - `AKfycbwDO41v2ncg7p2rjvEjTCICeu8fJoAySOgSNAPe5arZnkK-gYtCH-FioX-jexhfW0k0 @100`
 - Deployment legacy adicional publicado:
-  - `AKfycbxLpfDE3-ttlXKlGgKto16_2RuLk5w1Kbpclf_BFtMQBdfUQZrZQomANDaZzIaeR2Yq @18`
+  - `AKfycbxLpfDE3-ttlXKlGgKto16_2RuLk5w1Kbpclf_BFtMQBdfUQZrZQomANDaZzIaeR2Yq @100`
 - Drive Loader histórico:
   - `AKfycbzy7zIVOxGh0R_atZ91XQZhZB_SFdz4HqBYYem0gXHDPFytEc7YpqVF5fBliaX8JZGq @1`
 
@@ -77,6 +77,8 @@ Este archivo conserva el estado operativo del proyecto para continuidad entre Wi
 - Versión Apps Script creada: `100` con descripción `disable PEC visor access by URL`.
 - Deployment activo actualizado con `clasp redeploy`:
   - `AKfycbwDO41v2ncg7p2rjvEjTCICeu8fJoAySOgSNAPe5arZnkK-gYtCH-FioX-jexhfW0k0 @100`
+- Deployment legacy del visor también actualizado con `clasp redeploy` para bloquear enlaces antiguos:
+  - `AKfycbxLpfDE3-ttlXKlGgKto16_2RuLk5w1Kbpclf_BFtMQBdfUQZrZQomANDaZzIaeR2Yq @100`
 - `apps_script/Code.gs` bloquea solicitudes `?view=visor` y acciones `visor_*` con respuesta `PEC_VISOR_UNAVAILABLE`.
 - `apps_script/Visor.html` y `visor_seguimiento_pec.html` muestran pantalla fija `Visor PEC deshabilitado` y detienen la inicialización del visor para enlaces Apps Script, GitHub Pages o archivo local.
 - Para reactivar el visor en el futuro se debe revertir este cambio o definir explícitamente una política nueva y publicar otra versión Apps Script.

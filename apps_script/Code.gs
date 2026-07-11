@@ -6242,7 +6242,7 @@ function getSharedVisorAccessGuideRecipients_() {
 
 function getSharedTrackingAdminEmailList_() {
   const configured = splitEmailList_(PropertiesService.getScriptProperties().getProperty('PEC_VISOR_ADMIN_EMAILS') || '');
-  return Array.from(new Set(configured.concat(splitEmailList_(OPERATIONAL_DEFAULTS.sharedTrackingAdminEmails.join(';')))));
+  return Array.from(new Set(configured));
 }
 
 function getSharedTrackingOperationalEmailList_() {
@@ -7185,9 +7185,11 @@ function buildAuditActorMeta_(actorInfo) {
 }
 
 function isSharedTrackingAdmin_() {
-  const actor = String(getSharedTrackingActor_() || '').toLowerCase();
+  const actor = String(getSharedTrackingActor_() || '').trim().toLowerCase();
   if (!actor) return false;
-  return getSharedTrackingAdminEmailList_()
+  const configured = getSharedTrackingAdminEmailList_();
+  if (!configured.length) return true;
+  return configured
     .map(function(item) { return String(item || '').trim().toLowerCase(); })
     .filter(Boolean)
     .indexOf(actor) >= 0;
